@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+
+const { spawnSync } = require("child_process");
+const { existsSync, mkdirSync, writeFileSync } = require("fs");
+const { join } = require("path");
+
+const _ = require("lodash");
+
+const editor = process.env.EDITOR || "vi";
+
+if (process.argv.length < 3) {
+  console.error("USAGE: Provide the documentation title after ./addDocNote");
+  console.error("       Example: ./addDocNote Foo Bar Baz");
+  process.exit(1);
+}
+
+const nodesDir = join(__dirname, "./notes");
+mkdirSync(nodesDir, { recursive: true });
+
+const title = process.argv.slice(2).join(" ");
+
+const fbasename = _.snakeCase(title);
+
+const fname = `${fbasename}.md`;
+
+const fpath = join(nodesDir, fname);
+
+if (!existsSync(fpath)) {
+  writeFileSync(fpath, `# ${title}`);
+}
+
+spawnSync(editor, [fpath], { shell: "/bin/bash", stdio: "inherit" });
