@@ -4,7 +4,7 @@
   "description": "AVAIL Data Manager Controller",
   "scripts": {
     "build": "tsc --build tsconfig.json",
-    "dev": "ts-node -T ./node_modules/moleculer/bin/moleculer-runner.js --hot --repl --config moleculer.config.ts services/**/*.service.ts",
+    "dev": "ts-node -T ./node_modules/moleculer/bin/moleculer-runner.js --hot --repl --config moleculer.config.ts services/\\*\\*/*.service.ts",
     "start": "moleculer-runner --config dist/moleculer.config.js",
     "cli": "moleculer connect NATS",
     "ci": "jest --watch",
