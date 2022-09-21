@@ -1,10 +1,10 @@
 {
   "name": "avail-datamanager-controller",
-  "version": "1.0.0",
+  "version": "0.0.2",
   "description": "AVAIL Data Manager Controller",
   "scripts": {
     "build": "tsc --build tsconfig.json",
-    "dev": "ts-node -T ./node_modules/moleculer/bin/moleculer-runner.js --hot --repl --config moleculer.config.ts services/\\*\\*/*.service.ts",
+    "dev": "ts-node -T ./node_modules/moleculer/bin/moleculer-runner.js --hot --repl --config moleculer.config.ts src/\\*\\*/*.service.ts",
     "start": "moleculer-runner --config dist/moleculer.config.js",
     "cli": "moleculer connect NATS",
     "ci": "jest --watch",
@@ -20,8 +20,12 @@
   ],
   "author": "",
   "devDependencies": {
+    "@types/dedent": "^0.7.0",
     "@types/express-http-proxy": "^1.6.3",
-    "@types/node": "^13.13.52",
+    "@types/jest": "^25.1.4",
+    "@types/lodash": "^4.14.185",
+    "@types/mkdirp": "^1.0.0",
+    "@types/node": "^18.7.18",
     "@types/pg": "^8.6.5",
     "@types/pg-format": "^1.0.2",
     "@typescript-eslint/eslint-plugin": "^2.26.0",
@@ -35,9 +39,8 @@
     "ts-node": "^8.8.1"
   },
   "dependencies": {
-    "@types/jest": "^25.1.4",
-    "@types/mkdirp": "^1.0.0",
     "better-sqlite3": "^7.6.2",
+    "dedent": "^0.7.0",
     "dotenv": "^16.0.2",
     "express-http-proxy": "^1.6.3",
     "flux-standard-action": "^2.1.2",
@@ -51,7 +54,7 @@
     "typescript": "^3.8.3"
   },
   "engines": {
-    "node": ">= 10.x.x"
+    "node": ">= 14.x.x"
   },
   "jest": {
     "coverageDirectory": "<rootDir>/coverage",

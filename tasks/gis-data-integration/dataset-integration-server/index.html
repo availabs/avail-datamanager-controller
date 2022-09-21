@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>My page</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <script
+      src="https://unpkg.com/react@latest/umd/react.development.js"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://unpkg.com/react-dom@latest/umd/react-dom.development.js"></script>
+    <script
+      src="https://unpkg.com/@mui/material@latest/umd/material-ui.development.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://unpkg.com/babel-standalone@latest/babel.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <!-- Fonts to support Material Design -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
+    />
+    <!-- Icons to support Material Design -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+    />
+    <!-- https://docs.mapbox.com/mapbox-gl-js/guides/install/ -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      // NOTE: Couldn't get DataGrid from the CDN
+      //       See: https://github.com/mui/mui-x/issues/3608
+      //            https://unpkg.com/@mui/x-data-grid@4.0.0/dist/index-esm.js
+      //            https://github.com/mui/mui-x/releases/tag/v4.0.0
+      //            https://www.skypack.dev/view/@material-ui/data-grid
+      //       Tried:
+      //            import DataGrid from "https://unpkg.com/@mui/x-data-grid@4.0.0/dist/index-cjs.js";
+      //            import DataGrid from "https://unpkg.com/@mui/x-data-grid@4.0.0/dist/index-esm.js";
+
+      mapboxgl.accessToken =
+        "pk.eyJ1IjoiYW0zMDgxIiwiYSI6IkxzS0FpU0UifQ.rYv6mHCcNd7KKMs7yhY3rw";
+
+      const { useRef, useState, useEffect, useCallback } = React;
+
+      const {
+        colors,
+        CssBaseline,
+        ThemeProvider,
+        Typography,
+        Container,
+        createTheme,
+        Box,
+        SvgIcon,
+        Link,
+
+        Button,
+
+        FormControl,
+        InputLabel,
+        Select,
+        MenuItem,
+
+        Paper,
+        Table,
+        TableBody,
+        TableCell,
+        TableContainer,
+        TableHead,
+        TableRow,
+        TextField,
+      } = MaterialUI;
+
+      const initializeState = () => ({
+        gisUploadId: null,
+        layerNames: null,
+        layerName: null,
+        forceUpdate: null,
+        tableDescriptor: null,
+        routesByLayer: {},
+        addedSources: {},
+      });
+
+      let state = initializeState();
+      let forceUpdate = null;
+      let addedSources = {};
+
+      let currentHoveredFeature = null;
+
+      // Create a theme instance.
+      const theme = createTheme({
+        palette: {
+          primary: {
+            main: "#556cd6",
+          },
+          secondary: {
+            main: "#19857b",
+          },
+          error: {
+            main: colors.red.A400,
+          },
+        },
+      });
+
+      async function uploadGisFile(file) {
+        state = initializeState();
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        // Upload the Geospatial Dataset
+        const idRes = await fetch(
+          `/staged-geospatial-dataset/uploadGeospatialDataset`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        // Upload response is the ETL ID
+        const { id } = await idRes.json();
+
+        setGisUploadId(id);
+      }
+
+      async function setGisUploadId(id) {
+        state = initializeState();
+
+        state.gisUploadId = id;
+        console.log("GisUploadId:", state.gisUploadId);
+
+        // Get the Geospatial Dataset layer names
+        const layerNamesRes = await fetch(
+          `/staged-geospatial-dataset/${state.gisUploadId}/layerNames`
+        );
+
+        state.layerNames = await layerNamesRes.json();
+
+        forceUpdate();
+      }
+
+      async function selectLayer(_layerName) {
+        state.layerName = _layerName;
+
+        console.log("LAYER:", state.layerName);
+
+        state.tableDescriptor = null;
+        forceUpdate();
+
+        const tableDescriptorRes = await fetch(
+          `/staged-geospatial-dataset/${state.gisUploadId}/${state.layerName}/tableDescriptor`
+        );
+
+        // The tableDescriptor controls DB table creation and loading.
+        state.tableDescriptor = await tableDescriptorRes.json();
+
+        forceUpdate();
+      }
+
+      async function uploadModifiedTableDescriptor() {
+        console.log("uploadModifiedTableDescriptor");
+        console.log(state.tableDescriptor);
+        // Replace the default tableDescriptor with the modified one on the server.
+        await fetch(
+          `/staged-geospatial-dataset/${state.gisUploadId}/updateTableDescriptor`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(state.tableDescriptor),
+          }
+        );
+
+        forceUpdate();
+      }
+
+      async function stageDatasetLayer() {
+        // Load the database table using the modified tableDescriptor
+        const loadRoute = `/staged-geospatial-dataset/${state.gisUploadId}/${state.layerName}/loadDatabaseTable`;
+        await fetch(loadRoute);
+
+        // Will download tippecanoe if not already in ../lib/tippecanoe/
+        await fetch(
+          `/staged-geospatial-dataset/${state.gisUploadId}/${state.layerName}/createMBTiles`
+        );
+
+        // Add API routes to dataset-integration-server and MBTiles
+        //   to staged-geospatial-dataset-tileserver
+        const routeResp = await fetch(
+          `/staged-geospatial-dataset/${state.gisUploadId}/${state.layerName}/stage`
+        );
+
+        const resp = await routeResp.json();
+
+        state.routesByLayer[state.layerName] = resp;
+
+        console.log(resp);
+
+        const { getByIdRoute } = resp;
+
+        const r = `${getByIdRoute.replace(/:featureId/, 0)}`;
+
+        const getResp = await fetch(r);
+        console.log(await getResp.json());
+
+        forceUpdate();
+      }
+
+      function UploadFile() {
+        return (
+          <Button variant="contained" component="label">
+            Upload Geospatial Dataset ZIP or TAR
+            <input
+              type="file"
+              hidden
+              onChange={async (e) => {
+                uploadGisFile(e.target.files[0]);
+              }}
+            />
+          </Button>
+        );
+      }
+
+      function LayerSelector() {
+        if (!state.layerNames) {
+          return null;
+        }
+
+        return (
+          <Paper elevation={3}>
+            <h3>Layer Selector</h3>
+
+            <Box sx={{ maxWidth: 400, minWidth: 400 }}>
+              <FormControl fullWidth>
+                <InputLabel id="demo-simple-select-label">
+                  Layer Name
+                </InputLabel>
+                <Select
+                  labelId="layer-selector"
+                  id="layer-selector"
+                  value={state.layerName || ""}
+                  label="Layer Name"
+                  onChange={(e) => selectLayer(e.target.value)}
+                >
+                  {state.layerNames.map((layerName) => (
+                    <MenuItem key={layerName} value={layerName}>
+                      {layerName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </Paper>
+        );
+      }
+
+      function TableDescriptorForm() {
+        if (state.tableDescriptor) {
+          return (
+            <div>
+              <Paper elevation={3}>
+                <h3>Table Descriptor Form</h3>
+
+                <TextField
+                  id="tableName"
+                  label="Table Name"
+                  defaultValue={state.tableDescriptor.tableName}
+                  variant="filled"
+                  onChange={(e) =>
+                    (state.tableDescriptor.tableName = e.target.value)
+                  }
+                />
+
+                <TableContainer icomponent="form">
+                  <Table sx={{ minWidth: 650 }} aria-label="simple table">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>GIS Dataset Field Name</TableCell>
+                        <TableCell align="right">
+                          Database Column Name
+                        </TableCell>
+                        <TableCell align="right">
+                          Database Column Type
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {state.tableDescriptor.columnTypes.map((row) => (
+                        <TableRow
+                          key={row.key}
+                          sx={{
+                            "&:last-child td, &:last-child th": { border: 0 },
+                          }}
+                        >
+                          <TableCell component="th" scope="row">
+                            {row.key}
+                          </TableCell>
+                          <TableCell align="right">
+                            <TextField
+                              id={row.key}
+                              defaultValue={row.col}
+                              variant="filled"
+                              onChange={(e) => (row.col = e.target.value)}
+                            />
+                          </TableCell>
+                          <TableCell align="right">{row.db_type}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <Button
+                  variant="contained"
+                  component="label"
+                  onClick={() => {
+                    uploadModifiedTableDescriptor();
+                  }}
+                >
+                  Send Edits
+                </Button>
+
+                <Button
+                  variant="contained"
+                  component="label"
+                  onClick={() => {
+                    selectLayer(state.layerName);
+                  }}
+                >
+                  Reset
+                </Button>
+              </Paper>
+
+              <Paper elevation={3}>
+                <h3>Load And Stage Dataset</h3>
+
+                <Button
+                  variant="contained"
+                  component="label"
+                  onClick={() => {
+                    stageDatasetLayer();
+                  }}
+                >
+                  Load
+                </Button>
+              </Paper>
+            </div>
+          );
+        }
+
+        return null;
+      }
+
+      function LayerMap() {
+        // https://docs.mapbox.com/help/tutorials/use-mapbox-gl-js-with-react/
+        const mapContainer = useRef(null);
+        const map = useRef(null);
+
+        const [lng, setLng] = useState(-73.82160381251124);
+        const [lat, setLat] = useState(42.67660118451063);
+        const [zoom, setZoom] = useState(8);
+
+        useEffect(() => {
+          if (map.current) return; // initialize map only once
+          map.current = new mapboxgl.Map({
+            container: mapContainer.current,
+            style: "mapbox://styles/mapbox/dark-v10",
+            center: [lng, lat],
+            zoom: zoom,
+          });
+        });
+
+        useEffect(() => {
+          if (!map.current) return; // wait for map to initialize
+
+          map.current.on("move", () => {
+            console.log("MOVE");
+            setLng(map.current.getCenter().lng.toFixed(4));
+            setLat(map.current.getCenter().lat.toFixed(4));
+            setZoom(map.current.getZoom().toFixed(2));
+          });
+
+          (async () => {
+            if (state.routesByLayer[state.layerName]) {
+              if (!addedSources[state.layerName]) {
+                addedSources[state.layerName] = true;
+
+                const metaRes = await fetch(
+                  state.routesByLayer[state.layerName].mbtiles.url
+                );
+                const meta = await metaRes.json();
+
+                const {
+                  tilestats: {
+                    layers: [{ geometry }],
+                  },
+                } = meta;
+
+                console.log("==>", geometry);
+
+                const stylesByType = {
+                  LineString: {
+                    type: "line",
+                    layout: {
+                      "line-join": "round",
+                      "line-cap": "round",
+                    },
+                    paint: {
+                      "line-color": "red",
+                      "line-width": 5,
+                    },
+                  },
+                  Polygon: {
+                    type: "fill",
+                    paint: {
+                      "fill-color": "#0080ff", // blue color fill
+                      "fill-opacity": 0.25,
+                    },
+                  },
+                  Point: {
+                    type: "circle",
+                    paint: {
+                      "circle-radius": {
+                        base: 10,
+                        stops: [
+                          [12, 10],
+                          [22, 180],
+                        ],
+                      },
+                      "circle-color": "#0080ff",
+                    },
+                  },
+                };
+
+                if (
+                  map.current.loaded() ||
+                  (await new Promise((resolve) =>
+                    map.current.once("load", resolve)
+                  ))
+                ) {
+                  map.current.addSource(state.layerName, {
+                    type: "vector",
+                    url: state.routesByLayer[state.layerName].mbtiles.url,
+                  });
+
+                  map.current.addLayer({
+                    id: state.routesByLayer[state.layerName].mbtiles.layerName,
+                    source: state.layerName,
+                    "source-layer":
+                      state.routesByLayer[state.layerName].mbtiles.layerName,
+                    ...stylesByType[geometry],
+                  });
+                }
+
+                const popup = new mapboxgl.Popup({
+                  closeButton: false,
+                  closeOnClick: false,
+                });
+
+                // https://docs.mapbox.com/mapbox-gl-js/example/popup-on-hover/
+                map.current.on(
+                  "mouseenter",
+                  state.routesByLayer[state.layerName].mbtiles.layerName,
+                  async (e) => {
+                    // Change the cursor style as a UI indicator.
+                    map.current.getCanvas().style.cursor = "pointer";
+
+                    console.log(e.features[0]);
+
+                    console.log("coords:", e.lngLat);
+
+                    const {
+                      features: [{ id }],
+                    } = e;
+                    const r = `${state.routesByLayer[
+                      state.layerName
+                    ].getByIdRoute.replace(/:featureId/, id)}`;
+
+                    const getResp = await fetch(r);
+                    const props = await getResp.json();
+
+                    // Populate the popup and set its coordinates
+                    // based on the feature found.
+                    popup
+                      .setLngLat([e.lngLat.lng, e.lngLat.lat])
+                      .setHTML(`<pre >${JSON.stringify(props, null, 4)}</pre>`)
+                      .addTo(map.current);
+                  }
+                );
+
+                /*
+                      map.current.on(
+                        "mouseleave",
+                        state.routesByLayer[state.layerName].mbtiles.layerName,
+                        () => {
+                          map.current.getCanvas().style.cursor = "";
+                          popup.remove();
+                        }
+                      );
+                      */
+              }
+            }
+          })();
+        });
+
+        // <div style={{ visibility: "hidden" }}>
+        return (
+          <div
+            style={{
+              visibility: state.routesByLayer[state.layerName]
+                ? "visible"
+                : "hidden",
+            }}
+          >
+            <div className="sidebar">
+              Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
+            </div>
+            <div ref={mapContainer} style={{ height: "600px" }} />
+          </div>
+        );
+      }
+
+      function App() {
+        const [, updateState] = React.useState();
+        forceUpdate = React.useCallback(() => updateState({}), []);
+
+        return (
+          <Container maxWidth="lg">
+            <Box sx={{ my: 12 }}>
+              <Typography variant="h4" component="h1" gutterBottom>
+                Datamanager Geospatial Dataset Integrator
+              </Typography>
+              <UploadFile />
+              <LayerSelector />
+              <TableDescriptorForm />
+              <LayerMap />
+            </Box>
+          </Container>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(
+        <ThemeProvider theme={theme}>
+          {/* CssBaseline kickstart an elegant, consistent, and simple baseline to build upon. */}
+          <CssBaseline />
+          <App />
+        </ThemeProvider>
+      );
+    </script>
+  </body>
+</html>

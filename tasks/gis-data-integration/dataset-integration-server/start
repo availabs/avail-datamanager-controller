@@ -1,0 +1,283 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+
+const { existsSync } = require("fs");
+const { readdir: readdirAsync } = require("fs/promises");
+const { join } = require("path");
+
+const express = require("express");
+const busboy = require("busboy");
+const bodyParser = require("body-parser");
+const proxy = require("express-http-proxy");
+
+const { default: etlDirPath } = require("../src/constants/etlDirPath");
+
+const app = express();
+app.use(bodyParser.json());
+
+const {
+  default: GeospatialDatasetIntegrator,
+} = require("../src/data_integrators/GeospatialDatasetIntegrator");
+
+const StagedGeospatialDatasetController = require("../staged-geospatial-dataset-tileserver/controller");
+
+const PORT = 5566;
+const TILESERVER_PORT = 5960;
+const PG_ENV = "development";
+
+app.use(function cors(req, res, next) {
+  res.header("Access-Control-Allow-Origin", req.get("origin"));
+  res.header("Cache-Control", "no-store,no-cache,must-revalidate");
+  res.header("Access-Control-Allow-Credentials", true);
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,PUT,POST,DELETE,PATCH,OPTIONS"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.end();
+  }
+
+  return next();
+});
+
+app.get("/", (_req, res) => res.sendFile(join(__dirname, "./index.html")));
+
+app.get(
+  "/staged-geospatial-dataset/existingDatasetUploads",
+  async (req, res, next) => {
+    try {
+      const dirs = await readdirAsync(etlDirPath, {
+        encoding: "utf8",
+      });
+
+      const ids = dirs.reduce((acc, dirName) => {
+        const workDirPath = join(etlDirPath, dirName);
+        const path = join(workDirPath, "layerNameToId.json");
+        if (existsSync(path)) {
+          const id = GeospatialDatasetIntegrator.createId(workDirPath);
+          acc.push(id);
+        }
+
+        return acc;
+      }, []);
+
+      res.json(ids);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+app.post(
+  "/staged-geospatial-dataset/uploadGeospatialDataset",
+  async (req, res, next) => {
+    console.log("uploadGeospatialDataset", new Date().toISOString());
+    try {
+      const bb = busboy({ headers: req.headers });
+      bb.on("file", async function integrate(_fieldname, file, meta) {
+        try {
+          const { filename } = meta;
+
+          const gdi = new GeospatialDatasetIntegrator();
+          const id = await gdi.receiveDataset(filename, file);
+
+          res.json({ id });
+        } catch (err) {
+          next(err);
+        }
+      });
+      bb.on("error", (err) => next(err));
+      req.pipe(bb);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+app.get("/staged-geospatial-dataset/:id/layerNames", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const gdi = new GeospatialDatasetIntegrator(id);
+
+    const layerNameToId = gdi.layerNameToId;
+    const layerNames = Object.keys(layerNameToId);
+
+    res.send(layerNames);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get(
+  "/staged-geospatial-dataset/:id/:layerName/tableDescriptor",
+  async (req, res, next) => {
+    try {
+      const { id, layerName } = req.params;
+
+      const gdi = new GeospatialDatasetIntegrator(id);
+
+      const tableDescriptor = await gdi.getLayerTableDescriptor(layerName);
+
+      res.send(tableDescriptor);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+app.post(
+  "/staged-geospatial-dataset/:id/updateTableDescriptor",
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      const gdi = new GeospatialDatasetIntegrator(id);
+      await gdi.persistLayerTableDescriptor(req.body);
+
+      res.end();
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+app.get(
+  "/staged-geospatial-dataset/:id/:layerName/loadDatabaseTable",
+  async (req, res, next) => {
+    try {
+      const { id, layerName } = req.params;
+
+      const gdi = new GeospatialDatasetIntegrator(id, PG_ENV);
+
+      await gdi.loadTable(layerName, PG_ENV);
+
+      res.end();
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+app.get(
+  "/staged-geospatial-dataset/:id/:layerName/createMBTiles",
+  async (req, res, next) => {
+    try {
+      const { id, layerName } = req.params;
+
+      const gdi = new GeospatialDatasetIntegrator(id);
+
+      await gdi.dumpGeoDatasetLayerGeometriesGeoJSON(layerName, PG_ENV);
+      await gdi.createGeoDatasetLayerMBTiles(layerName);
+
+      res.end();
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+async function addRoutes(id, layerName) {
+  const gdi = new GeospatialDatasetIntegrator(id);
+
+  const { tableSchema, tableName } = await gdi.getLayerTableDescriptor(
+    layerName
+  );
+
+  const getByIdRoute = `/${tableSchema}/${tableName}/getById/:featureId`;
+
+  app.get(getByIdRoute, async (req, res, next) => {
+    try {
+      const { featureId } = req.params;
+
+      const gdi = new GeospatialDatasetIntegrator(id);
+
+      const feature = await gdi.getFeatureProperties(
+        layerName,
+        +featureId,
+        PG_ENV
+      );
+
+      res.json(feature);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  const dumpGeoJSONDRoute = `/${tableSchema}/${tableName}/dumpGeoJSOND`;
+
+  app.get(dumpGeoJSONDRoute, async (_req, res, next) => {
+    try {
+      const gdi = new GeospatialDatasetIntegrator(id);
+
+      const iter = gdi.makeGeoJSONAsyncIter(layerName, PG_ENV);
+
+      for await (const row of iter) {
+        res.write(`${JSON.stringify(row)}\n`);
+      }
+
+      res.end();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  const resp = {
+    getByIdRoute,
+    dumpGeoJSONDRoute,
+  };
+
+  try {
+    const mbtilesName = `${tableSchema}_${tableName}`;
+
+    await StagedGeospatialDatasetController.addMBTiles(
+      mbtilesName,
+      gdi.getLayerMBTilesPath(layerName)
+    );
+
+    const tileserverPort = StagedGeospatialDatasetController.PORT;
+
+    resp.mbtiles = {
+      url: `/tiles/data/${mbtilesName}.json`,
+      layerName: tableName,
+    };
+  } catch (err) {
+    console.error(err);
+    resp.mbtiles = { error: err.message };
+  }
+
+  return resp;
+}
+
+// Proof of concept:  Dynamically add routes via route. TODO: Make persistent.
+app.get(
+  "/staged-geospatial-dataset/:id/:layerName/stage",
+  async (req, res, next) => {
+    try {
+      const { id, layerName } = req.params;
+
+      const routes = await addRoutes(id, layerName);
+
+      res.json(routes);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// https://www.npmjs.com/package/express-http-proxy
+app.use("/tiles", proxy(`http://127.0.0.1:${TILESERVER_PORT}`));
+
+app.listen(PORT, () => {
+  console.log("listening on port", PORT);
+  console.log(`visit the UI: http://localhost:${PORT}/`);
+});
+
+module.exports = app;

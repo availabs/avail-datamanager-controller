@@ -1,0 +1,1 @@
+../../../../src/data_utils/analysis/analyzeSchema.ts
