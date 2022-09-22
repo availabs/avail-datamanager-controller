@@ -23,7 +23,7 @@ export type ServiceContext = Context & {
 
 import etlDir from "../../constants/etlDir";
 
-import GeospatialDatasetIntegrator from "../../../tasks/data-manager-backend/src/data_integrators/GeospatialDatasetIntegrator";
+import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
 import PG_ENV from "../../constants/pgEnv";
 

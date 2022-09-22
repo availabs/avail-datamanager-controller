@@ -1,0 +1,13 @@
+version: '2'
+services:
+    db:
+      image: postgis/postgis:11-3.3
+      container_name: dama_dev_db
+      ports:
+        - "5465:5432"
+      volumes:
+        - ./pg_data:/data
+        - ./sqlScripts/:/sqlScripts/
+      env_file: "../config/postgres.docker.env"
+      environment:
+        - PGDATA=/pg_data

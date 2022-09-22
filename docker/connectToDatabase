@@ -1,0 +1,5 @@
+#!/bin/bash
+
+source ../config/postgres.development.env
+
+docker exec -it dama_dev_db su postgres -c "psql -U${PGUSER} ${PGDATABASE}"

@@ -2,9 +2,17 @@
 
 # avail-datamanager-controller
 
-This is a [Moleculer](https://moleculer.services/)-based microservices project. Generated with the [Moleculer CLI](https://moleculer.services/docs/0.14/moleculer-cli.html).
+Configure by creating a .env file:
+
+```sh
+$ cat .env
+DAMA_PG_ENV=development
+```
 
 ## Usage
+
+This [Moleculer](https://moleculer.services/)-based microservices project was
+generated with the [Moleculer CLI](https://moleculer.services/docs/0.14/moleculer-cli.html).
 
 Start the project with `npm run dev` command.
 After starting, open the http://localhost:3000/ URL in your browser.

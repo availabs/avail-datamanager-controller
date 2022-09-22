@@ -6,7 +6,7 @@ import _ from "lodash";
 
 import { Client, Connection } from "pg";
 
-import pgEnv from "../../../constants/pgEnv";
+import PG_ENV from "../../../constants/pgEnv";
 
 const configDir = join(__dirname, "../../../../config/");
 
@@ -56,7 +56,7 @@ export type NodePgConfig = {
 
 // NOTE: config file naming convention required.
 export const getPostgresConfigurationFilePath = () => {
-  return join(configDir, `postgres.${pgEnv}.env`);
+  return join(configDir, `postgres.${PG_ENV}.env`);
 };
 
 export const postgresEnvVariables = {
