@@ -4,8 +4,6 @@
 
 ### Configuring the development database
 
-See: [dockerhub postgis/postgis](https://registry.hub.docker.com/r/postgis/postgis)
-
 Note: the Postgis Docker image environment variable names differ from the corresponding
 [PostgreSQL environment variables](https://www.postgresql.org/docs/11/libpq-envars.html).
 
@@ -16,7 +14,7 @@ $ cat ../config/postgres.docker.env
 #   see https://hub.docker.com/_/postgres/
 POSTGRES_DB=dama_dev_db
 POSTGRES_USER=dama_dev_user
-POSTGRES_PASSWORD=__CHANGE_THIS__
+POSTGRES_PASSWORD=# $ uuidgen # Use this to generate UUIDs
 ```
 
 ```sh
@@ -32,6 +30,9 @@ env_file: "../config/postgres.docker.env"
 environment: - PGDATA=/pg_data
 ```
 
+See [dockerhub postgis/postgis](https://registry.hub.docker.com/r/postgis/postgis)
+for further details.
+
 ### Configuring the app to connect to the development database
 
 ```sh
@@ -44,14 +45,14 @@ DAMA_PG_ENV=development
 $ cat ../config/postgres.development.env
 PGDATABASE=dama_dev_db
 PGUSER=dama_dev_user
-# echo $RANDOM | md5sum
-PGPASSWORD=__CHANGE_THIS__
+
+PGPASSWORD=# $ uuidgen # Use this to generate UUIDs
 PGHOST=127.0.0.1
 PGPORT=5465
 ```
 
-See the [PostgreSQL environment variables](https://www.postgresql.org/docs/11/libpq-envars.html)
-documentation for further options.
+See [PostgreSQL environment variables](https://www.postgresql.org/docs/11/libpq-envars.html)
+for further details.
 
 ## USAGE
 
