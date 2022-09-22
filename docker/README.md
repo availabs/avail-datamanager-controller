@@ -14,7 +14,7 @@ $ cat ../config/postgres.docker.env
 #   see https://hub.docker.com/_/postgres/
 POSTGRES_DB=dama_dev_db
 POSTGRES_USER=dama_dev_user
-POSTGRES_PASSWORD=# $ uuidgen # Use this to generate UUIDs
+POSTGRES_PASSWORD=__CHANGE_THIS__ # MUST MATCH PGPASSWORD in ../config/postgres.development.env
 ```
 
 ```sh
@@ -46,7 +46,7 @@ $ cat ../config/postgres.development.env
 PGDATABASE=dama_dev_db
 PGUSER=dama_dev_user
 
-PGPASSWORD=# $ uuidgen # Use this to generate UUIDs
+PGPASSWORD=__CHANGE_THIS__ # NOTE: $ uuidgen # Can be used to generate password
 PGHOST=127.0.0.1
 PGPORT=5465
 ```
