@@ -12,6 +12,7 @@ import { existsSync } from "fs";
 import { readdir as readdirAsync } from "fs/promises";
 import { join } from "path";
 import { Readable } from "stream";
+// import { inspect } from "util";
 
 import { Context } from "moleculer";
 
@@ -115,24 +116,45 @@ export default {
       },
     },
 
-    /*
-      app.get(
-        "/staged-geospatial-dataset/:id/:layerName/loadDatabaseTable",
-        async (req, res, next) => {
-          try {
-            const { id, layerName } = req.params;
+    getTableDescriptor: {
+      visibility: "published",
 
-            const gdi = new GeospatialDatasetIntegrator(id, PG_ENV);
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { id, layerName },
+        } = ctx;
 
-            await gdi.loadTable(layerName, PG_ENV);
+        const gdi = new GeospatialDatasetIntegrator(id);
 
-            res.end();
-          } catch (err) {
-            next(err);
-          }
-        }
-      );
-  */
+        const tableDescriptor = await gdi.getLayerTableDescriptor(layerName);
+
+        return tableDescriptor;
+      },
+    },
+
+    updateTableDescriptor: {
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params,
+        } = ctx;
+
+        // console.log(inspect(params));
+
+        // @ts-ignore
+        const { id } = params;
+
+        const gdi = new GeospatialDatasetIntegrator(id);
+
+        // @ts-ignore
+        const result = await gdi.persistLayerTableDescriptor(params);
+
+        return result;
+      },
+    },
 
     loadDatabaseTable: {
       visibility: "published",

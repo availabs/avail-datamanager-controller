@@ -9,6 +9,26 @@ $ cat .env
 DAMA_PG_ENV=development
 ```
 
+## Gradual Task Integration
+
+```sh
+mkdir -p tasks
+```
+
+```sh
+cd ./tasks/gis-data-integration
+git pull
+npm install
+```
+
+```sh
+cd ./tasks/NPMRDS_Database
+git pull
+npm install
+cd config
+ln -fs ../../../config/postgres.development.env postgres.env.dev
+```
+
 ## Usage
 
 This [Moleculer](https://moleculer.services/)-based microservices project was
