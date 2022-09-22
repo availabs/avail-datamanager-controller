@@ -25,7 +25,7 @@ export default class ApiService extends Service {
           origin: "*",
         },
 
-        port: process.env.PORT || 3369,
+        port: process.env.PORT,
 
         routes: [
           /*

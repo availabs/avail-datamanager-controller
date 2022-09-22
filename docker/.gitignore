@@ -1,2 +1,3 @@
-pg_data/
 sqlScripts/
+config/
+*_data/

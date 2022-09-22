@@ -34,6 +34,12 @@
 
 -   [Scaling your Redux App with ducks](https://www.freecodecamp.org/news/scaling-your-redux-app-with-ducks-6115955638be/)
 
+## Selectors
+
+API GET request map to selectors.
+
+https://redux.js.org/usage/deriving-data-selectors
+
 ## Other Resources
 
 -   [Redux — Command Bus or Event Store?](https://engineering.tableau.com/redux-command-bus-or-event-store-2c4c044cd481)

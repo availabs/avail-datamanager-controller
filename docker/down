@@ -1,2 +1,8 @@
 #!/bin/bash
-docker-compose -p dama_dev_db down
+
+set -e
+set -a
+
+source "../config/postgres.$1.env"
+
+docker-compose -p ${PGDATABASE}_db down

@@ -1,1 +1,8 @@
-docker exec -it dama_dev_db bash
+#!/bin/bash
+
+set -e
+set -a
+
+source "../config/postgres.$1.env"
+
+docker exec -it ${PGDATABASE}_db bash

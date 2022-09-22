@@ -139,7 +139,9 @@ export const getPsqlCredentials = () => {
 export const getNodePgCredentials = () => {
   const pgCreds = getPsqlCredentials();
 
-  console.log(JSON.stringify({ pgCreds }, null, 4));
+  console.log(
+    JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
+  );
 
   const nodePgCreds = _.mapKeys(pgCreds, (_v, k) => _.lowerCase(k).slice(2));
 

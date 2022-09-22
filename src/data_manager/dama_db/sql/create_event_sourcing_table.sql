@@ -1,5 +1,3 @@
-CREATE SCHEMA IF NOT EXISTS _data_manager_admin ;
-
 CREATE TABLE IF NOT EXISTS _data_manager_admin.etl_context (
   context_id        SERIAL PRIMARY KEY,
   parent_id         INTEGER,

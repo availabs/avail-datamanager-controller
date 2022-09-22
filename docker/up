@@ -1,2 +1,16 @@
 #!/bin/bash
-docker-compose -p dama_dev_db up
+
+set -e
+set -a
+
+source "../config/postgres.$1.env"
+
+mkdir -p ./config
+
+echo "
+POSTGRES_DB=$PGDATABASE
+POSTGRES_USER=$PGUSER
+POSTGRES_PASSWORD=$PGPASSWORD
+" > ./config/postgres.$1.env
+
+docker-compose -p ${PGDATABASE}_db up

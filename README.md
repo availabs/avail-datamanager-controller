@@ -2,12 +2,29 @@
 
 # avail-datamanager-controller
 
-Configure by creating a .env file:
+## Configuration
+
+Configure by creating a .env file for the instance:
 
 ```sh
-$ cat .env
-DAMA_PG_ENV=development
+$ cat dama_dev_1.env
+PORT=3369
+DAMA_PG_ENV=dama_dev_1
 ```
+
+There MUST be a corresponding postgres configuration file:
+
+```sh
+$ cat config/postgres.dama_dev_1.env
+PGDATABASE=dama_dev_1
+PGUSER=dama_dev_user
+# $ uuidgen # Can be used to generate PGPASSWORD
+PGPASSWORD=9b5eb72e-0b59-49b3-95df-62998ca2714e
+PGHOST=127.0.0.1
+PGPORT=5466
+```
+
+See ./docker/README.md on how to run a development database.
 
 ## Gradual Task Integration
 
@@ -29,12 +46,17 @@ cd config
 ln -fs ../../../config/postgres.development.env postgres.env.dev
 ```
 
-## Usage
+## Starting
+
+```sh
+./start dama_dev_1
+```
+
+## Moleculer
 
 This [Moleculer](https://moleculer.services/)-based microservices project was
 generated with the [Moleculer CLI](https://moleculer.services/docs/0.14/moleculer-cli.html).
 
-Start the project with `npm run dev` command.
 After starting, open the http://localhost:3000/ URL in your browser.
 On the welcome page you can test the generated services via API Gateway and check the nodes & services.
 
