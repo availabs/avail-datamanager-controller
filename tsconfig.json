@@ -19,7 +19,7 @@
     "sourceMap": true,
     "outDir": "build/"
   },
-  "include": ["src/", "other_repos/"],
+  "include": ["src/"],
   "exclude": ["node_modules"],
   "ts-node": {
     "transpileOnly": true

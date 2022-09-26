@@ -19,17 +19,15 @@ export default {
         const {
           params: {
             payload,
-            meta: { etl_context_id, pg_env = "development" },
+            meta: { etl_context_id },
           },
         } = ctx;
 
-        const db = await this.broker.call("dama_db.getDb", pg_env);
+        const db = await ctx.call("dama_db.getDb");
 
-        console.log("==> GOT DB ".repeat(20));
-
-        const root_etl_context_id = await this.broker.call(
+        const root_etl_context_id = await ctx.call(
           "dama_dispatcher.queryRootContextId",
-          { pg_env, etl_context_id }
+          { etl_context_id }
         );
 
         const colsQ = `
@@ -37,9 +35,9 @@ export default {
               column_name
             FROM information_schema.columns
             WHERE (
-              ( table_schema = '_data_manager_admin' )
+              ( table_schema = 'data_manager' )
               AND
-              ( table_name = 'data_views_proto' )
+              ( table_name = 'views' )
             )
         ;`;
 
@@ -77,13 +75,13 @@ export default {
         const { data_source_name } = payload;
 
         const insertQ = `
-          INSERT INTO _data_manager_admin.data_views_proto (
+          INSERT INTO data_manager.views (
             source_id, ${cols.join(", ")}
           )
             SELECT
                 a.id AS source_id,
                 ${selectClauses}
-              FROM _data_manager_admin.data_sources_proto AS a
+              FROM data_manager.sources AS a
               WHERE ( name = $${queryParams.push(
                 data_source_name.toUpperCase()
               )} )
@@ -91,7 +89,6 @@ export default {
           ;
         `;
 
-        console.log(insertQ);
         const {
           rows: [{ id: dama_view_id }],
         } = await db.query(insertQ, queryParams);

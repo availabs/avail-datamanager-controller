@@ -181,7 +181,7 @@ export default class GeospatialDatasetIntegrator {
     };
   }
 
-  async receiveDataset(fname: string, fileRS: ReadStream) {
+  async receiveDataset(fname: string, readStream: Readable) {
     let workDirPath: string;
     while (true) {
       const workDirName = uuidv4();
@@ -199,7 +199,7 @@ export default class GeospatialDatasetIntegrator {
     const fpath = join(workDirPath, fname);
     const ws = createWriteStream(fpath);
 
-    await pipelineAsync(fileRS, ws);
+    await pipelineAsync(readStream, ws);
 
     this.workDirPath = workDirPath;
 
@@ -733,7 +733,13 @@ export default class GeospatialDatasetIntegrator {
   }
 
   // NOTE: Normal usage is loadTable. This method exists for debugging/troubleshooting/testing.
-  protected async createGeoDatasetLayerTable(layerName: string) {
+  protected async createGeoDatasetLayerTable({
+    layerName,
+    pgEnv,
+  }: {
+    layerName: string;
+    pgEnv: string;
+  }) {
     const tableDescriptor = await this.getLayerTableDescriptor(layerName);
 
     const sql =
@@ -742,7 +748,7 @@ export default class GeospatialDatasetIntegrator {
     const datetime = new Date();
     this.persistDatasetLayerCreateTableSql(layerName, sql, datetime);
 
-    const db = await getConnectedNodePgClient();
+    const db = await getConnectedNodePgClient(pgEnv);
 
     try {
       await db.query(sql);
@@ -800,7 +806,7 @@ export default class GeospatialDatasetIntegrator {
   }
 
   // NOTE: Will DROP existing table if not PUBLISHED.
-  async loadTable(layerName: string) {
+  async loadTable({ layerName, pgEnv }: { layerName: string; pgEnv: string }) {
     // TODO:  ui_loaded_data_sources-local data_manager tables
     //        updated for the new layer.
 
@@ -818,7 +824,8 @@ export default class GeospatialDatasetIntegrator {
     try {
       const loadTableMetadata = await loadTable(
         <string>this.datasetPath,
-        tableDescriptor
+        tableDescriptor,
+        pgEnv
       );
 
       this.setDatasetLayerUploadStatus(
@@ -826,7 +833,7 @@ export default class GeospatialDatasetIntegrator {
         DatasetLayerUploadStatus.STAGED
       );
 
-      const { PGHOST, PGDATABASE } = getPsqlCredentials();
+      const { PGHOST, PGDATABASE } = getPsqlCredentials(pgEnv);
 
       await this.persistLoadTableMetadata(
         { PGHOST, PGDATABASE, ...loadTableMetadata },
@@ -849,12 +856,18 @@ export default class GeospatialDatasetIntegrator {
     return join(dir, "layer_geometries.geojson.gz");
   }
 
-  async dumpGeoDatasetLayerGeometriesGeoJSON(layerName: string) {
+  async dumpGeoDatasetLayerGeometriesGeoJSON({
+    layerName,
+    pgEnv,
+  }: {
+    layerName: string;
+    pgEnv: string;
+  }) {
     const { tableSchema, tableName } = await this.getLayerTableDescriptor(
       layerName
     );
 
-    const db = await getConnectedNodePgClient();
+    const db = await getConnectedNodePgClient(pgEnv);
 
     try {
       // https://gis.stackexchange.com/a/191446
@@ -905,12 +918,18 @@ export default class GeospatialDatasetIntegrator {
     }
   }
 
-  async *makeGeoJSONAsyncIter(layerName: string) {
+  async *makeGeoJSONAsyncIter({
+    layerName,
+    pgEnv,
+  }: {
+    layerName: string;
+    pgEnv: string;
+  }) {
     const { tableSchema, tableName } = await this.getLayerTableDescriptor(
       layerName
     );
 
-    const db = await getConnectedNodePgClient();
+    const db = await getConnectedNodePgClient(pgEnv);
 
     try {
       // https://gis.stackexchange.com/a/191446
@@ -941,12 +960,20 @@ export default class GeospatialDatasetIntegrator {
     }
   }
 
-  async getFeatureProperties(layerName: string, featureId: number) {
+  async getFeatureProperties({
+    layerName,
+    featureId,
+    pgEnv,
+  }: {
+    layerName: string;
+    featureId: number;
+    pgEnv: string;
+  }) {
     const { tableSchema, tableName } = await this.getLayerTableDescriptor(
       layerName
     );
 
-    const db = await getConnectedNodePgClient();
+    const db = await getConnectedNodePgClient(pgEnv);
 
     try {
       // https://gis.stackexchange.com/a/191446

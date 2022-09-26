@@ -1,9 +1,3 @@
-/*
-    TODO:
-          1. Use Pool: https://node-postgres.com/api/pool
- */
-
-// @ts-ignore
 import { readFile as readFileAsync } from "fs/promises";
 import { join } from "path";
 
@@ -13,10 +7,7 @@ import { Context } from "moleculer";
 
 import { FSA } from "flux-standard-action";
 
-import {
-  NodePgConnection,
-  getConnectedNodePgClient,
-} from "./postgres/PostgreSQL";
+import { NodePgPool, getConnectedNodePgPool } from "./postgres/PostgreSQL";
 
 export type ServiceContext = Context & {
   params: FSA;
@@ -24,16 +15,20 @@ export type ServiceContext = Context & {
 
 type LocalVariables = {
   // Promise because below we only want to getDb once and this._local_.db is our "once" check.
-  db: Promise<NodePgConnection>;
+  dbs: Record<string, Promise<NodePgPool>>;
 };
 
 export default {
   name: "dama_db",
 
   methods: {
-    async initializeDamaTables(db?: NodePgConnection) {
+    async initializeDamaTables(
+      pgEnv: string,
+      db?: NodePgPool // NOTE: Only this.getDb should set db
+    ) {
       if (!db) {
-        return this.getDb();
+        // Allow this.getDb to re-call initializeDamaTables after connecting to the Database.
+        return this.getDb(pgEnv);
       }
 
       const initializeDamaSchemasSql = await readFileAsync(
@@ -50,7 +45,6 @@ export default {
         // @ts-ignore
         await (<Promise>db.query("COMMIT"));
       } catch (err) {
-        // Ignore Error: https://stackoverflow.com/a/4480393/3970755
         // @ts-ignore
         await (<Promise>db.query("ROLLBACK"));
         // console.error(err);
@@ -65,24 +59,23 @@ export default {
       await (<Promise>db.query(createTablesSql));
     },
 
-    async getDb() {
-      if (!this._local_.db) {
-        console.log("$@".repeat(50));
+    async getDb(pgEnv: string) {
+      if (!this._local_.dbs[pgEnv]) {
         let ready: Function;
 
-        this._local_.db = new Promise((resolve) => {
+        this._local_.dbs[pgEnv] = new Promise((resolve) => {
           ready = resolve;
         });
 
-        const db = await getConnectedNodePgClient();
+        const db = await getConnectedNodePgPool(pgEnv);
 
-        await this.initializeDamaTables(db);
+        await this.initializeDamaTables(pgEnv, db);
 
         // @ts-ignore
         ready(db);
       }
 
-      return this._local_.db;
+      return this._local_.dbs[pgEnv];
     },
   },
 
@@ -90,27 +83,51 @@ export default {
     initializeDamaTables: {
       visibility: "public",
 
-      handler() {
-        return this.initializeDamaTables();
+      handler(ctx: Context) {
+        // @ts-ignore
+        const pgEnv = ctx.meta.pgEnv;
+
+        if (!pgEnv) {
+          throw new Error("ctx.meta.pgEnv is not set");
+        }
+
+        return this.initializeDamaTables(pgEnv);
       },
     },
 
     getDb: {
       visibility: "protected", // can be called only from local services
 
-      handler() {
-        return this.getDb();
+      handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          meta: { pgEnv },
+        } = ctx;
+
+        if (!pgEnv) {
+          throw new Error("ctx.meta.pgEnv is not set");
+        }
+
+        return this.getDb(pgEnv);
       },
     },
   },
 
   created() {
-    this._local_ = <LocalVariables>{};
+    this._local_ = <LocalVariables>{
+      dbs: {},
+    };
   },
 
   async stopped() {
     try {
-      this._local_.db.end();
+      Object.keys(this._local_.dbs).forEach(async (pgEnv) => {
+        try {
+          await this._local_.dbs[pgEnv].end();
+        } catch (err) {
+          // ignore
+        }
+      });
     } catch (err) {
       // ignore
     }

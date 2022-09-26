@@ -7,8 +7,7 @@ import { FSA } from "flux-standard-action";
 import stageTmcIdentification from "../../../../tasks/NPMRDS_Database/src/npmrds/tmc_identification/load-tmc-identification-file";
 import publishTmcIdentification from "../../../../tasks/NPMRDS_Database/src/npmrds/tmc_identification/publish-tmc-identification";
 
-import { PgEnvSchema } from "../../../data_manager/dama_db/postgres/schemas";
-import { PostgresEnvironments } from "../../../data_manager/dama_db/postgres/index.d";
+// import { PgEnvSchema } from "../../../data_manager/dama_db/postgres/schemas";
 import { stateAbbr2FipsCode } from "../../../data_utils/constants/stateFipsCodes";
 
 import serviceNameBaseFromDataSourceName from "../../../data_manager/dama_utils/serviceNameBaseFromDataSourceName";
@@ -22,12 +21,10 @@ export const serviceName = serviceNameBaseFromDataSourceName(dataSourceName);
 
 export type TaskParams = {
   npmrds_export_sqlite_db_path: string;
-  pg_env: PostgresEnvironments;
+  pgEnv: string;
 };
 
-export type EventMetadata = object & { pg_env: PostgresEnvironments };
-
-const commonDammaMetaProps = ["DAMAA", "etl_context_id", "pg_env"];
+const commonDammaMetaProps = ["DAMAA", "etl_context_id"];
 
 export default {
   name: serviceName,
@@ -43,61 +40,64 @@ export default {
           type: `${dataSourceName}:LOAD_REQUEST`,
         };
 
-        await this.broker.emit(event);
+        await ctx.emit(event);
       },
     },
     [`${dataSourceName}:LOAD_REQUEST`]: {
       context: true,
       // params: FSAEventParam,
       async handler(ctx: Context) {
-        const loadedEvent = await this.stage(ctx.params);
+        // console.log("🌟".repeat(30));
+        const loadedEvent = await this.stage(ctx);
 
-        await this.requestQA(loadedEvent);
+        const newCtx = ctx.copy();
+        newCtx.params = loadedEvent;
+
+        await this.requestQA(newCtx);
       },
     },
     [`${dataSourceName}:QA_APPROVED`]: {
       context: true,
       // params: FSAEventParam,
       async handler(ctx: Context) {
-        await this.makeViewMetadataTemplate(ctx.params);
+        await this.makeViewMetadataTemplate(ctx);
       },
     },
     [`${dataSourceName}:VIEW_METADATA_SUBMITTED`]: {
       context: true,
       // params: FSAEventParam,
       async handler(ctx: Context) {
-        await this.publish(ctx.params);
+        await this.publish(ctx);
       },
     },
   },
 
   methods: {
     stage: {
-      // params: {
-      // payload: {
-      // npmrds_export_sqlite_db_path: { type: "string" },
-      // },
-      // meta: {
-      // etl_context_id: { type: "number" },
-      // pg_env: PgEnvSchema,
-      // },
-      // },
-      async handler(event: FSA | /* FIXME */ any) {
+      async handler(ctx: Context) {
         const {
-          payload: { npmrds_export_sqlite_db_path },
-          meta: { etl_context_id: parent_context_id = null, pg_env },
-        } = event;
+          params: event,
+          // @ts-ignore
+          meta: { pgEnv },
+        } = ctx;
 
-        const etl_context_id = await this.broker.call(
+        const {
+          // @ts-ignore
+          payload: { npmrds_export_sqlite_db_path },
+          // @ts-ignore
+          meta: { etl_context_id: parent_context_id = null },
+        } = <FSA>event;
+
+        const etl_context_id = await ctx.call(
           "dama_dispatcher.spawnDamaContext",
-          { etl_context_id: parent_context_id, pg_env }
+          { etl_context_id: parent_context_id }
         );
 
         const start_timestamp = new Date().toISOString();
 
         const payload: any = await stageTmcIdentification({
           npmrds_export_sqlite_db_path,
-          pg_env,
+          pg_env: pgEnv,
         });
 
         const loadedEvent = {
@@ -109,13 +109,12 @@ export default {
             checkpoint: true,
             parent_context_id,
             etl_context_id,
-            pg_env,
             start_timestamp,
             end_timestamp: new Date().toISOString(),
           },
         };
 
-        const damaEvent = await this.broker.call(
+        const damaEvent = await ctx.call(
           "dama_dispatcher.dispatch",
           loadedEvent
         );
@@ -123,22 +122,14 @@ export default {
         return damaEvent;
       },
     },
+
     requestQA: {
-      // params: {
-      // payload: {
-      // state: { type: "string" },
-      // year: { type: "number" },
-      // download_timestamp: { type: "string" },
-      // },
-      // meta: {
-      // etl_context_id: { type: "number" },
-      // pg_env: PgEnvSchema,
-      // },
-      // },
-      async handler(event: FSA | /* FIXME */ any) {
+      async handler(ctx: Context) {
+        const { params: event } = ctx;
+        // @ts-ignore
         const { payload, meta } = event;
 
-        const damaEvent = await this.broker.call("dama_dispatcher.dispatch", {
+        const damaEvent = await ctx.call("dama_dispatcher.dispatch", {
           type: `${dataSourceName}:QA_REQUEST`,
           payload,
           meta: {
@@ -153,21 +144,14 @@ export default {
     },
 
     makeViewMetadataTemplate: {
-      params: {
-        payload: {
-          state: { type: "string" },
-          year: { type: "number" },
-          download_timestamp: { type: "string" },
-        },
-        meta: {
-          etl_context_id: { type: "number" },
-          pg_env: PgEnvSchema,
-        },
-      },
-      async handler(event: FSA) {
+      async handler(ctx: Context) {
+        const { params: event } = ctx;
+
         const {
+          // @ts-ignore
           payload: { state, year, download_timestamp },
-          meta: { etl_context_id, pg_env },
+          // @ts-ignore
+          meta: { etl_context_id },
         } = event;
 
         const table_schema = state;
@@ -197,7 +181,6 @@ export default {
         const meta = {
           DAMAA: true,
           etl_context_id,
-          pg_env,
           timestamp: new Date().toISOString(),
           checkpoint: true,
         };
@@ -208,35 +191,22 @@ export default {
           meta,
         };
 
-        // FIXME: Should just return the view metadata.
-        //        dispatch should happen in the event handler.
-        //        loose coupling.
-        const damaEvent = await this.broker.call("dama_dispatcher.dispatch", e);
+        const damaEvent = await ctx.call("dama_dispatcher.dispatch", e);
 
         return damaEvent;
       },
     },
 
     publish: {
-      /* NOTE:  The DAMAA event should the PUBLISH event sent from the client.
-       *        The PUBLISH event payload MUST be the final version of the VIEW_METADATA.
-      params: {
-        payload: {
-          state: { type: "string" },
-          year: { type: "number" },
-          download_timestamp: { type: "string" },
-        },
-        meta: {
-          etl_context_id: { type: "number" },
-          pg_env: PgEnvSchema,
-        },
-      },
-      */
-      async handler(event: FSA) {
+      async handler(ctx: Context) {
+        const { params: event } = ctx;
+        // @ts-ignore
         const { payload: oldPayload, meta } = event;
 
+        // @ts-ignore
         const { table_schema, table_name } = oldPayload;
-        const { pg_env } = meta;
+        // @ts-ignore
+        const { pgEnv } = meta;
 
         const oldMeta = _.pick(meta, commonDammaMetaProps);
 
@@ -245,10 +215,10 @@ export default {
         const publishResult = await publishTmcIdentification({
           table_schema,
           table_name,
-          pg_env,
+          pg_env: pgEnv,
         });
 
-        const { dama_view_id } = await this.broker.call(
+        const { dama_view_id } = await ctx.call(
           "dama_meta.updateDataManagerViewMetadata",
           event
         );
@@ -261,6 +231,7 @@ export default {
           type,
           payload: { ...publishResult, dama_view_id },
           meta: {
+            // @ts-ignore
             ...oldMeta,
             DAMAA: true,
             checkpoint: true,
@@ -269,7 +240,7 @@ export default {
           },
         };
 
-        const damaEvent = await this.broker.call("dama_dispatcher.dispatch", e);
+        const damaEvent = await ctx.call("dama_dispatcher.dispatch", e);
 
         return damaEvent;
       },

@@ -1,4 +1,5 @@
-// @ts-ignore
+// import { inspect } from "util";
+
 import _ from "lodash";
 
 import { Context } from "moleculer";
@@ -14,17 +15,15 @@ export default {
 
   actions: {
     spawnDamaContext: {
-      //  https://moleculer.services/docs/0.14/actions.html#Action-visibility
-      //    public: public action, can be called locally & remotely but not published via API GW
       visibility: "public",
 
       async handler(ctx: Context) {
         const {
           // @ts-ignore
-          params: { etl_context_id = null, pg_env = "development" },
+          params: { etl_context_id = null },
         } = ctx;
 
-        const db = await this.broker.call("dama_db.getDb", pg_env);
+        const db = await ctx.call("dama_db.getDb");
 
         const q = `
           INSERT INTO _data_manager_admin.etl_context (
@@ -47,32 +46,24 @@ export default {
       async handler(ctx: Context & { params: FSA }) {
         const { params } = ctx;
         const {
-          meta: { DAMAA, etl_context_id, checkpoint, pg_env = "development" },
+          // @ts-ignore
+          meta: { DAMAA, etl_context_id, checkpoint },
         } = params;
 
         let event = params;
+        // @ts-ignore
+        event.meta = event.meta || {};
+        // @ts-ignore
+        event.meta.pgEnv = ctx.meta.pgEnv;
 
         if (DAMAA) {
-          if (!pg_env) {
-            throw new Error("DAMAA events must include meta.pg_env");
-          }
-
-          console.log(
-            "= ".repeat(10),
-            "dama_dispatcher.dispatch",
-            " =".repeat(10)
-          );
-
-          console.log(JSON.stringify(params, null, 4));
-          console.log("= ".repeat(33));
-
           if (!etl_context_id) {
             throw new Error(
               "All Data Manager Action (DAMAA) Events MUST have a meta.etl_context_id"
             );
           }
 
-          const db = await this.broker.call("dama_db.getDb", pg_env);
+          const db = await ctx.call("dama_db.getDb");
 
           // @ts-ignore
           const { type, payload, meta = null, error = null } = params;
@@ -96,7 +87,7 @@ export default {
         }
 
         // FIXME: Infinite Loop
-        ctx.emit(params.type, event);
+        ctx.emit(params.type, event, { meta: ctx.meta });
 
         return event;
       },
@@ -108,10 +99,12 @@ export default {
       async handler(ctx: Context) {
         const {
           // @ts-ignore
-          params: { etl_context_id, event_id, pg_env },
+          params: { etl_context_id, event_id },
+          // @ts-ignore
+          meta: { pgEnv },
         } = ctx;
 
-        const db = await this.broker.call("dama_db.getDb", pg_env);
+        const db = await ctx.call("dama_db.getDb");
 
         const q = `
           WITH RECURSIVE cte_ctx_tree(context_id, parent_id) AS (
@@ -153,6 +146,11 @@ export default {
           event_id,
         ]);
 
+        damaEvents.forEach((e: FSA) => {
+          e.meta = e.meta || {};
+          e.meta.pgEnv = pgEnv;
+        });
+
         return damaEvents;
       },
     },
@@ -163,10 +161,10 @@ export default {
       async handler(ctx: Context) {
         const {
           // @ts-ignore
-          params: { etl_context_id, pg_env },
+          params: { etl_context_id },
         } = ctx;
 
-        const db = await this.broker.call("dama_db.getDb", pg_env);
+        const db = await ctx.call("dama_db.getDb");
 
         const q = `
           WITH RECURSIVE cte_ctx_tree(context_id, parent_id) AS (
@@ -206,10 +204,10 @@ export default {
       async handler(ctx: Context) {
         const {
           // @ts-ignore
-          params: { event_id, pg_env },
+          params: { event_id },
         } = ctx;
 
-        const db = await this.broker.call("dama_db.getDb", pg_env);
+        const db = await ctx.call("dama_db.getDb");
 
         const q = `
           SELECT

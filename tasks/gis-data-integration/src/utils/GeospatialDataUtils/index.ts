@@ -450,7 +450,7 @@ export function generateCreateTableStatement({
   );
 
   const colsDefPlaceholders = _.chunk(colDefValues, 2)
-    .map(() => `%I\t\t%s`)
+    .map(() => "%I\t\t%s")
     .join(",\n        ");
 
   const sql = pgFormat(
@@ -546,6 +546,7 @@ export function generateLoadTableStatement({
 export async function loadTable(
   datasetPath: string,
   tableDescriptor: TableDescriptor,
+  pgEnv: string,
   // tableDescriptor MUST be sufficient to geneate the CREATE and load SQL,
   // but we MUST also support manual edits to the createTableSql and loadTableSql
   // for inevitable edge-cases that tableDescriptor/sqlGenerators don't yet handle.
@@ -570,7 +571,7 @@ export async function loadTable(
     ? await readFileAsync(loadTableSqlPath)
     : generateLoadTableStatement(tableDescriptor);
 
-  const connStr = getPostgresConnectionString();
+  const connStr = getPostgresConnectionString(pgEnv);
 
   let success: Function;
   let fail: Function;
@@ -615,7 +616,7 @@ export async function loadTable(
       forcePostGisDimension,
     } = tableDescriptor;
 
-    const PRELUDE_STATEMENTS = ["BEGIN;", createTempTableSql].join(`\n\n`);
+    const PRELUDE_STATEMENTS = ["BEGIN;", createTempTableSql].join("\n\n");
 
     const cols = columnTypes.map(({ col }) => col);
     const colsHolders = cols.map(() => "%I");
@@ -623,7 +624,7 @@ export async function loadTable(
     const colCastsUsing: string[] = [];
     columnTypes.forEach(({ col, db_type }) => {
       if (db_type === "BYTEA") {
-        colCasts.push(`%I`);
+        colCasts.push("%I");
         colCastsUsing.push(col);
       } else if (
         db_type === PgDataType.BOOLEAN ||
@@ -644,7 +645,7 @@ export async function loadTable(
         );
         colCastsUsing.push(col, db_type, col);
       } else {
-        colCasts.push(`CAST( NULLIF( TRIM(%I), '' ) AS %s ) AS %I`);
+        colCasts.push("CAST( NULLIF( TRIM(%I), '' ) AS %s ) AS %I");
         colCastsUsing.push(col, db_type, col);
       }
     });
@@ -741,12 +742,16 @@ export async function loadTable(
       .once("close", success);
 
     let loadStdOut = "";
+
+    /* eslint-disable-next-line no-unused-expressions */
     ogr2ogrLoad.stdout?.on("data", (data) => {
       process.stdout.write(data);
       loadStdOut += data.toString();
     });
 
     let loadStdErr = "";
+
+    /* eslint-disable-next-line no-unused-expressions */
     ogr2ogrLoad.stderr?.on("data", (data) => {
       process.stderr.write(data);
       loadStdErr += data.toString();

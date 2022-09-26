@@ -443,7 +443,9 @@ CREATE TABLE data_manager.views (
     end_date date,
     last_updated timestamp without time zone,
     statistics jsonb,
-    metadata jsonb
+    metadata jsonb,
+    root_etl_context_id integer,
+    etl_context_id integer
 );
 
 
@@ -591,15 +593,6 @@ ALTER TABLE data_manager.sources CLUSTER ON sources_pkey;
 
 ALTER TABLE ONLY data_manager.views
     ADD CONSTRAINT views_pkey PRIMARY KEY (id);
-
-
---
--- Name: views views_source_data_table_uniq; Type: CONSTRAINT; Schema: data_manager; Owner: -
---
-
-ALTER TABLE ONLY data_manager.views
-    ADD CONSTRAINT views_source_data_table_uniq UNIQUE (data_table);
-
 
 --
 -- Name: views views_source_id_fkey; Type: FK CONSTRAINT; Schema: data_manager; Owner: -

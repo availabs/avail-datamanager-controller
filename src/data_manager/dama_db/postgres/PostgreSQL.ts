@@ -4,15 +4,14 @@ import { join } from "path";
 import dotenv from "dotenv";
 import _ from "lodash";
 
-import { Client, Connection } from "pg";
-
-import PG_ENV from "../../../constants/pgEnv";
+import { Client, Pool, Connection } from "pg";
 
 const configDir = join(__dirname, "../../../../config/");
 
 export type NodePgClient = Client;
+export type NodePgPool = Pool;
 export type NodePgConnection = Connection;
-export type PgEnv = "production" | "development";
+export type PgEnv = string;
 
 export type PsqlConfig = {
   PGHOST?: string;
@@ -55,8 +54,8 @@ export type NodePgConfig = {
 };
 
 // NOTE: config file naming convention required.
-export const getPostgresConfigurationFilePath = () => {
-  return join(configDir, `postgres.${PG_ENV}.env`);
+export const getPostgresConfigurationFilePath = (pgEnv: PgEnv) => {
+  return join(configDir, `postgres.${pgEnv}.env`);
 };
 
 export const postgresEnvVariables = {
@@ -127,8 +126,8 @@ export const postgresEnvVariables = {
     "sets the directory containing the locale files for message localization",
 };
 
-export const getPsqlCredentials = () => {
-  const configPath = getPostgresConfigurationFilePath();
+export const getPsqlCredentials = (pgEnv: PgEnv) => {
+  const configPath = getPostgresConfigurationFilePath(pgEnv);
   const configContents = readFileSync(configPath);
 
   const envVars = dotenv.parse(configContents);
@@ -136,8 +135,8 @@ export const getPsqlCredentials = () => {
   return _.pick(envVars, Object.keys(postgresEnvVariables));
 };
 
-export const getNodePgCredentials = () => {
-  const pgCreds = getPsqlCredentials();
+export const getNodePgCredentials = (pgEnv: PgEnv) => {
+  const pgCreds = getPsqlCredentials(pgEnv);
 
   console.log(
     JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
@@ -148,14 +147,14 @@ export const getNodePgCredentials = () => {
   return nodePgCreds;
 };
 
-export const getPostgresConnectionString = () => {
+export const getPostgresConnectionString = (pgEnv: PgEnv) => {
   const {
-    user = "postgres",
-    host = "localhost",
+    user = null,
+    host = null,
     database = null,
     password = null,
     port = 5432,
-  } = getNodePgCredentials();
+  } = getNodePgCredentials(pgEnv);
 
   const connStr = `host='${host}' user='${user}' dbname='${database}' password='${password}' port='${port}'`;
 
@@ -163,12 +162,28 @@ export const getPostgresConnectionString = () => {
 };
 
 // Make sure to call db.end() or Node will hang.
-export async function getConnectedNodePgClient(): Promise<NodePgClient> {
-  const nodePgCreds = getNodePgCredentials();
+export async function getConnectedNodePgClient(
+  pgEnv: PgEnv
+): Promise<NodePgClient> {
+  const nodePgCreds = getNodePgCredentials(pgEnv);
 
   console.log(JSON.stringify({ nodePgCreds }, null, 4));
 
   const db = new Client(nodePgCreds);
+  await db.connect();
+
+  return db;
+}
+
+// Make sure to call db.end() or Node will hang.
+export async function getConnectedNodePgPool(
+  pgEnv: PgEnv
+): Promise<NodePgPool> {
+  const nodePgCreds = getNodePgCredentials(pgEnv);
+
+  console.log(JSON.stringify({ nodePgCreds }, null, 4));
+
+  const db = new Pool(nodePgCreds);
   await db.connect();
 
   return db;

@@ -1,10 +1,14 @@
 /*
    USEFUL:
-      * https://moleculer.services/docs/0.14/actions.html#Action-visibility
-          * published: public action. It can be called locally, remotely and
-                    can be published via API Gateway
 
-          * public: public action, can be called locally & remotely but not published via API GW
+      * https://moleculer.services/docs/0.14/actions.html#Action-visibility
+
+          * published:  public action. It can be called locally, remotely and
+                        can be published via API Gateway
+
+          * public:     public action, can be called locally & remotely
+                        but not published via API GW
+
       * https://github.com/moleculerjs/site/blob/master/source/docs/0.14/moleculer-web.md#file-upload-aliases
 */
 
@@ -12,7 +16,6 @@ import { existsSync } from "fs";
 import { readdir as readdirAsync } from "fs/promises";
 import { join } from "path";
 import { Readable } from "stream";
-// import { inspect } from "util";
 
 import { Context } from "moleculer";
 
@@ -26,9 +29,7 @@ import etlDir from "../../constants/etlDir";
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import PG_ENV from "../../constants/pgEnv";
-
-// const commonDammaMetaProps = ["DAMAA", "etl_context_id", "pg_env"];
+// const commonDammaMetaProps = ["DAMAA", "etl_context_id", "pgEnv"];
 
 const serviceName = "dama/data_source_integrator";
 
@@ -51,7 +52,7 @@ export default {
     getExistingDatasetUploads: {
       visibility: "published",
 
-      async handler() {
+      async handler(ctx: Context) {
         const dirs = await readdirAsync(etlDir, {
           encoding: "utf8",
         });
@@ -76,11 +77,6 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
-        console.log("uploadGeospatialDataset");
-
-        console.log(JSON.stringify(ctx.meta, null, 4));
-        // ctx.params.pipe(process.stdout);
-
         const {
           // @ts-ignore
           meta: { filename },
@@ -142,8 +138,6 @@ export default {
           params,
         } = ctx;
 
-        // console.log(inspect(params));
-
         // @ts-ignore
         const { id } = params;
 
@@ -163,11 +157,13 @@ export default {
         const {
           // @ts-ignore
           params: { id, layerName },
+          // @ts-ignore
+          meta: { pgEnv },
         } = ctx;
 
         const gdi = new GeospatialDatasetIntegrator(id);
 
-        const result = await gdi.loadTable(layerName);
+        const result = await gdi.loadTable({ layerName, pgEnv });
 
         return result;
       },
