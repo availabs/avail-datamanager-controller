@@ -9,6 +9,7 @@ import gdal from "gdal-async";
 import pgFormat from "pg-format";
 import _ from "lodash";
 import tmp from "tmp";
+import dedent from "dedent";
 
 import * as GeoJSON from "geojson";
 
@@ -453,23 +454,25 @@ export function generateCreateTableStatement({
     .map(() => "%I\t\t%s")
     .join(",\n        ");
 
-  const sql = pgFormat(
-    `
-      CREATE SCHEMA IF NOT EXISTS %I ;
+  const sql = dedent(
+    pgFormat(
+      `
+        CREATE SCHEMA IF NOT EXISTS %I ;
 
-      DROP TABLE IF EXISTS %I.%I ;
+        DROP TABLE IF EXISTS %I.%I ;
 
-      CREATE TABLE %I.%I (
-        ogc_fid\t\tINTEGER PRIMARY KEY,
-        ${colsDefPlaceholders}
-      ) WITH (fillfactor=100, autovacuum_enabled=off) ;
-    `,
-    tableSchema,
-    tableSchema,
-    tableName,
-    tableSchema,
-    tableName,
-    ...colDefValues
+        CREATE TABLE %I.%I (
+          ogc_fid\t\tINTEGER PRIMARY KEY,
+          ${colsDefPlaceholders}
+        ) WITH (fillfactor=100, autovacuum_enabled=off) ;
+      `,
+      tableSchema,
+      tableSchema,
+      tableName,
+      tableSchema,
+      tableName,
+      ...colDefValues
+    )
   );
 
   return sql;
@@ -487,20 +490,22 @@ export function generateTempTableStatement({
     .map(({ db_type }) => `%I\t\t${db_type === "BYTEA" ? "BYTEA" : "TEXT"}`)
     .join(",\n        ");
 
-  const sql = pgFormat(
-    `
-      CREATE SCHEMA IF NOT EXISTS %I ;
+  const sql = dedent(
+    pgFormat(
+      `
+        CREATE SCHEMA IF NOT EXISTS %I ;
 
-      CREATE TABLE %I.%I (
-        ogc_fid\t\tINTEGER PRIMARY KEY,
-        ${colsDefPlaceholders},
-        wkb_geometry public.geometry(${postGisGeometryType}, 4326)
-      ) WITH (fillfactor=100, autovacuum_enabled=off) ;
-    `,
-    tableSchema,
-    tableSchema,
-    tableName,
-    ...cols
+        CREATE TABLE %I.%I (
+          ogc_fid\t\tINTEGER PRIMARY KEY,
+          ${colsDefPlaceholders},
+          wkb_geometry public.geometry(${postGisGeometryType}, 4326)
+        ) WITH (fillfactor=100, autovacuum_enabled=off) ;
+      `,
+      tableSchema,
+      tableSchema,
+      tableName,
+      ...cols
+    )
   );
 
   return sql;
@@ -530,14 +535,16 @@ export function generateLoadTableStatement({
 
   const colsDefPlaceholders = selectClauses.join(",\n            ");
 
-  const sql = pgFormat(
-    `
-      SELECT
-          ${colsDefPlaceholders}
-        FROM %I
-    `,
-    ...placeValues,
-    layerName
+  const sql = dedent(
+    pgFormat(
+      `
+        SELECT
+            ${colsDefPlaceholders}
+          FROM %I
+      `,
+      ...placeValues,
+      layerName
+    )
   );
 
   return sql;
@@ -650,21 +657,23 @@ export async function loadTable(
       }
     });
 
-    const tmpToTableSql = pgFormat(
-      `
-        INSERT INTO %I.%I (ogc_fid, ${colsHolders.join(", ")}, wkb_geometry)
-          SELECT
-              ogc_fid as ogc_fid,
-              ${colCasts.join(",\n              ")},
-              wkb_geometry
-            FROM %I.%I ;
-      `,
-      tableDescriptor.tableSchema,
-      tableDescriptor.tableName,
-      ...cols,
-      ...colCastsUsing,
-      tempTableDescriptor.tableSchema,
-      tempTableDescriptor.tableName
+    const tmpToTableSql = dedent(
+      pgFormat(
+        `
+          INSERT INTO %I.%I (ogc_fid, ${colsHolders.join(", ")}, wkb_geometry)
+            SELECT
+                ogc_fid as ogc_fid,
+                ${colCasts.join(",\n              ")},
+                wkb_geometry
+              FROM %I.%I ;
+        `,
+        tableDescriptor.tableSchema,
+        tableDescriptor.tableName,
+        ...cols,
+        ...colCastsUsing,
+        tempTableDescriptor.tableSchema,
+        tempTableDescriptor.tableName
+      )
     );
 
     // After loading, we convert the BOOLEAN columns back from TEXT.
@@ -760,6 +769,8 @@ export async function loadTable(
     await done;
 
     return {
+      tableSchema,
+      tableName,
       tableDescriptor,
       createTableSql,
       loadTableSql,

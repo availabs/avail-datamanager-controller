@@ -845,6 +845,8 @@ export default class GeospatialDatasetIntegrator {
         loadTableMetadata.createTableSql,
         datetime
       );
+
+      return loadTableMetadata;
     } catch (err) {
       await this.persistDatasetLayerLoadError(layerName, <Error>err, datetime);
       throw err;

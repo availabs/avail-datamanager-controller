@@ -3,6 +3,7 @@ import _ from "lodash";
 import { Context } from "moleculer";
 
 import { FSA } from "flux-standard-action";
+import dedent from "dedent";
 
 export type ServiceContext = Context & {
   params: FSA;
@@ -12,7 +13,7 @@ export default {
   name: "dama_meta",
 
   actions: {
-    updateDataManagerViewMetadata: {
+    getUpdateDataManagerViewMetadataSql: {
       visibility: "public",
 
       async handler(ctx: Context) {
@@ -89,9 +90,25 @@ export default {
           ;
         `;
 
+        return {
+          text: dedent(insertQ),
+          values: queryParams,
+        };
+      },
+    },
+
+    updateDataManagerViewMetadata: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        const query = await ctx.call(
+          "dama_meta.getUpdateDataManagerViewMetadataSql",
+          ctx.params
+        );
+
         const {
           rows: [{ id: dama_view_id }],
-        } = await db.query(insertQ, queryParams);
+        } = await ctx.call("dama_db.query", query);
 
         return { dama_view_id };
       },

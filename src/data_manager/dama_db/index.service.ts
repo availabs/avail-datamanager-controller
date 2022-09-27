@@ -111,6 +111,49 @@ export default {
         return this.getDb(pgEnv);
       },
     },
+
+    //  Execute a query or array of queries.
+    //    Works with
+    //      * SQL strings
+    //      * node-postgres query config objects
+    //        see: https://node-postgres.com/features/queries#query-config-object
+    query: {
+      visibility: "protected", // can be called only from local services
+
+      // https://node-postgres.com/features/queries#query-config-object
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params,
+          // @ts-ignore
+          meta: { pgEnv },
+        } = ctx;
+
+        const multiQueries = Array.isArray(params);
+        const queries = multiQueries ? params : [params];
+
+        if (!pgEnv) {
+          throw new Error("ctx.meta.pgEnv is not set");
+        }
+
+        const db = <NodePgPool>await this.getDb(pgEnv);
+
+        const connection = await db.connect();
+
+        const results = [];
+
+        // @ts-ignore
+        for (const q of queries) {
+          console.log(JSON.stringify(q, null, 4));
+          // @ts-ignore
+          results.push(await db.query(q));
+        }
+
+        connection.release();
+
+        return multiQueries ? results : results[0];
+      },
+    },
   },
 
   created() {

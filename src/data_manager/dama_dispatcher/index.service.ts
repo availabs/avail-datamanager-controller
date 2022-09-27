@@ -99,7 +99,7 @@ export default {
       async handler(ctx: Context) {
         const {
           // @ts-ignore
-          params: { etl_context_id, event_id },
+          params: { etl_context_id, event_id = -1 },
           // @ts-ignore
           meta: { pgEnv },
         } = ctx;

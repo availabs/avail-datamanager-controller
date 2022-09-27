@@ -1,0 +1,27 @@
+{
+  "layerName": "lines",
+  "tableSchema": "ui_loaded_data_sources",
+  "tableName": "lines_test",
+  "columnTypes": [
+    { "key": "OBJECTID", "col": "objectid", "db_type": "SMALLINT" },
+    { "key": "mpoPIN", "col": "mpo_pin", "db_type": "TEXT" },
+    { "key": "mpoPIN_1", "col": "mpo_pin_1", "db_type": "TEXT" },
+    { "key": "mpoName", "col": "mpo_name", "db_type": "TEXT" },
+    { "key": "County", "col": "county", "db_type": "TEXT" },
+    { "key": "RespAgency", "col": "resp_agency", "db_type": "TEXT" },
+    { "key": "LgDescript", "col": "lg_descript", "db_type": "TEXT" },
+    { "key": "SmDescript", "col": "sm_descript", "db_type": "TEXT" },
+    { "key": "TIPCost", "col": "tip_cost", "db_type": "REAL" },
+    { "key": "AirQuality", "col": "air_quality", "db_type": "TEXT" },
+    { "key": "TIPNum", "col": "tip_num", "db_type": "TEXT" },
+    { "key": "AQcode", "col": "a_qcode", "db_type": "TEXT" },
+    { "key": "AQDesc", "col": "aq_desc", "db_type": "TEXT" },
+    { "key": "Shape_Leng", "col": "shape_leng", "db_type": "DOUBLE PRECISION" },
+    { "key": "PTYPE", "col": "ptype", "db_type": "TEXT" }
+  ],
+  "requiresPromoteToMulti": false,
+  "requiresForcedPostGisDimension": false,
+  "promoteToMulti": false,
+  "forcePostGisDimension": false,
+  "postGisGeometryType": "MultiLineString"
+}

@@ -13,7 +13,7 @@ module.exports = {
   plugins: ["import", "@typescript-eslint"],
   rules: {
     "@typescript-eslint/adjacent-overload-signatures": "error",
-    "@typescript-eslint/array-type": "error",
+    "@typescript-eslint/array-type": "off",
     "@typescript-eslint/ban-types": "error",
     "@typescript-eslint/class-name-casing": "off",
     "@typescript-eslint/consistent-type-assertions": "off",

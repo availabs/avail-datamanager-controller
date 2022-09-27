@@ -107,6 +107,7 @@ export default class ApiService extends Service {
                 // @ts-ignore
                 const { pgEnv } = req.$ctx.meta;
 
+                event.meta = event.meta || {};
                 event.meta.pgEnv = pgEnv;
 
                 let { meta: { etl_context_id = null } = {} } = event;
