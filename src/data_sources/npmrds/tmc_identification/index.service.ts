@@ -219,7 +219,7 @@ export default {
         });
 
         const { dama_view_id } = await ctx.call(
-          "dama_meta.updateDataManagerViewMetadata",
+          "dama/metadata.updateDataManagerViewMetadata",
           event
         );
 

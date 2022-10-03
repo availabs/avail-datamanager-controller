@@ -96,6 +96,42 @@ export default class ApiService extends Service {
               // res.end();
               // },
 
+              async "GET table-json-schema"(
+                req: IncomingRequest,
+                res: GatewayResponse
+              ) {
+                const schema = await req.$ctx.call(
+                  "dama/metadata.getTableJsonSchema",
+                  req.$params
+                );
+
+                res.end(JSON.stringify(schema));
+              },
+
+              async "GET table-columns"(
+                req: IncomingRequest,
+                res: GatewayResponse
+              ) {
+                const columns = await req.$ctx.call(
+                  "dama/metadata.getTableColumns",
+                  req.$params
+                );
+
+                res.end(JSON.stringify(columns));
+              },
+
+              async "GET dama-data-sources"(
+                req: IncomingRequest,
+                res: GatewayResponse
+              ) {
+                const dataSources = await req.$ctx.call(
+                  "dama/metadata.getDamaDataSources",
+                  req.$params
+                );
+
+                res.end(JSON.stringify(dataSources));
+              },
+
               async "events/dispatch"(
                 req: IncomingRequest,
                 res: GatewayResponse
@@ -143,9 +179,13 @@ export default class ApiService extends Service {
                 return res.end(JSON.stringify(damaaEvents));
               },
 
+              "POST create/dataSource": "dama/metadata.createNewDataSource",
+
               "GET staged-geospatial-dataset/existingDatasetUploads":
                 "dama/data_source_integrator.getExistingDatasetUploads",
 
+              // FIXME: Returns an array. See
+              // https://github.com/moleculerjs/moleculer-web/blob/5b0eebe83ece78dbacd40d02ae90fd7c143572ed/src/alias.js#L194
               "staged-geospatial-dataset/uploadGeospatialDataset":
                 "multipart:dama/data_source_integrator.uploadGeospatialDataset",
 

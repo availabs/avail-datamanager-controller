@@ -56,10 +56,11 @@ export default {
     [EventTypes.LOAD_REQUEST]: {
       context: true,
       async handler(ctx: Context) {
-        console.log(JSON.stringify(ctx.params, null, 4));
+        // console.log(JSON.stringify(ctx.params, null, 4));
 
         const reqEvent = <FSA>ctx.params;
 
+        // @ts-ignore
         if (!reqEvent.meta.DAMAA) {
           throw new Error("LOAD_REQUEST events must be DAMAA events");
         }
@@ -79,12 +80,13 @@ export default {
         ctx.call("dama_dispatcher.dispatch", loadedEvent);
 
         const qaRequestEvent = {
-          type: EventTypes.QA_APPROVED,
+          type: EventTypes.QA_REQUEST,
           payload: _.pick(loadedEvent, ["tableSchema", "tableName"]),
           meta: {
             // @ts-ignore
             ..._.pick(reqEvent.meta, commonDammaMetaProps),
             checkpoint: true,
+            timestamp: new Date().toISOString(),
           },
         };
 
@@ -169,12 +171,16 @@ export default {
           params: fileStream,
         } = ctx;
 
+        // console.log("==> filename:", filename);
+
         const gdi = new GeospatialDatasetIntegrator();
+
         const id = await gdi.receiveDataset(
           <string>filename,
           <Readable>fileStream
         );
 
+        // console.log("id:", id);
         return { id };
       },
     },
@@ -255,7 +261,7 @@ export default {
 
         const migration_result = await gdi.loadTable({ layerName, pgEnv });
 
-        console.log(JSON.stringify({ migration_result }, null, 4));
+        // console.log(JSON.stringify({ migration_result }, null, 4));
 
         return migration_result;
       },
@@ -267,19 +273,21 @@ export default {
 
         const {
           // @ts-ignore
+          event_id,
+          // @ts-ignore
           meta: { etl_context_id },
         } = event;
 
-        const events: FSA[] = await ctx.call(
-          "dama_dispatcher.queryDamaEvents",
-          {
+        // @ts-ignore
+        const events: FSA[] = (
+          await ctx.call("dama_dispatcher.queryDamaEvents", {
             etl_context_id,
-          }
-        );
+          })
+        ).filter(({ event_id: eid }) => eid <= event_id); // Filter out the future events
 
         const eventTypes = new Set(events.map(({ type }) => type));
 
-        console.log(JSON.stringify({ eventTypes: [...eventTypes] }, null, 4));
+        // console.log(JSON.stringify({ eventTypes: [...eventTypes] }, null, 4));
 
         if (ReadyToPublishPrerequisites.every((eT) => eventTypes.has(eT))) {
           const newEvent = {
@@ -446,7 +454,7 @@ export default {
 
         const updateViewMetaSql = <QueryConfig>(
           await ctx.call(
-            "dama_meta.getUpdateDataManagerViewMetadataSql",
+            "dama/metadata.getUpdateDataManagerViewMetadataSql",
             viewMetadataSubmittedEvent
           )
         );
@@ -456,9 +464,10 @@ export default {
         migration_sql.push("COMMIT;");
 
         try {
-          const migration_result = <QueryResult[]>(
-            await ctx.call("dama_db.query", migration_sql)
-          );
+          const migration_result = // @ts-ignore
+            (await ctx.call("dama_db.query", migration_sql)).map(
+              (result: QueryResult) => _.omit(result, "_types")
+            );
 
           // We need the data_manager.views id
           const {

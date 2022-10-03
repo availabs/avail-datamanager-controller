@@ -120,7 +120,7 @@ module.exports = {
     "object-shorthand": "error",
     "one-var": ["error", "never"],
     "prefer-const": "error",
-    "quote-props": ["error", "consistent-as-needed"],
+    "quote-props": "off",
     radix: "error",
     "space-before-function-paren": [
       "error",

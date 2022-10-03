@@ -222,7 +222,7 @@ export default {
           pg_env: pgEnv,
         });
 
-        await ctx.call("dama_meta.updateDataManagerViewMetadata", event);
+        await ctx.call("dama/metadata.updateDataManagerViewMetadata", event);
 
         const end_timestamp = new Date().toISOString();
 
