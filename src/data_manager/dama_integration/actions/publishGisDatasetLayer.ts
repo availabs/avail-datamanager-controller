@@ -8,7 +8,44 @@ import _ from "lodash";
 import { FSA } from "flux-standard-action";
 
 import EventTypes from "../constants/EventTypes";
-import ReadyToPublishPrerequisites from "../constants/ReadyToPublishPrerequisites";
+
+export const ReadyToPublishPrerequisites = [
+  EventTypes.QA_APPROVED,
+  EventTypes.VIEW_METADATA_SUBMITTED,
+];
+
+async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
+  const {
+    // @ts-ignore
+    params: { etl_context_id },
+  } = ctx;
+
+  const eventTypes = events.map(({ type }) => type);
+
+  const unmetPreReqs = _.difference(ReadyToPublishPrerequisites, eventTypes);
+
+  if (unmetPreReqs.length) {
+    const err = new Error(
+      `The following PUBLISH prerequisites are not met: ${unmetPreReqs}`
+    );
+
+    const errEvent = {
+      type: EventTypes.NOT_READY_TO_PUBLISH,
+      payload: {
+        message: err.message,
+      },
+      meta: {
+        etl_context_id,
+        timestamp: new Date().toISOString(),
+      },
+      error: true,
+    };
+
+    await ctx.call("dama_dispatcher.dispatch", errEvent);
+
+    throw err;
+  }
+}
 
 async function generateMigrationSql(
   ctx: Context,
@@ -142,27 +179,7 @@ export default async function publish(ctx: Context) {
     return acc;
   }, {});
 
-  if (!eventByType[EventTypes.READY_TO_PUBLISH]) {
-    const missingPrereqs = ReadyToPublishPrerequisites.filter(
-      (eT) => !eventByType[eT]
-    ).map((eT) => eT.replace(/^.*:/, ""));
-
-    if (missingPrereqs) {
-      const errEvent = {
-        type: EventTypes.NOT_READY_TO_PUBLISH,
-        payload: {
-          message: `The following PUBLISH prerequisites are not met: ${missingPrereqs}`,
-        },
-        meta: {
-          etl_context_id,
-          timestamp: new Date().toISOString(),
-        },
-        error: true,
-      };
-
-      return ctx.call("dama_dispatcher.dispatch", errEvent);
-    }
-  }
+  checkIfReadyToPublish(ctx, events);
 
   const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
 

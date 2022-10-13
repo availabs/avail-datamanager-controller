@@ -7,15 +7,12 @@ import { join } from "path";
 import { Context } from "moleculer";
 import _ from "lodash";
 
-import { FSA } from "flux-standard-action";
-
 import etlDir from "../../constants/etlDir";
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
 import serviceName from "./constants/serviceName";
 import EventTypes from "./constants/EventTypes";
-import ReadyToPublishPrerequisites from "./constants/ReadyToPublishPrerequisites";
 
 import uploadGeospatialDataset from "./actions/uploadGeospatialDataset";
 import stageLayerData from "./actions/stageLayerData";
@@ -23,24 +20,6 @@ import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
 
 export default {
   name: serviceName,
-
-  events: {
-    [EventTypes.QA_APPROVED]: {
-      context: true,
-      // params: FSAEventParam,
-      async handler(ctx: Context) {
-        await this.checkIfReadyToPublish(ctx);
-      },
-    },
-
-    [EventTypes.VIEW_METADATA_SUBMITTED]: {
-      context: true,
-      // params: FSAEventParam,
-      async handler(ctx: Context) {
-        await this.checkIfReadyToPublish(ctx);
-      },
-    },
-  },
 
   actions: {
     async getExistingDatasetUploads() {
@@ -162,47 +141,5 @@ export default {
     },
 
     publishGisDatasetLayer,
-  },
-
-  methods: {
-    checkIfReadyToPublish: {
-      async handler(ctx: Context) {
-        const { params: event } = ctx;
-
-        const {
-          // @ts-ignore
-          event_id,
-          // @ts-ignore
-          meta: { etl_context_id },
-        } = event;
-
-        // @ts-ignore
-        const events: FSA[] = (
-          await ctx.call("dama_dispatcher.queryDamaEvents", {
-            etl_context_id,
-          })
-        ).filter(({ event_id: eid }) => eid <= event_id); // Filter out the future events
-
-        const eventTypes = new Set(events.map(({ type }) => type));
-
-        // console.log(JSON.stringify({ eventTypes: [...eventTypes] }, null, 4));
-
-        if (ReadyToPublishPrerequisites.every((eT) => eventTypes.has(eT))) {
-          const newEvent = {
-            type: EventTypes.READY_TO_PUBLISH,
-            payload: { etl_context_id },
-            meta: (<FSA>event).meta,
-          };
-
-          process.nextTick(() =>
-            ctx.call("dama_dispatcher.dispatch", newEvent)
-          );
-
-          return true;
-        }
-
-        return false;
-      },
-    },
   },
 };
