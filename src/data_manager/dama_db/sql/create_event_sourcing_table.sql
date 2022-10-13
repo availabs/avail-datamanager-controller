@@ -7,10 +7,10 @@ CREATE TABLE IF NOT EXISTS _data_manager_admin.etl_context (
 
 CREATE TABLE IF NOT EXISTS _data_manager_admin.event_store_prototype (
   event_id          SERIAL PRIMARY KEY,
+  etl_context_id    INTEGER NOT NULL,
+
   type              TEXT NOT NULL,
   payload           JSONB,
   meta              JSONB,
-  error             BOOLEAN,
-
-  is_checkpoint     BOOLEAN
+  error             BOOLEAN
 ) ;

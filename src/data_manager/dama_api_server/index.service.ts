@@ -179,7 +179,10 @@ export default class ApiService extends Service {
                 return res.end(JSON.stringify(damaaEvents));
               },
 
-              "POST create/dataSource": "dama/metadata.createNewDataSource",
+              "POST metadata/createNewDataSource":
+                "dama/metadata.createNewDataSource",
+
+              "GET new-etl-context-id": "dama_dispatcher.spawnDamaContext",
 
               "GET staged-geospatial-dataset/existingDatasetUploads":
                 "dama/data_source_integrator.getExistingDatasetUploads",
@@ -195,11 +198,23 @@ export default class ApiService extends Service {
               "GET /staged-geospatial-dataset/:id/:layerName/tableDescriptor":
                 "dama/data_source_integrator.getTableDescriptor",
 
+              "staged-geospatial-dataset/stageLayerData/:layerName":
+                "dama/data_source_integrator.stageLayerData",
+
               "/staged-geospatial-dataset/:id/updateTableDescriptor":
                 "dama/data_source_integrator.updateTableDescriptor",
 
               "/staged-geospatial-dataset/:id/:layerName/loadDatabaseTable":
                 "dama/data_source_integrator.loadDatabaseTable",
+
+              "/staged-geospatial-dataset/approveQA":
+                "dama/data_source_integrator.approveQA",
+
+              "/staged-geospatial-dataset/submitViewMeta":
+                "dama/data_source_integrator.submitViewMeta",
+
+              "/staged-geospatial-dataset/publishGisDatasetLayer":
+                "dama/data_source_integrator.publishGisDatasetLayer",
             },
           },
 

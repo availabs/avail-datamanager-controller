@@ -24,7 +24,7 @@ export type TaskParams = {
   pgEnv: string;
 };
 
-const commonDammaMetaProps = ["DAMAA", "etl_context_id"];
+const commonDammaMetaProps = ["etl_context_id"];
 
 export default {
   name: serviceName,
@@ -105,8 +105,6 @@ export default {
           payload,
           meta: {
             INITIAL: true,
-            DAMAA: true,
-            checkpoint: true,
             parent_context_id,
             etl_context_id,
             start_timestamp,
@@ -134,7 +132,6 @@ export default {
           payload,
           meta: {
             ..._.pick(meta, commonDammaMetaProps),
-            checkpoint: true,
             timestamp: new Date().toISOString(),
           },
         });
@@ -179,10 +176,8 @@ export default {
         };
 
         const meta = {
-          DAMAA: true,
           etl_context_id,
           timestamp: new Date().toISOString(),
-          checkpoint: true,
         };
 
         const e = {
@@ -233,8 +228,6 @@ export default {
           meta: {
             // @ts-ignore
             ...oldMeta,
-            DAMAA: true,
-            checkpoint: true,
             start_timestamp,
             end_timestamp,
           },

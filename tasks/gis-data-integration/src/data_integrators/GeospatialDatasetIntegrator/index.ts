@@ -183,6 +183,7 @@ export default class GeospatialDatasetIntegrator {
 
   async receiveDataset(fname: string, readStream: Readable) {
     let workDirPath: string;
+
     while (true) {
       const workDirName = uuidv4();
       workDirPath = join(etlDir, workDirName);
@@ -207,6 +208,7 @@ export default class GeospatialDatasetIntegrator {
 
     const zipRE = /\.zip$/i;
     const tarRE = /\.tar$|\.tar.gz$|\.tgz$/i;
+
     if (zipRE.test(fname)) {
       iter = this.makeZipDatasetEntriesAsyncGenerator(fpath);
     } else if (tarRE.test(fname)) {
@@ -215,8 +217,9 @@ export default class GeospatialDatasetIntegrator {
       throw new Error("receiveDataset ONLY supports ZIP and TAR archives.");
     }
 
-    await this.injestDatasetEntries(iter);
-    return this.id;
+    const datasetMetadata = await this.injestDatasetEntries(iter);
+
+    return { id: this.id, datasetMetadata };
   }
 
   protected async injestDatasetEntries(

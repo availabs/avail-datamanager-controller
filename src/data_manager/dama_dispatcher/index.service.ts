@@ -15,15 +15,13 @@ export default {
 
   actions: {
     spawnDamaContext: {
-      visibility: "public",
+      visibility: "published",
 
       async handler(ctx: Context) {
         const {
           // @ts-ignore
           params: { etl_context_id = null },
         } = ctx;
-
-        const db = await ctx.call("dama_db.getDb");
 
         const q = `
           INSERT INTO _data_manager_admin.etl_context (
@@ -32,8 +30,11 @@ export default {
           RETURNING context_id
         `;
 
+        const db = await ctx.call("dama_db.getDb");
+
         const {
           rows: [{ context_id }],
+          // @ts-ignore
         } = await db.query(q, [etl_context_id]);
 
         return context_id;
@@ -47,8 +48,14 @@ export default {
         const { params } = ctx;
         const {
           // @ts-ignore
-          meta: { DAMAA, etl_context_id, checkpoint },
+          meta: { etl_context_id },
         } = params;
+
+        if (!etl_context_id) {
+          throw new Error(
+            "All Data Manager Action Events MUST have a meta.etl_context_id"
+          );
+        }
 
         let event = params;
         // @ts-ignore
@@ -56,35 +63,34 @@ export default {
         // @ts-ignore
         event.meta.pgEnv = ctx.meta.pgEnv;
 
-        if (DAMAA) {
-          if (!etl_context_id) {
-            throw new Error(
-              "All Data Manager Action (DAMAA) Events MUST have a meta.etl_context_id"
-            );
-          }
+        const db = await ctx.call("dama_db.getDb");
 
-          const db = await ctx.call("dama_db.getDb");
+        // @ts-ignore
+        const { type, payload, meta = null, error = null } = params;
 
-          // @ts-ignore
-          const { type, payload, meta = null, error = null } = params;
-
-          const q = `
+        const q = `
             INSERT INTO _data_manager_admin.event_store_prototype (
+              etl_context_id,
               type,
               payload,
               meta,
-              error,
-              is_checkpoint
+              error
             ) VALUES ( $1, $2, $3, $4, $5 )
               RETURNING *
           `;
 
-          const {
-            rows: [damaEvent],
-          } = await db.query(q, [type, payload, meta, error, !!checkpoint]);
+        const {
+          rows: [damaEvent],
+          // @ts-ignore
+        } = await db.query(q, [
+          etl_context_id,
+          type,
+          payload || null,
+          meta || null,
+          error || false,
+        ]);
 
-          event = damaEvent;
-        }
+        event = damaEvent;
 
         // FIXME: Infinite Loop
         ctx.emit(params.type, event, { meta: ctx.meta });
@@ -130,8 +136,7 @@ export default {
               type,
               payload,
               meta,
-              error,
-              is_checkpoint
+              error
             FROM _data_manager_admin.event_store_prototype AS a
               INNER JOIN cte_ctx_tree AS b
                 ON (
@@ -141,13 +146,16 @@ export default {
             ORDER BY event_id
         `;
 
+        // @ts-ignore
         const { rows: damaEvents } = await db.query(q, [
           etl_context_id,
           event_id,
         ]);
 
         damaEvents.forEach((e: FSA) => {
+          // @ts-ignore
           e.meta = e.meta || {};
+          // @ts-ignore
           e.meta.pgEnv = pgEnv;
         });
 
@@ -192,6 +200,7 @@ export default {
 
         const {
           rows: [{ root_etl_context }],
+          // @ts-ignore
         } = await db.query(q, [etl_context_id]);
 
         return root_etl_context;
@@ -215,14 +224,14 @@ export default {
               type,
               payload,
               meta,
-              error,
-              is_checkpoint
+              error
             FROM _data_manager_admin.event_store_prototype
             WHERE ( event_id = $1 )
         `;
 
         const {
           rows: [damaEvent],
+          // @ts-ignore
         } = await db.query(q, [event_id]);
 
         return damaEvent;

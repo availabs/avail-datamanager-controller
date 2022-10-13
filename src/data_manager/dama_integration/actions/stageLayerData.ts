@@ -1,0 +1,83 @@
+import { Context } from "moleculer";
+import _ from "lodash";
+
+import { FSA } from "flux-standard-action";
+
+export type ServiceContext = Context & {
+  params: FSA;
+};
+
+import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
+
+import serviceName from "../constants/serviceName";
+import EventTypes from "../constants/EventTypes";
+
+export default async function stageLayerData(ctx: Context) {
+  const {
+    // @ts-ignore
+    params: { etl_context_id, layerName },
+    // @ts-ignore
+    meta: { pgEnv },
+  } = ctx;
+
+  if (!etl_context_id) {
+    throw new Error("etl_context_id parameter is required");
+  }
+
+  const events: FSA[] = await ctx.call("dama_dispatcher.queryDamaEvents", {
+    etl_context_id,
+  }); // Filter out the future events
+
+  const finishedUploadEvent = events.find(
+    ({ type }) => type === EventTypes.FINISH_GIS_FILE_UPLOAD
+  );
+
+  if (!finishedUploadEvent) {
+    throw new Error(
+      `FINISH_GIS_FILE_UPLOAD event not found for etl_context_id ${etl_context_id}.`
+    );
+  }
+
+  const {
+    // @ts-ignore
+    payload: { gis_upload_id },
+  } = finishedUploadEvent;
+
+  const stageReqEvent = {
+    type: `${serviceName}:STAGE_LAYER_DATA_REQUEST`,
+    payload: { etl_context_id, layerName },
+    meta: {
+      etl_context_id,
+    },
+  };
+
+  await ctx.call("dama_dispatcher.dispatch", stageReqEvent);
+
+  const gdi = new GeospatialDatasetIntegrator(gis_upload_id);
+
+  const migration_result = await gdi.loadTable({ layerName, pgEnv });
+
+  const loadedEvent = {
+    type: `${serviceName}:LAYER_DATA_STAGED`,
+    payload: migration_result,
+    meta: {
+      // @ts-ignore
+      etl_context_id,
+    },
+  };
+
+  await ctx.call("dama_dispatcher.dispatch", loadedEvent);
+
+  const qaRequestEvent = {
+    type: EventTypes.QA_REQUEST,
+    payload: _.pick(loadedEvent, ["tableSchema", "tableName"]),
+    meta: {
+      etl_context_id,
+      timestamp: new Date().toISOString(),
+    },
+  };
+
+  await ctx.call("dama_dispatcher.dispatch", qaRequestEvent);
+
+  return migration_result;
+}

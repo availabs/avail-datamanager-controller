@@ -154,7 +154,13 @@ const brokerConfig: BrokerOptions = {
   // Enable action & event parameter validation. More info: https://moleculer.services/docs/0.14/validating.html
   validator: "Fastest",
 
-  errorHandler: null,
+  // Default
+  // errorHandler: null,
+
+  // https://moleculer.services/docs/0.14/broker.html#Global-error-handler
+  errorHandler(err, _info) {
+    console.error(err);
+  },
 
   // Enable/disable built-in metrics function. More info: https://moleculer.services/docs/0.14/metrics.html
   metrics: {

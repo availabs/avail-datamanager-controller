@@ -23,17 +23,12 @@ export default {
       async handler(ctx: Context) {
         const {
           params: {
+            // @ts-ignore
             payload,
+            // @ts-ignore
             meta: { etl_context_id },
           },
         } = ctx;
-
-        const db = await ctx.call("dama_db.getDb");
-
-        const root_etl_context_id = await ctx.call(
-          "dama_dispatcher.queryRootContextId",
-          { etl_context_id }
-        );
 
         const colsQ = `
           SELECT
@@ -46,9 +41,17 @@ export default {
             )
         ;`;
 
+        const db = await ctx.call("dama_db.getDb");
+
+        // @ts-ignore
         const { rows: colsQRows } = await db.query(colsQ);
 
         const columnNames = colsQRows.map(({ column_name }) => column_name);
+
+        const root_etl_context_id = await ctx.call(
+          "dama_dispatcher.queryRootContextId",
+          { etl_context_id }
+        );
 
         const viewMeta = {
           ..._.pick(payload, columnNames),
@@ -56,6 +59,8 @@ export default {
           etl_context_id,
           last_updated: new Date().toISOString(),
         };
+
+        console.log(JSON.stringify({ viewMeta }, null, 4));
 
         const cols: string[] = [];
         const queryParams: any[] = [];
@@ -99,9 +104,7 @@ export default {
                 a.id AS source_id,
                 ${selectClauses}
               FROM data_manager.sources AS a
-              WHERE ( name = $${queryParams.push(
-                data_source_name.toUpperCase()
-              )} )
+              WHERE ( name = $${queryParams.push(data_source_name)} )
             RETURNING id
           ;
         `;
