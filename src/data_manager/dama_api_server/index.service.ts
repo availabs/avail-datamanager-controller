@@ -198,6 +198,9 @@ export default class ApiService extends Service {
               "GET /staged-geospatial-dataset/:id/:layerName/tableDescriptor":
                 "dama/data_source_integrator.getTableDescriptor",
 
+              "GET /staged-geospatial-dataset/:id/:layerName/layerAnalysis":
+                "dama/data_source_integrator.getLayerAnalysis",
+
               "staged-geospatial-dataset/stageLayerData/:layerName":
                 "dama/data_source_integrator.stageLayerData",
 

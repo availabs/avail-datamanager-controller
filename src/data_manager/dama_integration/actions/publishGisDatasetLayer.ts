@@ -22,17 +22,18 @@ async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
 
   const eventTypes = events.map(({ type }) => type);
 
-  const unmetPreReqs = _.difference(ReadyToPublishPrerequisites, eventTypes);
+  const unmetPreReqs = _.difference(
+    ReadyToPublishPrerequisites,
+    eventTypes
+  ).map((e) => e.replace(/.*:/, ""));
 
   if (unmetPreReqs.length) {
-    const err = new Error(
-      `The following PUBLISH prerequisites are not met: ${unmetPreReqs}`
-    );
+    const message = `The following PUBLISH prerequisites are not met: ${unmetPreReqs}`;
 
     const errEvent = {
       type: EventTypes.NOT_READY_TO_PUBLISH,
       payload: {
-        message: err.message,
+        message,
       },
       meta: {
         etl_context_id,
@@ -43,15 +44,23 @@ async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
 
     await ctx.call("dama_dispatcher.dispatch", errEvent);
 
-    throw err;
+    console.error("errEvent:", errEvent);
+
+    throw new Error(message);
   }
 }
 
-async function generateMigrationSql(
-  ctx: Context,
-  viewMetadataSubmittedEvent: FSA,
-  dataStagedEvent: FSA
-) {
+async function generateMigrationSql(ctx: Context, events: FSA[]) {
+  const eventByType = events.reduce((acc, damaEvent: FSA) => {
+    acc[damaEvent.type] = damaEvent;
+    return acc;
+  }, {});
+
+  const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
+
+  const viewMetadataSubmittedEvent =
+    eventByType[EventTypes.VIEW_METADATA_SUBMITTED];
+
   const {
     // @ts-ignore
     payload: { table_schema, table_name },
@@ -174,22 +183,11 @@ export default async function publish(ctx: Context) {
     etl_context_id,
   });
 
-  const eventByType = events.reduce((acc, damaEvent: FSA) => {
-    acc[damaEvent.type] = damaEvent;
-    return acc;
-  }, {});
-
-  checkIfReadyToPublish(ctx, events);
-
-  const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
-
-  const viewMetadataSubmittedEvent =
-    eventByType[EventTypes.VIEW_METADATA_SUBMITTED];
+  await checkIfReadyToPublish(ctx, events);
 
   const { migrationSql, updateViewMetaIdx } = await generateMigrationSql(
     ctx,
-    viewMetadataSubmittedEvent,
-    dataStagedEvent
+    events
   );
 
   try {

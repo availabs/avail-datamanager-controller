@@ -154,12 +154,32 @@ const brokerConfig: BrokerOptions = {
   // Enable action & event parameter validation. More info: https://moleculer.services/docs/0.14/validating.html
   validator: "Fastest",
 
+  // https://moleculer.services/docs/0.14/broker.html#Global-error-handler
   // Default
   // errorHandler: null,
+  async errorHandler(err: Error, info: any) {
+    const { service, action, ctx } = info;
 
-  // https://moleculer.services/docs/0.14/broker.html#Global-error-handler
-  errorHandler(err, _info) {
-    console.error(err);
+    if (ctx.params.etl_context_id) {
+      try {
+        const errEvnt = {
+          type: "UNCAUGHT_ERROR",
+          payload: { message: err.message, stack: err.stack },
+          meta: {
+            etl_context_id: ctx.params.etl_context_id,
+            serviceName: service.name,
+            actionName: action.name,
+          },
+          error: true,
+        };
+
+        await ctx.call("dama_dispatcher.dispatch", errEvnt);
+      } catch (err2) {
+        console.error(err2);
+      }
+    }
+
+    throw err;
   },
 
   // Enable/disable built-in metrics function. More info: https://moleculer.services/docs/0.14/metrics.html

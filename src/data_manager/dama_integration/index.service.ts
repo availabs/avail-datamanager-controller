@@ -72,6 +72,19 @@ export default {
       return tableDescriptor;
     },
 
+    async getLayerAnalysis(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { id, layerName },
+      } = ctx;
+
+      const gdi = new GeospatialDatasetIntegrator(id);
+
+      const layerAnalysis = await gdi.getGeoDatasetLayerAnalysis(layerName);
+
+      return layerAnalysis;
+    },
+
     async updateTableDescriptor(ctx: Context) {
       const {
         // @ts-ignore
