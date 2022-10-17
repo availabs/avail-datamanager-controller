@@ -266,6 +266,8 @@ export default async function publish(ctx: Context) {
     dbConnection.query("COMMIT;");
     dbConnection.release();
 
+    console.log(`PUBLISHED: ${table_schema}.${table_name}`);
+
     const finalEvent = {
       type: EventTypes.FINAL,
       payload: {

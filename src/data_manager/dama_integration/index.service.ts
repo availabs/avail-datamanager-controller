@@ -1,4 +1,15 @@
 // FIXME: Need subEtlContexts for each layer
+//
+/*
+[2022-10-14T15:21:04.761Z] ERROR saturn-24150/DAMA_API_SERVER:    Request error! TypeError : Cannot destructure property 'wkbType' of 'feature.getGeometry(...)' as it is null.
+ TypeError: Cannot destructure property 'wkbType' of 'feature.getGeometry(...)' as it is null.
+    at /home/avail/code/avail-data-manager-controller/tasks/gis-data-integration/src/utils/GeospatialDataUtils/index.ts:246:13
+    at Generator.next (<anonymous>)
+    at fulfilled (/home/avail/code/avail-data-manager-controller/tasks/gis-data-integration/src/utils/GeospatialDataUtils/index.ts:24:58)
+    at runMicrotasks (<anonymous>)
+    at processTicksAndRejections (node:internal/process/task_queues:96:5)
+Data: undefined
+*/
 
 import { existsSync } from "fs";
 import { readdir as readdirAsync } from "fs/promises";
@@ -150,7 +161,9 @@ export default {
         },
       };
 
-      await ctx.call("dama_dispatcher.dispatch", event);
+      const result = await ctx.call("dama_dispatcher.dispatch", event);
+
+      return result;
     },
 
     publishGisDatasetLayer,
