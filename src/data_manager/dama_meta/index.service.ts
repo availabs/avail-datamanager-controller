@@ -17,7 +17,7 @@ export default {
   name: serviceName,
 
   actions: {
-    getUpdateDataManagerViewMetadataSql: {
+    getInsertDataManagerViewMetadataSql: {
       visibility: "public",
 
       async handler(ctx: Context) {
@@ -59,8 +59,6 @@ export default {
           etl_context_id,
           last_updated: new Date().toISOString(),
         };
-
-        console.log(JSON.stringify({ viewMeta }, null, 4));
 
         const cols: string[] = [];
         const queryParams: any[] = [];
@@ -105,7 +103,7 @@ export default {
                 ${selectClauses}
               FROM data_manager.sources AS a
               WHERE ( name = $${queryParams.push(data_source_name)} )
-            RETURNING id
+            RETURNING *
           ;
         `;
 
@@ -121,7 +119,7 @@ export default {
 
       async handler(ctx: Context) {
         const query = await ctx.call(
-          "dama/metadata.getUpdateDataManagerViewMetadataSql",
+          "dama/metadata.getInsertDataManagerViewMetadataSql",
           ctx.params
         );
 
@@ -140,8 +138,6 @@ export default {
         // @ts-ignore
         const { tableSchema, tableName } = ctx.params;
 
-        console.log(ctx.params);
-
         const text = dedent(`
           SELECT
               t.schema
@@ -156,8 +152,6 @@ export default {
           values: [tableSchema, tableName],
         });
 
-        console.log(JSON.stringify({ schema }, null, 4));
-
         return schema;
       },
     },
@@ -168,8 +162,6 @@ export default {
       async handler(ctx: Context) {
         // @ts-ignore
         const { tableSchema, tableName } = ctx.params;
-
-        console.log("==> tableSchema:", tableSchema, "; tableName:", tableName);
 
         const text = dedent(`
           SELECT
@@ -230,8 +222,6 @@ export default {
 
         const props = Object.keys(newSrcProps);
         const cols = _.pull(_.intersection(tableCols, props), "id");
-
-        console.log(JSON.stringify({ tableCols, props, cols }, null, 4));
 
         const colTags = cols.map(() => "%I");
         const params = _.range(1, cols.length + 1).map((i) => `$${i}`);

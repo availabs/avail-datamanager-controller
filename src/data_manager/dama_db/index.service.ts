@@ -7,6 +7,8 @@ import { Context } from "moleculer";
 
 import { FSA } from "flux-standard-action";
 
+import getPgEnvFromCtx from "../dama_utils/getPgEnvFromContext";
+
 import { NodePgPool, getConnectedNodePgPool } from "./postgres/PostgreSQL";
 
 export type ServiceContext = Context & {
@@ -99,16 +101,26 @@ export default {
       visibility: "protected", // can be called only from local services
 
       handler(ctx: Context) {
-        const {
-          // @ts-ignore
-          meta: { pgEnv },
-        } = ctx;
-
-        if (!pgEnv) {
-          throw new Error("ctx.meta.pgEnv is not set");
-        }
+        const pgEnv = getPgEnvFromCtx(ctx);
 
         return this.getDb(pgEnv);
+      },
+    },
+
+    // https://node-postgres.com/api/pool#releasecallback
+    // > The releaseCallback releases an acquired client back to the pool.
+    // MUST release the connection when done.
+    getDbConnection: {
+      visibility: "protected",
+
+      async handler(ctx: Context) {
+        const pgEnv = getPgEnvFromCtx(ctx);
+
+        const db = <NodePgPool>await this.getDb(pgEnv);
+
+        const connection = await db.connect();
+
+        return connection;
       },
     },
 
@@ -125,16 +137,12 @@ export default {
         const {
           // @ts-ignore
           params,
-          // @ts-ignore
-          meta: { pgEnv },
         } = ctx;
+
+        const pgEnv = getPgEnvFromCtx(ctx);
 
         const multiQueries = Array.isArray(params);
         const queries = multiQueries ? params : [params];
-
-        if (!pgEnv) {
-          throw new Error("ctx.meta.pgEnv is not set");
-        }
 
         const db = <NodePgPool>await this.getDb(pgEnv);
 

@@ -1,6 +1,6 @@
 import { Context } from "moleculer";
 
-import { QueryConfig, QueryResult } from "pg";
+import { PoolClient, QueryConfig, QueryResult } from "pg";
 import pgFormat from "pg-format";
 import dedent from "dedent";
 import _ from "lodash";
@@ -50,28 +50,32 @@ async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
   }
 }
 
-async function generateMigrationSql(ctx: Context, events: FSA[]) {
-  const eventByType = events.reduce((acc, damaEvent: FSA) => {
-    acc[damaEvent.type] = damaEvent;
-    return acc;
-  }, {});
+async function getInsertViewMetadataSql(
+  ctx: Context,
+  viewMetadataSubmittedEvent: FSA
+) {
+  const insertViewMetaSql = <QueryConfig>(
+    await ctx.call(
+      "dama/metadata.getInsertDataManagerViewMetadataSql",
+      viewMetadataSubmittedEvent
+    )
+  );
 
-  const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
+  return insertViewMetaSql;
+}
 
-  const viewMetadataSubmittedEvent =
-    eventByType[EventTypes.VIEW_METADATA_SUBMITTED];
-
-  const {
-    // @ts-ignore
-    payload: { table_schema, table_name },
-  } = viewMetadataSubmittedEvent;
-
+async function generatePublishSql(
+  ctx: Context,
+  dataStagedEvent: FSA,
+  table_schema: string,
+  table_name: string
+) {
   const {
     // @ts-ignore
     payload: { tableSchema: stagedTableSchema, tableName: stagedTableName },
   } = dataStagedEvent;
 
-  const migrationSql: Array<string | QueryConfig> = ["BEGIN;"];
+  const publishSql: Array<string | QueryConfig> = ["BEGIN;"];
 
   const stagingTableIsTargetTable =
     stagedTableSchema === table_schema && stagedTableName === table_name;
@@ -81,7 +85,7 @@ async function generateMigrationSql(ctx: Context, events: FSA[]) {
     // //     TODO: Have a whitelist for data sources that will allow DROPs.
     //
     // if (clean) {
-    // migrationSql.push(
+    // publishSql.push(
     // pgFormat("DROP TABLE IF EXISTS %I.%I ;", table_schema, table_name)
     // );
     // }
@@ -95,15 +99,15 @@ async function generateMigrationSql(ctx: Context, events: FSA[]) {
     const indexesQuery = dedent(
       pgFormat(
         `
-              SELECT
-                  indexname
-                FROM pg_indexes
-                WHERE (
-                  ( schemaname = %L )
-                  AND
-                  ( tablename = %L )
-                )
-            `,
+          SELECT
+              indexname
+            FROM pg_indexes
+            WHERE (
+              ( schemaname = %L )
+              AND
+              ( tablename = %L )
+            )
+        `,
         stagedTableSchema,
         stagedTableName
       )
@@ -117,7 +121,7 @@ async function generateMigrationSql(ctx: Context, events: FSA[]) {
     for (const { indexname } of indexesQueryResult.rows) {
       const newIndexName = indexname.replace(indexRenameRE, table_name);
 
-      migrationSql.push(
+      publishSql.push(
         dedent(
           pgFormat(
             "ALTER INDEX %I.%I RENAME TO %I ;",
@@ -129,12 +133,10 @@ async function generateMigrationSql(ctx: Context, events: FSA[]) {
       );
     }
 
-    migrationSql.push(
-      pgFormat("CREATE SCHEMA IF NOT EXISTS %I ;", table_schema)
-    );
+    publishSql.push(pgFormat("CREATE SCHEMA IF NOT EXISTS %I ;", table_schema));
 
     // NOTE: This will fail if there exists a table stagedTableSchema.table_name
-    migrationSql.push(
+    publishSql.push(
       pgFormat(
         "ALTER TABLE %I.%I RENAME TO %I ;",
         stagedTableSchema,
@@ -143,7 +145,7 @@ async function generateMigrationSql(ctx: Context, events: FSA[]) {
       )
     );
 
-    migrationSql.push(
+    publishSql.push(
       pgFormat(
         "ALTER TABLE %I.%I SET SCHEMA %I ;",
         stagedTableSchema,
@@ -153,23 +155,11 @@ async function generateMigrationSql(ctx: Context, events: FSA[]) {
     );
   }
 
-  const updateViewMetaIdx = migrationSql.length;
-
-  const updateViewMetaSql = <QueryConfig>(
-    await ctx.call(
-      "dama/metadata.getUpdateDataManagerViewMetadataSql",
-      viewMetadataSubmittedEvent
-    )
-  );
-
-  migrationSql.push(updateViewMetaSql);
-
-  migrationSql.push("COMMIT;");
-
-  return { migrationSql, updateViewMetaIdx };
+  return publishSql;
 }
 
 export default async function publish(ctx: Context) {
+  // throw new Error("publish TEST ERROR");
   const {
     // @ts-ignore
     params: { etl_context_id, user_id },
@@ -183,30 +173,105 @@ export default async function publish(ctx: Context) {
     etl_context_id,
   });
 
+  const eventByType = events.reduce((acc, damaEvent: FSA) => {
+    acc[damaEvent.type] = damaEvent;
+    return acc;
+  }, {});
+
   await checkIfReadyToPublish(ctx, events);
 
-  const { migrationSql, updateViewMetaIdx } = await generateMigrationSql(
-    ctx,
-    events
-  );
+  const dbConnection: PoolClient = await ctx.call("dama_db.getDbConnection");
+  const sqlLog: any[] = [];
+  const resLog: QueryResult[] = [];
 
   try {
-    const migration_result = // @ts-ignore
-      (await ctx.call("dama_db.query", migrationSql)).map(
-        (result: QueryResult) => _.omit(result, "_types")
+    let res: QueryResult;
+
+    sqlLog.push("BEGIN ;");
+    res = await dbConnection.query("BEGIN ;");
+    resLog.push(res);
+
+    const viewMetadataSubmittedEvent =
+      eventByType[EventTypes.VIEW_METADATA_SUBMITTED];
+
+    const insertViewMetaSql = await getInsertViewMetadataSql(
+      ctx,
+      viewMetadataSubmittedEvent
+    );
+
+    sqlLog.push(insertViewMetaSql);
+    res = await dbConnection.query(insertViewMetaSql);
+
+    const {
+      rows: [viewMetadata],
+    } = res;
+
+    const {
+      id: dama_view_id,
+      table_schema: origTableSchema,
+      table_name: origTableName,
+    } = viewMetadata;
+
+    const table_schema = origTableSchema || "gis_datasets";
+    let table_name = origTableName;
+
+    if (!origTableName) {
+      const dataSrcName = viewMetadataSubmittedEvent.payload.data_source_name;
+      const normalizedDataSrcName = _.snakeCase(
+        dataSrcName.replace(/^0-9a-z/gi, "_").replace(/_{1,}/, "_")
+      );
+      table_name = `${normalizedDataSrcName}__v${dama_view_id}`;
+    }
+
+    if (origTableSchema !== table_schema || origTableName !== table_name) {
+      const updateViewMetaSql = dedent(
+        `
+          UPDATE data_manager.views
+            SET
+              table_schema  = $1,
+              table_name    = $2,
+              data_table    = $3
+            WHERE id = $4
+        `
       );
 
+      const data_table = pgFormat("%I.%I", table_schema, table_name);
+
+      const q = {
+        text: updateViewMetaSql,
+        values: [table_schema, table_name, data_table, dama_view_id],
+      };
+
+      sqlLog.push(q);
+      res = await dbConnection.query(q);
+      resLog.push(res);
+    }
+
+    const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
+
+    const publishSql = await generatePublishSql(
+      ctx,
+      dataStagedEvent,
+      table_schema,
+      table_name
+    );
+
+    for (const cmd of publishSql) {
+      sqlLog.push(cmd);
+      res = await dbConnection.query(cmd);
+      resLog.push(res);
+    }
+
     // We need the data_manager.views id
-    const {
-      rows: [{ id: data_manager_view_id }],
-    } = migration_result[updateViewMetaIdx];
+    dbConnection.query("COMMIT;");
+    dbConnection.release();
 
     const finalEvent = {
       type: EventTypes.FINAL,
       payload: {
-        data_manager_view_id,
-        migration_sql: migrationSql,
-        migration_result,
+        data_manager_view_id: -1,
+        publishSql: sqlLog,
+        publishCmdResults: resLog,
       },
       meta: {
         etl_context_id,
@@ -223,7 +288,11 @@ export default async function publish(ctx: Context) {
 
     const errEvent = {
       type: EventTypes.PUBLISH_ERROR,
-      payload: { message: err.message },
+      payload: {
+        message: err.message,
+        successfulPublishSql: sqlLog,
+        successfulPublishCmdResults: resLog,
+      },
       meta: {
         etl_context_id,
         user_id,
@@ -231,6 +300,10 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    return ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("dama_dispatcher.dispatch", errEvent);
+
+    await dbConnection.query("ROLLBACK;");
+
+    throw err;
   }
 }
