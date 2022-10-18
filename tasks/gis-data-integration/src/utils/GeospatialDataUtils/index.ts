@@ -243,10 +243,20 @@ export async function getLayerFeaturesCountByGeometryType(
   const countsByWkbType = <Record<OGRwkbGeometryType, number>>{};
 
   for await (const feature of featuresIter) {
-    const { wkbType } = feature.getGeometry();
+    try {
+      const { wkbType } = feature.getGeometry();
 
-    countsByWkbType[wkbType] = countsByWkbType[wkbType] || 0;
-    ++countsByWkbType[wkbType];
+      countsByWkbType[wkbType] = countsByWkbType[wkbType] || 0;
+      ++countsByWkbType[wkbType];
+    } catch (err) {
+      console.warn("----- WARNING -----");
+      console.warn(
+        "Skipping feature",
+        feature.fid,
+        "due to the following error"
+      );
+      console.warn(err);
+    }
   }
 
   return countsByWkbType;
