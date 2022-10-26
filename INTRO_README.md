@@ -11,7 +11,7 @@ More complex ETL Tasks may be decomposed into many SubTasks that require coordin
 
 The Controller uses [Moleculer](#Moleculer) to compose and execute Tasks.
 
-The DataManager Controller is designed to easily assimilate legacy ETL code.
+The DataManager Controller is designed to assimilate legacy ETL code.
 
 ## ETL Contexts
 
