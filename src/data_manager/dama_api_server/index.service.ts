@@ -182,6 +182,9 @@ export default class ApiService extends Service {
               "POST metadata/createNewDataSource":
                 "dama/metadata.createNewDataSource",
 
+              "GET metadata/datasource-latest-view-table-columns":
+                "dama/metadata.getDataSourceLatestViewTableColumns",
+
               "GET new-etl-context-id": "dama_dispatcher.spawnDamaContext",
 
               "GET staged-geospatial-dataset/existingDatasetUploads":

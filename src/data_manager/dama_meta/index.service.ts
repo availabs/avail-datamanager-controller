@@ -17,6 +17,116 @@ export default {
   name: serviceName,
 
   actions: {
+    getTableColumns: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        // @ts-ignore
+        const { tableSchema, tableName } = ctx.params;
+
+        const text = dedent(`
+          SELECT
+              column_name
+            FROM information_schema.columns
+            WHERE (
+              ( table_schema = $1 )
+              AND
+              ( table_name = $2 )
+            )
+            ORDER BY ordinal_position
+          ;
+        `);
+
+        const { rows } = await ctx.call("dama_db.query", {
+          text,
+          values: [tableSchema, tableName],
+        });
+
+        const columnNames = rows.map(({ column_name }) => column_name);
+
+        return columnNames;
+      },
+    },
+
+    getDataSourceViewDataTableColumnsNames: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        // @ts-ignore
+        const { dataSourceViewId } = ctx.params;
+
+        const text = dedent(`
+          SELECT
+              a.column_name
+            FROM information_schema.columns AS a
+              INNER JOIN data_manager.views AS b
+                USING ( table_schema, table_name )
+            WHERE ( b.id = $1 )
+            ORDER BY a.ordinal_position
+          ;
+        `);
+
+        const { rows } = await ctx.call("dama_db.query", {
+          text,
+          values: [dataSourceViewId],
+        });
+
+        const columnNames = rows.map(({ column_name }) => column_name);
+
+        return columnNames;
+      },
+    },
+
+    getDataSourceMaxViewId: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        // @ts-ignore
+        const { dataSourceId } = ctx.params;
+
+        const text = dedent(`
+          SELECT
+              MAX(id) AS latest_view_id
+            FROM data_manager.views
+            WHERE ( source_id = $1 )
+          ;
+        `);
+
+        const { rows } = await ctx.call("dama_db.query", {
+          text,
+          values: [dataSourceId],
+        });
+
+        if (rows.length < 1) {
+          return null;
+        }
+
+        const [{ latest_view_id }] = rows;
+
+        return latest_view_id;
+      },
+    },
+
+    getDataSourceLatestViewTableColumns: {
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        // getDataSourceMaxViewId has same params
+        const dataSourceViewId = await this.actions.getDataSourceMaxViewId(
+          ctx.params,
+          { parentCtx: ctx }
+        );
+
+        const columnNames =
+          await this.actions.getDataSourceViewDataTableColumnsNames(
+            { dataSourceViewId },
+            { parentCtx: ctx }
+          );
+
+        return columnNames;
+      },
+    },
+
     getInsertDataManagerViewMetadataSql: {
       visibility: "public",
 
@@ -30,23 +140,10 @@ export default {
           },
         } = ctx;
 
-        const colsQ = `
-          SELECT
-              column_name
-            FROM information_schema.columns
-            WHERE (
-              ( table_schema = 'data_manager' )
-              AND
-              ( table_name = 'views' )
-            )
-        ;`;
-
-        const db = await ctx.call("dama_db.getDb");
-
-        // @ts-ignore
-        const { rows: colsQRows } = await db.query(colsQ);
-
-        const columnNames = colsQRows.map(({ column_name }) => column_name);
+        const columnNames: string[] = await this.actions.getTableColumns(
+          { tableSchema: "data_manager", tableName: "views" },
+          { parentCtx: ctx }
+        );
 
         const root_etl_context_id = await ctx.call(
           "dama_dispatcher.queryRootContextId",
@@ -118,9 +215,9 @@ export default {
       visibility: "public",
 
       async handler(ctx: Context) {
-        const query = await ctx.call(
-          "dama/metadata.getInsertDataManagerViewMetadataSql",
-          ctx.params
+        const query = await this.actions.getInsertDataManagerViewMetadataSql(
+          ctx.params,
+          { parentCtx: ctx }
         );
 
         const {
@@ -156,37 +253,6 @@ export default {
       },
     },
 
-    getTableColumns: {
-      visibility: "public",
-
-      async handler(ctx: Context) {
-        // @ts-ignore
-        const { tableSchema, tableName } = ctx.params;
-
-        const text = dedent(`
-          SELECT
-              column_name
-            FROM information_schema.columns
-            WHERE (
-              ( table_schema = $1 )
-              AND
-              ( table_name = $2 )
-            )
-            ORDER BY ordinal_position
-          ;
-        `);
-
-        const { rows } = await ctx.call("dama_db.query", {
-          text,
-          values: [tableSchema, tableName],
-        });
-
-        const columnNames = rows.map(({ column_name }) => column_name);
-
-        return columnNames;
-      },
-    },
-
     getDamaDataSources: {
       visibility: "public",
 
@@ -212,12 +278,12 @@ export default {
       async handler(ctx: Context) {
         const newSrcProps = <object>ctx.params;
 
-        const tableCols = <string[]>await ctx.call(
-          "dama/metadata.getTableColumns",
+        const tableCols = <string[]>await this.actions.getTableColumns(
           {
             tableSchema: "data_manager",
             tableName: "sources",
-          }
+          },
+          { parentCtx: ctx }
         );
 
         const props = Object.keys(newSrcProps);

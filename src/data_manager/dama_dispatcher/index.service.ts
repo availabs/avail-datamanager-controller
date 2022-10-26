@@ -105,10 +105,14 @@ export default {
       async handler(ctx: Context) {
         const {
           // @ts-ignore
-          params: { etl_context_id, event_id = -1 },
+          params: { etl_context_id, event_id },
           // @ts-ignore
           meta: { pgEnv },
         } = ctx;
+
+        const sinceEventId = Number.isFinite(+event_id) ? +event_id : -1;
+
+        // console.log(JSON.stringify({ params: ctx.params }, null, 4));
 
         const db = await ctx.call("dama_db.getDb");
 
@@ -149,7 +153,7 @@ export default {
         // @ts-ignore
         const { rows: damaEvents } = await db.query(q, [
           etl_context_id,
-          event_id,
+          sinceEventId,
         ]);
 
         damaEvents.forEach((e: FSA) => {
