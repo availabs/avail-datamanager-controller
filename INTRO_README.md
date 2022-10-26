@@ -7,7 +7,7 @@ The DataManager Controller runs ETL Tasks.
 Simple Tasks can be run with a
 [CLI interface](https://github.com/availabs/NPMRDS_Database/blob/master/src/transcom/transcom_events_aggregate_etl/run).
 
-More complex ETL Tasks require may compose many SubTasks.
+More complex ETL Tasks may be decomposed into many SubTasks that require coordination.
 
 The Controller uses [Moleculer](#Moleculer) to compose and execute Tasks.
 
