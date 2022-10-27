@@ -96,6 +96,13 @@ export type GeoDatasetLayerMetadata = {
   fieldsMetadata: GeoDatasetLayerFieldMetadata[];
 };
 
+// Omit GIS Dataset fields by setting column to falsy value.
+export function getIncludedColumnTypes(
+  columnTypes: TableDescriptor["columnTypes"]
+) {
+  return columnTypes.filter(({ col }) => Boolean(col));
+}
+
 export function getLayersMetadata(
   datasetPath: string
 ): GeoDatasetLayerMetadata[] {
@@ -449,11 +456,16 @@ export function generateCreateTableStatement({
   columnTypes,
   postGisGeometryType,
 }: TableDescriptor) {
-  const colDefValues = columnTypes.reduce((acc: string[], { col, db_type }) => {
-    acc.push(col);
-    acc.push(db_type);
-    return acc;
-  }, []);
+  const includedColumnTypes = getIncludedColumnTypes(columnTypes);
+
+  const colDefValues = includedColumnTypes.reduce(
+    (acc: string[], { col, db_type }) => {
+      acc.push(col);
+      acc.push(db_type);
+      return acc;
+    },
+    []
+  );
 
   colDefValues.push(
     "wkb_geometry",
@@ -494,9 +506,11 @@ export function generateTempTableStatement({
   columnTypes,
   postGisGeometryType,
 }: TableDescriptor) {
-  const cols = columnTypes.map(({ col }) => col);
+  const includedColumnTypes = getIncludedColumnTypes(columnTypes);
 
-  const colsDefPlaceholders = columnTypes
+  const cols = includedColumnTypes.map(({ col }) => col);
+
+  const colsDefPlaceholders = includedColumnTypes
     .map(({ db_type }) => `%I\t\t${db_type === "BYTEA" ? "BYTEA" : "TEXT"}`)
     .join(",\n        ");
 
@@ -528,7 +542,9 @@ export function generateLoadTableStatement({
   const selectClauses: string[] = [];
   const placeValues: string[] = [];
 
-  for (const { key, col, db_type } of columnTypes) {
+  const includedColumnTypes = getIncludedColumnTypes(columnTypes);
+
+  for (const { key, col, db_type } of includedColumnTypes) {
     // We cast ALL fields to TEXT so we can use PostgreSQL to convert them to the
     //   final column types.
     // https://gdal.org/user/ogr_sql_dialect.html#changing-the-type-of-the-fields
@@ -635,11 +651,14 @@ export async function loadTable(
 
     const PRELUDE_STATEMENTS = ["BEGIN;", createTempTableSql].join("\n\n");
 
-    const cols = columnTypes.map(({ col }) => col);
+    const includedColumnTypes = getIncludedColumnTypes(columnTypes);
+
+    const cols = includedColumnTypes.map(({ col }) => col);
     const colsHolders = cols.map(() => "%I");
     const colCasts: string[] = [];
     const colCastsUsing: string[] = [];
-    columnTypes.forEach(({ col, db_type }) => {
+
+    includedColumnTypes.forEach(({ col, db_type }) => {
       if (db_type === "BYTEA") {
         colCasts.push("%I");
         colCastsUsing.push(col);

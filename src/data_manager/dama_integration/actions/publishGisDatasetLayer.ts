@@ -271,7 +271,7 @@ export default async function publish(ctx: Context) {
     const finalEvent = {
       type: EventTypes.FINAL,
       payload: {
-        data_manager_view_id: -1,
+        data_manager_view_id: dama_view_id,
         publishSql: sqlLog,
         publishCmdResults: resLog,
       },
