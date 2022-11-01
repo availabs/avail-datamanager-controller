@@ -68,3 +68,6 @@ dist/
 
 lib/
 etl-work-dir/
+
+# downloaded data
+data/
