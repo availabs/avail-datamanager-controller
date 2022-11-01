@@ -4,6 +4,8 @@ import { PoolClient, QueryConfig, QueryResult } from "pg";
 
 import {loadFiles, createSqls} from "./upload";
 
+import {postProcess} from "./postUploadProcessing";
+
 import EventTypes from "../constants/EventTypes";
 
 export const ReadyToPublishPrerequisites = [
@@ -58,6 +60,9 @@ export default async function publish(ctx: Context) {
 
     await loadFiles(table_name, ctx);
     console.log("uploaded!");
+
+    await postProcess(ctx);
+    console.log("post upload process finished.");
 
     const testUploadSql = `SELECT count(1) FROM severe_weather_new.${table_name};`
     sqlLog.push(testUploadSql);
