@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS _data_manager_admin.etl_context (
   FOREIGN KEY (parent_id) REFERENCES _data_manager_admin.etl_context(context_id)
 ) ;
 
-CREATE TABLE IF NOT EXISTS _data_manager_admin.event_store_prototype (
+CREATE TABLE IF NOT EXISTS _data_manager_admin.dama_event_store (
   event_id          SERIAL PRIMARY KEY,
   etl_context_id    INTEGER NOT NULL,
 

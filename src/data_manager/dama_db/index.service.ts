@@ -9,7 +9,11 @@ import { FSA } from "flux-standard-action";
 
 import getPgEnvFromCtx from "../dama_utils/getPgEnvFromContext";
 
-import { NodePgPool, getConnectedNodePgPool } from "./postgres/PostgreSQL";
+import {
+  NodePgPool,
+  NodePgPoolClient,
+  getConnectedNodePgPool,
+} from "./postgres/PostgreSQL";
 
 export type ServiceContext = Context & {
   params: FSA;
@@ -20,83 +24,74 @@ type LocalVariables = {
   dbs: Record<string, Promise<NodePgPool>>;
 };
 
+// Order matters
+const dbInitializationScripts = [
+  "create_dama_core_tables.sql",
+  "create_dama_etl_tables.sql",
+  "create_geojson_schema_table.sql",
+  "create_dama_table_schema_utils.sql",
+  "create_data_source_metadata_utils.sql",
+];
+
+async function initializeDamaTables(dbConnection: NodePgPoolClient) {
+  await dbConnection.query("BEGIN;");
+
+  for (const scriptFile of dbInitializationScripts) {
+    const sqlPath = join(__dirname, "sql", scriptFile);
+    const sql = await readFileAsync(sqlPath, { encoding: "utf8" });
+
+    await dbConnection.query(sql);
+  }
+
+  dbConnection.query("COMMIT ;");
+}
+
 export default {
   name: "dama_db",
 
   methods: {
-    async initializeDamaTables(
-      pgEnv: string,
-      db?: NodePgPool // NOTE: Only this.getDb should set db
-    ) {
-      if (!db) {
-        // Allow this.getDb to re-call initializeDamaTables after connecting to the Database.
-        return this.getDb(pgEnv);
-      }
-
-      const initializeDamaSchemasSql = await readFileAsync(
-        join(__dirname, "./sql/data_manager_schema.sql"),
-        { encoding: "utf8" }
-      );
-
-      //  If the core dama tables already exist, this will throw.
-      try {
-        // @ts-ignore
-        await (<Promise>db.query("BEGIN"));
-        // @ts-ignore
-        await (<Promise>db.query(initializeDamaSchemasSql));
-        // @ts-ignore
-        await (<Promise>db.query("COMMIT"));
-      } catch (err) {
-        // @ts-ignore
-        await (<Promise>db.query("ROLLBACK"));
-        // console.error(err);
-      }
-
-      const createTablesSql = await readFileAsync(
-        join(__dirname, "./sql/create_event_sourcing_table.sql"),
-        { encoding: "utf8" }
-      );
-
-      // @ts-ignore
-      await (<Promise>db.query(createTablesSql));
-    },
-
     async getDb(pgEnv: string) {
       if (!this._local_.dbs[pgEnv]) {
-        let ready: Function;
+        let resolve: Function;
 
-        this._local_.dbs[pgEnv] = new Promise((resolve) => {
-          ready = resolve;
+        this._local_.dbs[pgEnv] = new Promise((res) => {
+          resolve = res;
         });
 
         const db = await getConnectedNodePgPool(pgEnv);
+        const dbConnection = await db.connect();
 
-        await this.initializeDamaTables(pgEnv, db);
+        try {
+          await initializeDamaTables(dbConnection);
 
-        // @ts-ignore
-        ready(db);
+          dbConnection.release();
+
+          // @ts-ignore
+          resolve(db);
+        } catch (err) {
+          this._local_.dbs[pgEnv] = null;
+
+          console.error(err);
+          db.end();
+          // @ts-ignore
+          resolve(null);
+        }
       }
 
       return this._local_.dbs[pgEnv];
     },
+
+    // Make sure to release the connection
+    async getDbConnection(pgEnv: string) {
+      const db = await this.getDb(pgEnv);
+
+      const connection = await db.connect();
+
+      return connection;
+    },
   },
 
   actions: {
-    initializeDamaTables: {
-      visibility: "public",
-
-      handler(ctx: Context) {
-        // @ts-ignore
-        const pgEnv = ctx.meta.pgEnv;
-
-        if (!pgEnv) {
-          throw new Error("ctx.meta.pgEnv is not set");
-        }
-
-        return this.initializeDamaTables(pgEnv);
-      },
-    },
-
     getDb: {
       visibility: "protected", // can be called only from local services
 
@@ -116,11 +111,7 @@ export default {
       async handler(ctx: Context) {
         const pgEnv = getPgEnvFromCtx(ctx);
 
-        const db = <NodePgPool>await this.getDb(pgEnv);
-
-        const connection = await db.connect();
-
-        return connection;
+        return await this.getDbConnection(pgEnv);
       },
     },
 
@@ -134,13 +125,14 @@ export default {
 
       // https://node-postgres.com/features/queries#query-config-object
       async handler(ctx: Context) {
-        const {
+        let {
           // @ts-ignore
           params,
         } = ctx;
-
         const pgEnv = getPgEnvFromCtx(ctx);
 
+        // @ts-ignore
+        params = params.queries || params;
         const multiQueries = Array.isArray(params);
         const queries = multiQueries ? params : [params];
 
