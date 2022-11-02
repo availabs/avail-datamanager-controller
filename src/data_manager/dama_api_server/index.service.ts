@@ -221,6 +221,15 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/publishGisDatasetLayer":
                 "dama/data_source_integrator.publishGisDatasetLayer",
+
+              "/staged-geospatial-dataset/testAction":
+                "dama/data_source_integrator.testAction",
+
+              "/staged-geospatial-dataset/testDownloadAction":
+                "dama/data_source_integrator.testDownloadAction",
+
+              "/staged-geospatial-dataset/testUploadAction":
+                "dama/data_source_integrator.testUploadAction",
             },
           },
 

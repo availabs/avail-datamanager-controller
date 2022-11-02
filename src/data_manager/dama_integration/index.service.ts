@@ -17,6 +17,9 @@ import EventTypes from "./constants/EventTypes";
 import uploadGeospatialDataset from "./actions/uploadGeospatialDataset";
 import stageLayerData from "./actions/stageLayerData";
 import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
+import testAction from "./actions/testAction";
+import testDownloadAction from "./actions/testDownloadAction";
+import testUploadAction from "./actions/testUploadAction";
 
 export default {
   name: serviceName,
@@ -157,5 +160,11 @@ export default {
     },
 
     publishGisDatasetLayer,
+
+    testAction,
+
+    testDownloadAction,
+
+    testUploadAction
   },
 };
