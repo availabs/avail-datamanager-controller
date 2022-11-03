@@ -312,7 +312,7 @@ async function conformDamaSourceViewTableSchema({
     SELECT NOT EXISTS (
       SELECT
           1
-        FROM _data_manager_admin.data_source_views_metadata_compliance
+        FROM _data_manager_admin.dama_views_metadata_conformity
         WHERE (
           ( view_id = ANY($1) )
           AND
