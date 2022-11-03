@@ -13,26 +13,6 @@ CREATE SCHEMA IF NOT EXISTS _data_manager_admin ;
 CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
   AS
     SELECT
-        a.relnamespace::regnamespace::TEXT AS table_schema,
-        a.relname::TEXT AS table_name,
-        b.attname AS column_name,
-        format_type(b.atttypid, b.atttypmod) AS column_type,
-        b.attnotnull AS column_not_null,
-        b.attnum AS column_number
-      FROM pg_catalog.pg_class AS a
-        INNER JOIN pg_catalog.pg_attribute AS b
-          ON (a.oid = b.attrelid)
-      WHERE (
-        ( NOT b.attisdropped )
-        AND
-        ( b.attnum > 0 )
-      )
-;
-
---  DROP VIEW IF EXISTS _data_manager_admin.table_column_types_with_json_types CASCADE ;
-CREATE OR REPLACE VIEW _data_manager_admin.table_column_types_with_json_types
-  AS
-    SELECT
         table_schema,
         table_name,
         column_name,
@@ -232,7 +212,23 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types_with_json_types
 
             ( a.column_type LIKE '%[]' ) AS is_array
 
-          FROM _data_manager_admin.table_column_types AS a
+          FROM (
+            SELECT
+                a.relnamespace::regnamespace::TEXT AS table_schema,
+                a.relname::TEXT AS table_name,
+                b.attname AS column_name,
+                format_type(b.atttypid, b.atttypmod) AS column_type,
+                b.attnotnull AS column_not_null,
+                b.attnum AS column_number
+              FROM pg_catalog.pg_class AS a
+                INNER JOIN pg_catalog.pg_attribute AS b
+                  ON (a.oid = b.attrelid)
+              WHERE (
+                ( NOT b.attisdropped )
+                AND
+                ( b.attnum > 0 )
+              )
+          ) AS a
             LEFT OUTER JOIN _data_manager_admin.geojson_json_schemas AS b
               ON (
                 ( a.column_type ~ ('.*geometry\(' || b.geojson_type || '.*\)$') )
@@ -270,7 +266,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_json_schema
             ORDER BY column_number
           ) AS table_simplified_schema
 
-      FROM _data_manager_admin.table_column_types_with_json_types
+      FROM _data_manager_admin.table_column_types
       GROUP BY table_schema, table_name
 ;
 
