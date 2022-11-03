@@ -14,7 +14,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_missing_tables AS
     WHERE ( b.table_catalog IS NULL )
 ;
 
-CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_compliance AS
+CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
   WITH cte_sources_meta AS (
     SELECT
         id AS source_id,
@@ -69,7 +69,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_compliance AS
       FROM cte_sources_meta_elems AS a
         INNER JOIN cte_views_meta_elems AS b
           USING (source_id)
-  )
+  ), cte_view_metadata_summary AS (
     SELECT
         source_id,
         view_id,
@@ -83,28 +83,122 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_compliance AS
         FULL OUTER JOIN cte_view_meta_only AS c
           USING (source_id, view_id)
       GROUP BY source_id, view_id
+  )
+    SELECT
+        source_id,
+        view_id,
+        source_metadata_only,
+        view_metadata_only,
+        (
+          ( source_metadata_only IS NULL )
+          AND
+          ( view_metadata_only IS NULL )
+        ) AS view_metadata_is_comformant
+      FROM cte_view_metadata_summary
+;
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_source_distinct_view_metadata AS
+  SELECT
+      source_id,
+      COUNT(1) AS distinct_view_metadata_count,
+      jsonb_agg( view_metadata_summary ) AS views_metadata_summary
+    FROM (
+      SELECT
+          source_id,
+          jsonb_build_object(
+            'view_metadata',
+            view_metadata,
+
+            'equals_src_metadata',
+            bool_and( src_metadata = view_metadata ),
+
+            'view_ids',
+            jsonb_agg(view_id ORDER BY view_id)
+          ) AS view_metadata_summary
+        FROM (
+          SELECT
+              a.id AS source_id,
+              b.id as view_id,
+
+              ( a.metadata - 'desc' ) AS src_metadata,
+              ( c.table_simplified_schema - 'desc' ) AS view_metadata
+
+            FROM data_manager.sources AS a
+              INNER JOIN data_manager.views AS b
+                ON ( a.id = b.source_id )
+              INNER JOIN _data_manager_admin.table_json_schema AS c
+                USING (table_schema, table_name)
+        ) AS t
+        GROUP BY source_id, view_metadata
+    ) AS t
+    GROUP BY source_id
+;
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_source_distinct_view_table_schemas AS
+  SELECT
+      source_id,
+      COUNT(1) AS distinct_view_table_schemas,
+      jsonb_agg( table_schemas_summary ) AS table_schemas_summary
+    FROM (
+      SELECT
+          source_id,
+          jsonb_build_object(
+            'table_schema',
+            table_schema,
+
+            'view_ids',
+            jsonb_agg(view_id ORDER BY view_id)
+          ) AS table_schemas_summary
+        FROM (
+          SELECT
+              a.id AS source_id,
+              b.id as view_id,
+
+              jsonb_object_agg(
+                c.column_name,
+                c.column_type
+              ) AS table_schema
+
+            FROM data_manager.sources AS a
+              INNER JOIN data_manager.views AS b
+                ON ( a.id = b.source_id )
+              INNER JOIN _data_manager_admin.table_column_types AS c
+                USING (table_schema, table_name)
+            GROUP BY a.id, b.id
+        ) AS t
+        GROUP BY source_id, table_schema
+    ) AS t
+    GROUP BY source_id
 ;
 
 
-CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_variance AS
+CREATE OR REPLACE VIEW _data_manager_admin.dama_views_column_type_variance AS
   SELECT
       source_id,
       column_name,
-      COUNT(DISTINCT type_instances->>'metadata_type') AS distinct_types_count,
+
+      COUNT(DISTINCT db_type_instances->>'type') AS distinct_db_types_count,
+      COUNT(DISTINCT meta_type_instances->>'type') AS distinct_meta_types_count,
+
       jsonb_agg(
-        type_instances ORDER BY type_instances->>'metadata_type'
-      ) AS type_instances
+        DISTINCT db_type_instances ORDER BY db_type_instances
+      ) AS db_type_instances,
+
+      jsonb_agg(
+        DISTINCT meta_type_instances ORDER BY meta_type_instances
+      ) AS meta_type_instances
+
     FROM (
       SELECT
           source_id,
           metadata->>'name' AS column_name,
           jsonb_build_object(
-            'metadata_type',
+            'type',
             metadata->>'type',
 
             'view_ids',
             jsonb_agg(view_id ORDER BY 1)
-          ) AS type_instances
+          ) AS meta_type_instances
         FROM (
           SELECT
               a.source_id,
@@ -115,7 +209,22 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_variance AS
                 USING (table_schema, table_name)
         ) AS t
         GROUP BY source_id, metadata->>'name', metadata->>'type'
-    ) AS t
+    ) AS x INNER JOIN (
+      SELECT
+          a.source_id,
+          b.column_name,
+          jsonb_build_object(
+            'type',
+            b.column_type,
+
+            'view_ids',
+            jsonb_agg(a.id ORDER BY 1)
+          ) AS db_type_instances
+        FROM data_manager.views AS a
+          INNER JOIN _data_manager_admin.table_column_types AS b
+            USING (table_schema, table_name)
+        GROUP BY source_id, column_name, column_type
+    ) AS y USING ( source_id, column_name )
     GROUP BY 1,2
 ;
 

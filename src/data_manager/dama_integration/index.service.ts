@@ -165,6 +165,6 @@ export default {
 
     testDownloadAction,
 
-    testUploadAction
+    testUploadAction,
   },
 };
