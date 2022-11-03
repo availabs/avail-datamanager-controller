@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   statistics              JSONB,
   metadata                JSONB,
 
+  root_etl_context_id     INTEGER,
+  etl_context_id          INTEGER,
+
   _created_timestamp      TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp     TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
