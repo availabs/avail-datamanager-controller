@@ -506,7 +506,7 @@ export default async function publish(ctx: Context) {
       await execQuery(q);
     }
 
-    let initializeDamaSourceMetadataWarning: string | null = null;
+    let initializeDamaSourceMetadataWarning: string | undefined;
 
     try {
       await initializeDamaSourceMetadataUsingViews({ execQuery, damaSourceId });
@@ -515,7 +515,7 @@ export default async function publish(ctx: Context) {
       initializeDamaSourceMetadataWarning = err.message;
     }
 
-    let conformDamaSourceViewTableSchemaWarning: string | null = null;
+    let conformDamaSourceViewTableSchemaWarning: string | undefined;
 
     try {
       await conformDamaSourceViewTableSchema({ execQuery, damaViewId });

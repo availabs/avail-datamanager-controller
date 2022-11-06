@@ -3,6 +3,8 @@ import { join } from "path";
 
 import _ from "lodash";
 
+import Cursor from "pg-cursor";
+
 import { Context } from "moleculer";
 
 import { FSA } from "flux-standard-action";
@@ -31,6 +33,7 @@ const dbInitializationScripts = [
   "create_geojson_schema_table.sql",
   "create_dama_table_schema_utils.sql",
   "create_data_source_metadata_utils.sql",
+  "create_api_support_views.sql",
 ];
 
 async function initializeDamaTables(dbConnection: NodePgPoolClient) {
@@ -89,6 +92,47 @@ export default {
 
       return connection;
     },
+
+    async *makeIterator(pgEnv, query, config = {}) {
+      // @ts-ignore
+      const { rowCount = 500 } = config;
+
+      // @ts-ignore
+      const cursorRequest = new Cursor(query);
+
+      const dbconn = <NodePgPoolClient>await this.getDbConnection(pgEnv);
+      const cursor = dbconn.query(cursorRequest);
+
+      try {
+        const fn = (resolve: Function, reject: Function) => {
+          cursor.read(rowCount, (err, rows) => {
+            if (err) {
+              return reject(err);
+            }
+
+            return resolve(rows);
+          });
+        };
+
+        while (true) {
+          const rows: any[] = await new Promise(fn);
+
+          if (!rows.length) {
+            break;
+          }
+
+          for (const row of rows) {
+            yield row;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        throw err;
+      } finally {
+        await cursor.close();
+        dbconn.release();
+      }
+    },
   },
 
   actions: {
@@ -136,22 +180,37 @@ export default {
         const multiQueries = Array.isArray(params);
         const queries = multiQueries ? params : [params];
 
-        const db = <NodePgPool>await this.getDb(pgEnv);
+        const dbconn = <NodePgPoolClient>await this.getDbConnection(pgEnv);
 
-        const connection = await db.connect();
+        try {
+          const results = [];
 
-        const results = [];
-
-        // @ts-ignore
-        for (const q of queries) {
-          console.log(JSON.stringify(q, null, 4));
           // @ts-ignore
-          results.push(await db.query(q));
+          for (const q of queries) {
+            console.log(JSON.stringify(q, null, 4));
+            // @ts-ignore
+            results.push(await dbconn.query(q));
+          }
+
+          return multiQueries ? results : results[0];
+        } finally {
+          dbconn.release();
         }
+      },
+    },
 
-        connection.release();
+    makeIterator: {
+      visibility: "protected",
 
-        return multiQueries ? results : results[0];
+      handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { query, config },
+        } = ctx;
+
+        const pgEnv = getPgEnvFromCtx(ctx);
+
+        return this.makeIterator(pgEnv, query, config);
       },
     },
   },
