@@ -15,6 +15,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
     SELECT
         table_schema,
         table_name,
+
         column_name,
         column_type,
         column_not_null,
@@ -29,7 +30,10 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
                 '$comment',   column_type
               )
             ELSE item_type
-        END AS json_type
+        END AS json_type,
+
+        is_geometry_col
+
       FROM (
         SELECT
             a.table_schema,
@@ -38,6 +42,8 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
             a.column_type,
             a.column_not_null,
             a.column_number,
+
+            ( b.json_schema IS NOT NULL ) AS is_geometry_col,
 
             CASE
 
@@ -242,6 +248,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_json_schema
     SELECT
         table_schema,
         table_name,
+
         jsonb_build_object(
           '$schema',      'http://json-schema.org/draft-07/schema#',
           'type',         'object',
@@ -253,21 +260,45 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_json_schema
                             column_name ORDER BY column_name
                           ) FILTER (WHERE column_not_null)
           ) AS table_json_schema,
-          jsonb_agg(
-            jsonb_build_object(
-              'name',     column_name,
-              'type',     CASE
-                            WHEN ( jsonb_typeof(json_type->'type') = 'array' )
-                              THEN '"object"'::JSONB
-                            ELSE json_type->'type'
-                          END,
-              'desc',     null
-            )
-            ORDER BY column_number
-          ) AS table_simplified_schema
+
+        jsonb_agg(
+          jsonb_build_object(
+            'name',     column_name,
+            'type',     CASE
+                          WHEN ( jsonb_typeof(json_type->'type') = 'array' )
+                            THEN '"object"'::JSONB
+                          ELSE json_type->'type'
+                        END,
+            'desc',     null
+          )
+          ORDER BY column_number
+        ) AS table_simplified_schema
 
       FROM _data_manager_admin.table_column_types
       GROUP BY table_schema, table_name
 ;
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_table_column_types
+  AS
+    SELECT
+        a.source_id,
+        a.id AS view_id,
+        b.*
+      FROM data_manager.views AS a
+        INNER JOIN _data_manager_admin.table_column_types AS b
+          USING (table_schema, table_name)
+;
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_table_json_schema
+  AS
+    SELECT
+        a.source_id,
+        a.id AS view_id,
+        b.*
+      FROM data_manager.views AS a
+        INNER JOIN _data_manager_admin.table_json_schema AS b
+          USING (table_schema, table_name)
+;
+
 
 COMMIT ;

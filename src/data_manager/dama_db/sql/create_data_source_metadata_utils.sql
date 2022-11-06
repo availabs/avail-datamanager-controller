@@ -20,14 +20,6 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
         id AS source_id,
         COALESCE(metadata, '[]'::JSONB) AS metadata
       FROM data_manager.sources
-  ), cte_views_meta AS (
-    SELECT
-        a.source_id,
-        a.id AS view_id,
-        b.table_simplified_schema AS metadata
-      FROM data_manager.views AS a
-        INNER JOIN _data_manager_admin.table_json_schema AS b
-          USING ( table_schema, table_name )
   ), cte_sources_meta_elems AS (
     SELECT
         source_id,
@@ -39,8 +31,8 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
     SELECT
         source_id,
         view_id,
-        jsonb_array_elements(metadata) as meta_elem
-      FROM cte_views_meta
+        jsonb_array_elements(table_simplified_schema) as meta_elem
+      FROM _data_manager_admin.dama_table_json_schema
   ), cte_source_meta_only AS (
     SELECT
         b.source_id,
@@ -77,7 +69,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
           FILTER (WHERE b.meta_elem IS NOT NULL) AS source_metadata_only,
         jsonb_agg(DISTINCT c.meta_elem)
           FILTER (WHERE c.meta_elem IS NOT NULL) AS view_metadata_only
-      FROM cte_views_meta AS a
+      FROM _data_manager_admin.dama_table_column_types AS a
         FULL OUTER JOIN cte_source_meta_only AS b
           USING (source_id, view_id)
         FULL OUTER JOIN cte_view_meta_only AS c
@@ -117,17 +109,15 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_source_distinct_view_metadata AS
           ) AS view_metadata_summary
         FROM (
           SELECT
-              a.id AS source_id,
-              b.id as view_id,
+              b.source_id,
+              b.view_id,
 
               ( a.metadata - 'desc' ) AS src_metadata,
-              ( c.table_simplified_schema - 'desc' ) AS view_metadata
+              ( b.table_simplified_schema - 'desc' ) AS view_metadata
 
             FROM data_manager.sources AS a
-              INNER JOIN data_manager.views AS b
+              INNER JOIN _data_manager_admin.dama_table_json_schema AS b
                 ON ( a.id = b.source_id )
-              INNER JOIN _data_manager_admin.table_json_schema AS c
-                USING (table_schema, table_name)
         ) AS t
         GROUP BY source_id, view_metadata
     ) AS t
@@ -151,20 +141,16 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_source_distinct_view_table_schem
           ) AS table_schemas_summary
         FROM (
           SELECT
-              a.id AS source_id,
-              b.id as view_id,
+              source_id,
+              view_id,
 
               jsonb_object_agg(
-                c.column_name,
-                c.column_type
+                column_name,
+                column_type
               ) AS table_schema
 
-            FROM data_manager.sources AS a
-              INNER JOIN data_manager.views AS b
-                ON ( a.id = b.source_id )
-              INNER JOIN _data_manager_admin.table_column_types AS c
-                USING (table_schema, table_name)
-            GROUP BY a.id, b.id
+            FROM _data_manager_admin.dama_table_column_types
+            GROUP BY source_id, view_id
         ) AS t
         GROUP BY source_id, table_schema
     ) AS t
@@ -201,28 +187,24 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_column_type_variance AS
           ) AS meta_type_instances
         FROM (
           SELECT
-              a.source_id,
-              a.id as view_id,
-              jsonb_array_elements(b.table_simplified_schema) AS metadata
-            FROM data_manager.views AS a
-              INNER JOIN _data_manager_admin.table_json_schema AS b
-                USING (table_schema, table_name)
+              source_id,
+              view_id,
+              jsonb_array_elements(table_simplified_schema) AS metadata
+            FROM _data_manager_admin.dama_table_json_schema
         ) AS t
         GROUP BY source_id, metadata->>'name', metadata->>'type'
     ) AS x INNER JOIN (
       SELECT
-          a.source_id,
-          b.column_name,
+          source_id,
+          column_name,
           jsonb_build_object(
             'type',
-            b.column_type,
+            column_type,
 
             'view_ids',
-            jsonb_agg(a.id ORDER BY 1)
+            jsonb_agg(view_id ORDER BY 1)
           ) AS db_type_instances
-        FROM data_manager.views AS a
-          INNER JOIN _data_manager_admin.table_column_types AS b
-            USING (table_schema, table_name)
+        FROM _data_manager_admin.dama_table_column_types
         GROUP BY source_id, column_name, column_type
     ) AS y USING ( source_id, column_name )
     GROUP BY 1,2
@@ -270,30 +252,20 @@ CREATE OR REPLACE PROCEDURE _data_manager_admin.initialize_dama_src_metadata_usi
           RAISE EXCEPTION 'DataManager Source metadata MUST be null to initialize.' ;
         END IF;
 
-        WITH cte_src_meta AS (
-          SELECT
-              b.source_id,
-              a.table_simplified_schema AS metadata
-            FROM _data_manager_admin.table_json_schema AS a
-              INNER JOIN (
-                SELECT
-                    source_id,
-                    table_schema,
-                    table_name
-                  FROM data_manager.views
-                  WHERE (
-                    ( id = p_view_id )
-                  )
-              ) AS b USING (table_schema, table_name)
-        )
-          UPDATE data_manager.sources AS a
-            SET metadata = b.metadata
-            FROM cte_src_meta AS b
-            WHERE (
-              ( a.id = b.source_id )
-              AND
-              ( a.metadata IS NULL )
-            )
+        UPDATE data_manager.sources AS a
+          SET metadata = b.metadata
+          FROM (
+            SELECT
+                source_id,
+                table_simplified_schema AS metadata
+              FROM _data_manager_admin.dama_table_json_schema
+              WHERE ( id = p_view_id )
+          ) AS b
+          WHERE (
+            ( a.id = b.source_id )
+            AND
+            ( a.metadata IS NULL )
+          )
         ;
 
     END ;
