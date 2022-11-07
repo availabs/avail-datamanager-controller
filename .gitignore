@@ -71,3 +71,4 @@ etl-work-dir/
 
 # downloaded data
 data/
+dama_mbtiles/
