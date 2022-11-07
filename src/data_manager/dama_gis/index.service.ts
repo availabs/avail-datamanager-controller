@@ -1,18 +1,21 @@
 // FIXME: Need subEtlContexts for each layer
 
-import { existsSync } from "fs";
-import { readdir as readdirAsync } from "fs/promises";
-import { join } from "path";
-
 import { Context } from "moleculer";
 
 import pgFormat from "pg-format";
 import dedent from "dedent";
 import _ from "lodash";
+import tmp from "tmp";
+
+import asyncGeneratorToNdjsonStream from "../../data_utils/streaming/asyncGeneratorToNdjsonStream";
+
+import { NodePgQueryResult } from "../dama_db/postgres/PostgreSQL";
 
 import etlDir from "../../constants/etlDir";
 
 import serviceName from "./constants/serviceName";
+
+import createMbtilesTask from "../../../tasks/create-mbtiles";
 
 export default {
   name: serviceName,
@@ -21,6 +24,7 @@ export default {
     getDamaGisDatasetViewTableSchemaSummary: {
       async handler(ctx: Context) {
         const {
+          // @ts-ignore
           params: { damaViewId },
         } = ctx;
 
@@ -60,10 +64,13 @@ export default {
             WHERE ( view_id = $1 )
         `);
 
-        const damaViewIntIdRes = await ctx.call("dama_db.query", {
-          text: damaViewIntIdQ,
-          values: [damaViewId],
-        });
+        const damaViewIntIdRes: NodePgQueryResult = await ctx.call(
+          "dama_db.query",
+          {
+            text: damaViewIntIdQ,
+            values: [damaViewId],
+          }
+        );
 
         if (!damaViewIntIdRes.rows.length) {
           throw new Error(
@@ -97,93 +104,84 @@ export default {
       },
     },
 
-    // List of the GIS Dataset uploads in the etl-work-dir directory.
-    makeDamaGisDatasetViewGeoJsonFeatureIterator: {
-      visibility: "protected",
+    async generateGisDatasetViewGeoJsonSqlQuery(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId, config = {} },
+      } = ctx;
 
-      async handler(ctx: Context) {
-        const {
-          params: { damaViewId, config = {} },
-        } = ctx;
+      let { properties } = config;
 
-        console.log(JSON.stringify(ctx.params, null, 4));
+      if (properties && properties !== "*" && !Array.isArray(properties)) {
+        properties = [properties];
+      }
 
-        let { properties } = config;
+      const {
+        tableSchema,
+        tableName,
+        intIdColName,
+        nonGeometryColumns,
+        geometryColumn,
+      } = await this.actions.getDamaGisDatasetViewTableSchemaSummary(
+        { damaViewId },
+        { parentCtx: ctx }
+      );
 
-        if (properties && properties !== "*" && !Array.isArray(properties)) {
-          properties = [properties];
-        }
-
-        const {
-          tableSchema,
-          tableName,
-          intIdColName,
-          nonGeometryColumns,
-          geometryColumn,
-        } = await this.actions.getDamaGisDatasetViewTableSchemaSummary(
-          { damaViewId },
-          { parentCtx: ctx }
+      if (!geometryColumn) {
+        throw new Error(
+          `DamaView's ${damaViewId} does not appear to be a GIS dataset.`
         );
+      }
 
-        if (!geometryColumn) {
+      let props: string[] = [];
+
+      if (properties === "*") {
+        props = nonGeometryColumns;
+      }
+
+      if (Array.isArray(properties)) {
+        const invalidProps = _.difference(properties, nonGeometryColumns);
+
+        if (invalidProps.length) {
           throw new Error(
-            `DamaView's ${damaViewId} does not appear to be a GIS dataset.`
+            `The following requested properties are not in the DamaView's data table: ${invalidProps}`
           );
         }
 
-        let props = [];
+        props = _.uniq(properties);
+      }
 
-        if (properties === "*") {
-          props = nonGeometryColumns;
-        }
+      const featureIdBuildObj = {
+        text: intIdColName ? "'id', %I," : "",
+        values: intIdColName ? [intIdColName] : [],
+      };
 
-        if (Array.isArray(properties)) {
-          const invalidProps = _.difference(properties, nonGeometryColumns);
+      const propsBuildObj = props.reduce(
+        (acc, prop) => {
+          acc.placeholders.push("%L");
+          acc.placeholders.push("%I");
 
-          if (invalidProps.length) {
-            throw new Error(
-              `The following requested properties are not in the DamaView's data table: ${invalidProps}`
-            );
-          }
+          acc.values.push(prop, prop);
 
-          props = _.uniq(properties);
-        }
+          return acc;
+        },
+        { placeholders: <string[]>[], values: <string[]>[] }
+      );
 
-        const featureIdBuildObj = {
-          text: intIdColName ? "'id', %I," : "",
-          values: intIdColName ? [intIdColName] : [],
-        };
-
-        const propsBuildObj = props.reduce(
-          (acc, prop) => {
-            acc.placeholders.push("%L");
+      const selectColsClause = _.uniq([intIdColName, geometryColumn, ...props])
+        .filter(Boolean)
+        .reduce(
+          (acc, col) => {
             acc.placeholders.push("%I");
-
-            acc.values.push(prop, prop);
+            acc.values.push(col);
 
             return acc;
           },
           { placeholders: [], values: [] }
         );
 
-        const selectColsClause = _.uniq([
-          intIdColName,
-          geometryColumn,
-          ...props,
-        ])
-          .filter(Boolean)
-          .reduce(
-            (acc, col) => {
-              acc.placeholders.push("%I");
-              acc.values.push(col);
-
-              return acc;
-            },
-            { placeholders: [], values: [] }
-          );
-
-        const sql = pgFormat(
-          `
+      const sql = pgFormat(
+        `
             SELECT
                 jsonb_build_object(
                   'type',       'Feature',
@@ -196,26 +194,103 @@ export default {
                   FROM %I.%I
               ) row;
           `,
-          ...featureIdBuildObj.values,
-          ...propsBuildObj.values,
-          geometryColumn,
-          ...selectColsClause.values,
-          tableSchema,
-          tableName
+        ...featureIdBuildObj.values,
+        ...propsBuildObj.values,
+        geometryColumn,
+        ...selectColsClause.values,
+        tableSchema,
+        tableName
+      );
+
+      return sql;
+    },
+
+    // List of the GIS Dataset uploads in the etl-work-dir directory.
+    makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator: {
+      visibility: "protected",
+
+      async *handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { config = {} },
+        } = ctx;
+
+        const sql = await this.actions.generateGisDatasetViewGeoJsonSqlQuery(
+          ctx.params,
+          { parentCtx: ctx }
         );
 
-        const iter = await ctx.call("dama_db.makeIterator", {
-          query: sql,
-          config,
+        const iter = <AsyncGenerator<any>>await ctx.call(
+          "dama_db.makeIterator",
+          {
+            query: sql,
+            config,
+          }
+        );
+
+        for await (const { feature } of iter) {
+          yield feature;
+        }
+      },
+    },
+
+    makeDamaGisDatasetViewGeoJsonlStream: {
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const iter =
+          await this.actions.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
+            ctx.params,
+            { parentCtx: ctx }
+          );
+
+        return asyncGeneratorToNdjsonStream(iter);
+      },
+    },
+
+    createDamaGisDatasetViewMbtiles: {
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { damaViewId },
+        } = ctx;
+        const etlWorkDir: string = await new Promise((resolve, reject) =>
+          tmp.dir({ tmpdir: etlDir }, (err, path) => {
+            if (err) {
+              return reject(err);
+            }
+
+            resolve(path);
+          })
+        );
+
+        const { tableName: layerName } =
+          await this.actions.getDamaGisDatasetViewTableSchemaSummary(
+            { damaViewId },
+            { parentCtx: ctx }
+          );
+
+        const featuresAsyncIterator =
+          await this.actions.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
+            ctx.params,
+            { parentCtx: ctx }
+          );
+
+        const result = await createMbtilesTask({
+          layerName,
+          featuresAsyncIterator,
+          etlWorkDir,
         });
 
-        return iter;
+        console.log(JSON.stringify(result, null, 4));
       },
     },
 
     async testIter(ctx: Context) {
       const iter =
-        await this.actions.makeDamaGisDatasetViewGeoJsonFeatureIterator(
+        await this.actions.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
           ctx.params,
           { parentCtx: ctx }
         );

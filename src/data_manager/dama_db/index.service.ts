@@ -187,7 +187,7 @@ export default {
 
           // @ts-ignore
           for (const q of queries) {
-            console.log(JSON.stringify(q, null, 4));
+            // console.log(JSON.stringify(q, null, 4));
             // @ts-ignore
             results.push(await dbconn.query(q));
           }

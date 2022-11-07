@@ -1,3 +1,5 @@
+import { Readable } from "stream";
+
 import { Context, Service, ServiceBroker } from "moleculer";
 import { isFSA } from "flux-standard-action";
 import ApiGateway from "moleculer-web";
@@ -177,6 +179,32 @@ export default class ApiService extends Service {
                 );
 
                 return res.end(JSON.stringify(damaaEvents));
+              },
+
+              async "gis/dama-view-geojsonl/:damaViewId"(
+                req: IncomingRequest,
+                res: GatewayResponse
+              ) {
+                const {
+                  $params: { damaViewId },
+                } = req;
+
+                res.setHeader(
+                  "Content-Type",
+                  "application/json; charset=utf-8"
+                );
+
+                res.setHeader(
+                  "Content-Disposition",
+                  `attachment; filename="gis-dataset-${damaViewId}.geojsonl"`
+                );
+
+                const stream: Readable = await req.$ctx.call(
+                  "dama/gis.makeDamaGisDatasetViewGeoJsonlStream",
+                  { damaViewId }
+                );
+
+                return stream.pipe(res);
               },
 
               "POST metadata/createNewDataSource":
