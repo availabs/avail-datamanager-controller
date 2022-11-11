@@ -230,6 +230,12 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/testUploadAction":
                 "dama/data_source_integrator.testUploadAction",
+
+              "/staged-geospatial-dataset/csvUploadAction":
+                "dama/data_source_integrator.csvUploadAction",
+
+              "/staged-geospatial-dataset/cousubDownloadAction":
+                "dama/data_source_integrator.cousubDownloadAction",
             },
           },
 

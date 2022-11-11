@@ -3,12 +3,11 @@ import { Context } from "moleculer";
 import { PoolClient, QueryConfig, QueryResult } from "pg";
 
 import {loadFiles, createSqls} from "./upload";
-
+import {tables} from "./tables";
 import {postProcess} from "./postUploadProcessing";
 
 import EventTypes from "../constants/EventTypes";
 import {FSA} from "flux-standard-action";
-import {tables} from "./tables";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
@@ -16,7 +15,7 @@ export const ReadyToPublishPrerequisites = [
   EventTypes.QA_APPROVED,
   EventTypes.VIEW_METADATA_SUBMITTED,
 ];
-// mol $ call 'dama/data_source_integrator.testUploadAction' --table_name details --#pgEnv dama_dev_1
+// mol $ call 'dama/data_source_integrator.csvUploadAction' --table_name details --#pgEnv dama_dev_1
 
 async function getInsertViewMetadataSql(
   ctx: Context,
@@ -79,11 +78,13 @@ export default async function publish(ctx: Context) {
     );
 
     sqlLog.push(insertViewMetaSql);
+
     res = await dbConnection.query(insertViewMetaSql);
 
     const {
       rows: [viewMetadata],
     } = res;
+
 
     const {
       id: dama_view_id,
@@ -114,11 +115,6 @@ export default async function publish(ctx: Context) {
     await loadFiles(table_name, dama_view_id, ctx);
     console.log("uploaded!");
 
-
-    // await postProcess(ctx);
-    // console.log("post upload process finished.");
-
-
     // update view meta
 
 
@@ -143,6 +139,8 @@ export default async function publish(ctx: Context) {
     sqlLog.push(q);
     res = await dbConnection.query(q);
     resLog.push(res);
+
+
 
     // We need the data_manager.views id
     dbConnection.query("COMMIT;");

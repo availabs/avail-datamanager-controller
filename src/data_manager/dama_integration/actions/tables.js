@@ -1,4 +1,4 @@
-const tables = {
+let tables = {
     details: {
         name: 'details',
         schema: 'severe_weather_new',
@@ -55,6 +55,36 @@ const tables = {
         ],
         other: [
             'coords_geom'
+        ],
+    },
+  tl_2017_cousub: {
+        name: 'tl_2017_cousub',
+        schema: 'geo',
+        columns: [
+          'geom','statefp','countyfp','geoid','name','namelsad'
+        ],
+        numericColumns: [
+        ],
+        floatColumns: [
+        ],
+        other: [
+          'geom','statefp','countyfp','geoid','name','namelsad'
+        ],
+    },
+  zone_to_county: {
+        name: 'zone_to_county',
+        schema: 'geo',
+        columns: [
+          'id', 'zone', 'fips', 'geom', 'state','cwa','name','state_zone','county','time_zone','fe_area', 'lat','lon'
+        ],
+        numericColumns: [
+          'id', 'zone', 'fips',
+        ],
+        floatColumns: [
+          'lat','lon'
+        ],
+        other: [
+          'geom', 'state','cwa','name','state_zone','county','time_zone','fe_area'
         ],
     },
 }

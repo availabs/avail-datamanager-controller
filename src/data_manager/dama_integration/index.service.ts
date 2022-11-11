@@ -20,6 +20,8 @@ import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
 import testAction from "./actions/testAction";
 import testDownloadAction from "./actions/testDownloadAction";
 import testUploadAction from "./actions/testUploadAction";
+import csvUploadAction from "./actions/csvUploadAction";
+import cousubDownloadAction from "./actions/tl_cousub/CousubsDownloadAction";
 
 export default {
   name: serviceName,
@@ -164,6 +166,10 @@ export default {
 
     testDownloadAction,
 
-    testUploadAction
+    testUploadAction,
+
+    csvUploadAction,
+
+    cousubDownloadAction
   },
 };

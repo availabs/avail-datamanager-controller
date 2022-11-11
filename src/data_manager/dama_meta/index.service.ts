@@ -219,12 +219,12 @@ export default {
           ctx.params,
           { parentCtx: ctx }
         );
-
-        const {
-          rows: [{ id: dama_view_id }],
-        } = await ctx.call("dama_db.query", query);
-
-        return { dama_view_id };
+        console.log('q', query);
+        // const {
+        //   rows: [{ id: dama_view_id }],
+        // } = await ctx.call("dama_db.query", query);
+        //
+        // return { dama_view_id };
       },
     },
 
