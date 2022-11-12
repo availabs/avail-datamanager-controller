@@ -7,11 +7,13 @@ import _ from "lodash";
 
 import { FSA } from "flux-standard-action";
 
-import EventTypes from "../constants/EventTypes";
+import EtlDamaCreateEventTypes from "../../dama_meta/constants/EventTypes";
+
+import GisDatasetIntegrationEventTypes from "../constants/EventTypes";
 
 export const ReadyToPublishPrerequisites = [
-  EventTypes.QA_APPROVED,
-  EventTypes.VIEW_METADATA_SUBMITTED,
+  GisDatasetIntegrationEventTypes.QA_APPROVED,
+  EtlDamaCreateEventTypes.QUEUE_CREATE_NEW_DAMA_VIEW,
 ];
 
 async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
@@ -31,7 +33,7 @@ async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
     const message = `The following PUBLISH prerequisites are not met: ${unmetPreReqs}`;
 
     const errEvent = {
-      type: EventTypes.NOT_READY_TO_PUBLISH,
+      type: GisDatasetIntegrationEventTypes.NOT_READY_TO_PUBLISH,
       payload: {
         message,
       },
@@ -48,20 +50,6 @@ async function checkIfReadyToPublish(ctx: Context, events: FSA[]) {
 
     throw new Error(message);
   }
-}
-
-async function getInsertViewMetadataSql(
-  ctx: Context,
-  viewMetadataSubmittedEvent: FSA
-) {
-  const insertViewMetaSql = <QueryConfig>(
-    await ctx.call(
-      "dama/metadata.getInsertDataManagerViewMetadataSql",
-      viewMetadataSubmittedEvent
-    )
-  );
-
-  return insertViewMetaSql;
 }
 
 async function generatePublishSql(
@@ -166,7 +154,7 @@ async function initializeDamaSourceMetadataUsingViews({
     SELECT
         metadata
       FROM data_manager.sources
-      WHERE ( id = $1 )
+      WHERE ( source_id = $1 )
   `);
 
   let rows: QueryResult["rows"];
@@ -243,7 +231,7 @@ async function conformDamaSourceViewTableSchema({
     SELECT
         source_id
       FROM data_manager.views
-      WHERE ( id = $1 )
+      WHERE ( view_id = $1 )
   `);
 
   rows = (
@@ -375,7 +363,7 @@ async function conformDamaSourceViewTableSchema({
         table_schema,
         table_name
       FROM data_manager.views
-      WHERE ( id = $1 )
+      WHERE ( view_id = $1 )
   `);
 
   const {
@@ -439,36 +427,84 @@ export default async function publish(ctx: Context) {
   };
 
   try {
+    //  EventStore as TaskQueue
+    //    1. Create DamaSource
+    //    2. Create DamaView
+    //    3. Get the default names
+    //    4. Rename DB objects to defaults
     await execQuery("BEGIN ;");
 
-    const viewMetadataSubmittedEvent =
-      eventByType[EventTypes.VIEW_METADATA_SUBMITTED];
+    const createDamaSourceEvent =
+      eventByType[EtlDamaCreateEventTypes.QUEUE_CREATE_NEW_DAMA_SOURCE];
 
-    const insertViewMetaSql = await getInsertViewMetadataSql(
-      ctx,
-      viewMetadataSubmittedEvent
+    const createDamaViewEvent =
+      eventByType[EtlDamaCreateEventTypes.QUEUE_CREATE_NEW_DAMA_VIEW];
+
+    console.log(
+      JSON.stringify({ createDamaSourceEvent, createDamaViewEvent }, null, 4)
+    );
+
+    const queuedDamaViewMeta = _.cloneDeep(createDamaViewEvent.payload);
+
+    if (createDamaSourceEvent && queuedDamaViewMeta.source_id) {
+      throw new Error(
+        "If an ETL Context creates a new DamaSource and a new DamaView, the view must belong to the source."
+      );
+    }
+
+    if (createDamaSourceEvent) {
+      const createDamaSourceSql = <QueryConfig>(
+        await ctx.call(
+          "dama/metadata.generateCreateDamaSourceSql",
+          createDamaSourceEvent.payload
+        )
+      );
+
+      const {
+        rows: [newDamaSource],
+      } = await execQuery(createDamaSourceSql);
+
+      console.log(
+        JSON.stringify({ createDamaSourceSql, newDamaSource }, null, 4)
+      );
+
+      queuedDamaViewMeta.source_id = newDamaSource.source_id;
+    }
+
+    const insertViewMetaSql = <QueryConfig>(
+      await ctx.call(
+        "dama/metadata.generateCreateDamaViewSql",
+        queuedDamaViewMeta
+      )
     );
 
     const {
-      rows: [viewMetadata],
+      rows: [newDamaView],
     } = await execQuery(insertViewMetaSql);
 
     const {
-      id: damaViewId,
+      view_id: damaViewId,
       source_id: damaSourceId,
       table_schema: origTableSchema,
       table_name: origTableName,
-    } = viewMetadata;
+    } = newDamaView;
 
     const table_schema = origTableSchema || "gis_datasets";
     let table_name = origTableName;
 
+    // Assign a default table_name if one wasn't specified
     if (!origTableName) {
-      const dataSrcName = viewMetadataSubmittedEvent.payload.data_source_name;
-      const normalizedDataSrcName = _.snakeCase(
-        dataSrcName.replace(/^0-9a-z/gi, "_").replace(/_{1,}/, "_")
-      );
-      table_name = `${normalizedDataSrcName}__v${damaViewId}`;
+      const q =
+        "SELECT _data_manager_admin.dama_view_name($1) AS dama_view_name;";
+
+      const {
+        rows: [{ dama_view_name }],
+      } = await execQuery({
+        text: q,
+        values: [damaViewId],
+      });
+
+      table_name = dama_view_name;
     }
 
     if (origTableSchema !== table_schema || origTableName !== table_name) {
@@ -479,7 +515,7 @@ export default async function publish(ctx: Context) {
               table_schema  = $1,
               table_name    = $2,
               data_table    = $3
-            WHERE id = $4
+            WHERE ( view_id = $4 )
         `
       );
 
@@ -493,7 +529,8 @@ export default async function publish(ctx: Context) {
       await execQuery(q);
     }
 
-    const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
+    const dataStagedEvent =
+      eventByType[GisDatasetIntegrationEventTypes.LAYER_DATA_STAGED];
 
     const publishSql = await generatePublishSql(
       ctx,
@@ -535,7 +572,7 @@ export default async function publish(ctx: Context) {
     }));
 
     const finalEvent = {
-      type: EventTypes.FINAL,
+      type: GisDatasetIntegrationEventTypes.FINAL,
       payload: {
         damaSourceId,
         damaViewId,
@@ -557,7 +594,7 @@ export default async function publish(ctx: Context) {
     console.error(err);
 
     const errEvent = {
-      type: EventTypes.PUBLISH_ERROR,
+      type: GisDatasetIntegrationEventTypes.PUBLISH_ERROR,
       payload: {
         message: err.message,
         successfulPublishSql: sqlLog,

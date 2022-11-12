@@ -1,4 +1,5 @@
-// FIXME: Need subEtlContexts for each layer
+import { rename as renameAsync } from "fs/promises";
+import { join, basename } from "path";
 
 import { Context } from "moleculer";
 
@@ -13,9 +14,14 @@ import { NodePgQueryResult } from "../dama_db/postgres/PostgreSQL";
 
 import etlDir from "../../constants/etlDir";
 
-import serviceName from "./constants/serviceName";
+import { getTimestamp } from "../../data_utils/time";
 
 import createMbtilesTask from "../../../tasks/create-mbtiles";
+
+import mbtilesDir from "../../constants/mbtilesDir";
+
+import serviceName from "./constants/serviceName";
+import { timeStamp } from "console";
 
 export default {
   name: serviceName,
@@ -256,21 +262,31 @@ export default {
           // @ts-ignore
           params: { damaViewId },
         } = ctx;
-        const etlWorkDir: string = await new Promise((resolve, reject) =>
-          tmp.dir({ tmpdir: etlDir }, (err, path) => {
-            if (err) {
-              return reject(err);
-            }
 
-            resolve(path);
-          })
-        );
+        const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
+          await new Promise((resolve, reject) =>
+            tmp.dir({ tmpdir: etlDir }, (err, path, cleanupCallback) => {
+              if (err) {
+                return reject(err);
+              }
 
-        const { tableName: layerName } =
-          await this.actions.getDamaGisDatasetViewTableSchemaSummary(
-            { damaViewId },
-            { parentCtx: ctx }
+              resolve({ path, cleanupCallback });
+            })
           );
+
+        const [damaViewName, damaViewGlobalId] = await Promise.all([
+          ctx.call("dama/metadata.getDamaViewName", {
+            damaViewId,
+          }),
+
+          ctx.call("dama/metadata.getDamaViewGlobalId", {
+            damaViewId,
+          }),
+        ]);
+
+        const ts = getTimestamp();
+        const mbtilesFileName = `${damaViewGlobalId}_${ts}.mbtiles`;
+        const mbtilesFilePath = join(etlWorkDir, mbtilesFileName);
 
         const featuresAsyncIterator =
           await this.actions.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
@@ -278,13 +294,18 @@ export default {
             { parentCtx: ctx }
           );
 
-        const result = await createMbtilesTask({
-          layerName,
+        await createMbtilesTask({
+          layerName: <string>damaViewName,
+          mbtilesFilePath,
           featuresAsyncIterator,
           etlWorkDir,
         });
 
-        console.log(JSON.stringify(result, null, 4));
+        const mbtilesBaseName = basename(mbtilesFilePath);
+        const servedMbtilesPath = join(mbtilesDir, mbtilesBaseName);
+
+        await renameAsync(mbtilesFilePath, servedMbtilesPath);
+        await eltWorkDirCleanup();
       },
     },
 

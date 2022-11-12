@@ -7,6 +7,9 @@ import Cursor from "pg-cursor";
 
 import { Context } from "moleculer";
 
+import pgFormat from "pg-format";
+import dedent from "dedent";
+
 import { FSA } from "flux-standard-action";
 
 import getPgEnvFromCtx from "../dama_utils/getPgEnvFromContext";
@@ -30,10 +33,10 @@ type LocalVariables = {
 const dbInitializationScripts = [
   "create_dama_core_tables.sql",
   "create_dama_etl_tables.sql",
+  "create_dama_admin_helper_functions.sql",
   "create_geojson_schema_table.sql",
   "create_dama_table_schema_utils.sql",
   "create_data_source_metadata_utils.sql",
-  "create_api_support_views.sql",
 ];
 
 async function initializeDamaTables(dbConnection: NodePgPoolClient) {
@@ -197,6 +200,113 @@ export default {
           dbconn.release();
         }
       },
+    },
+
+    async generateInsertStatement(ctx: Context) {
+      const {
+        params: {
+          // @ts-ignore
+          tableSchema,
+          // @ts-ignore
+          tableName,
+          // @ts-ignore
+          newRow,
+        },
+      } = ctx;
+
+      const newRowProps = Object.keys(newRow);
+
+      // Get the data_manager.sources table columns
+      const tableDescription = await this.actions.describeTable(
+        {
+          tableSchema,
+          tableName,
+        },
+        { parentCtx: ctx }
+      );
+
+      const tableCols = Object.keys(tableDescription);
+
+      const createStmtCols = _.intersection(newRowProps, tableCols);
+
+      const insrtStmtObj = createStmtCols.reduce(
+        (acc, col, i) => {
+          acc.formatTypes.push("%I");
+          acc.formatValues.push(col);
+
+          const { column_type } = tableDescription[col];
+
+          acc.placeholders.push(`$${i + 1}::${column_type}`);
+
+          const v = newRow[col];
+          acc.values.push(v === "" ? null : v);
+
+          return acc;
+        },
+        {
+          formatTypes: <string[]>[],
+          formatValues: <string[]>[],
+          placeholders: <string[]>[],
+          values: <any[]>[],
+        }
+      );
+
+      const text = dedent(
+        pgFormat(
+          `
+            INSERT INTO %I.%I (
+                ${insrtStmtObj.formatTypes}
+              ) VALUES (${insrtStmtObj.placeholders})
+              RETURNING *
+            ;
+          `,
+          tableSchema,
+          tableName,
+          ...insrtStmtObj.formatValues
+        )
+      );
+
+      const { values } = insrtStmtObj;
+
+      return { text, values };
+    },
+
+    async describeTable(ctx: Context) {
+      // @ts-ignore
+      const { tableSchema, tableName } = ctx.params;
+
+      const text = dedent(`
+        SELECT
+            column_name,
+            column_type,
+            column_number
+          FROM _data_manager_admin.table_column_types
+          WHERE (
+            ( table_schema = $1 )
+            AND
+            ( table_name = $2 )
+          )
+        ;
+      `);
+
+      const { rows } = await ctx.call("dama_db.query", {
+        text,
+        values: [tableSchema, tableName],
+      });
+
+      if (rows.length === 0) {
+        return null;
+      }
+
+      const tableDescription = rows.reduce(
+        (acc: any, { column_name, column_type, column_number }) => {
+          acc[column_name] = { column_type, column_number };
+          return acc;
+        },
+        {}
+      );
+
+      return tableDescription;
     },
 
     makeIterator: {

@@ -222,13 +222,22 @@ export default class ApiService extends Service {
                 return stream.pipe(res);
               },
 
-              "POST metadata/createNewDataSource":
-                "dama/metadata.createNewDataSource",
+              // Immediately create
+              createNewDamaSource: "dama/metadata.createNewDamaSource",
+
+              createNewDamaView: "dama/metadata.createNewDamaView",
 
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
 
-              "GET new-etl-context-id": "dama_dispatcher.spawnDamaContext",
+              // ETL
+              "GET /etl/new-context-id": "dama_dispatcher.spawnDamaContext",
+
+              "POST /etl/contextId/:etlContextId/queueCreateDamaSource":
+                "dama/metadata.queueEtlCreateDamaSource",
+
+              "POST /etl/contextId/:etlContextId/queueCreateDamaView":
+                "dama/metadata.queueEtlCreateDamaView",
 
               "GET staged-geospatial-dataset/existingDatasetUploads":
                 "dama/data_source_integrator.getExistingDatasetUploads",
@@ -238,7 +247,7 @@ export default class ApiService extends Service {
               "staged-geospatial-dataset/uploadGeospatialDataset":
                 "multipart:dama/data_source_integrator.uploadGeospatialDataset",
 
-              "GET staged-geospatial-dataset/:id/layerNames":
+              "GET /staged-geospatial-dataset/:id/layerNames":
                 "dama/data_source_integrator.getGeospatialDatasetLayerNames",
 
               "GET /staged-geospatial-dataset/:id/:layerName/tableDescriptor":
@@ -258,9 +267,6 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/approveQA":
                 "dama/data_source_integrator.approveQA",
-
-              "/staged-geospatial-dataset/submitViewMeta":
-                "dama/data_source_integrator.submitViewMeta",
 
               "/staged-geospatial-dataset/publishGisDatasetLayer":
                 "dama/data_source_integrator.publishGisDatasetLayer",

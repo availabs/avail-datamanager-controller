@@ -16,8 +16,6 @@ export default {
   QA_REQUEST: `${serviceName}:QA_REQUEST`,
   QA_APPROVED: `${serviceName}:QA_APPROVED`,
 
-  VIEW_METADATA_SUBMITTED: `${serviceName}:VIEW_METADATA_SUBMITTED`,
-
   READY_TO_PUBLISH: `${serviceName}:READY_TO_PUBLISH`,
 
   NOT_READY_TO_PUBLISH: `${serviceName}:NOT_READY_TO_PUBLISH`,
