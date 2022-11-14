@@ -113,10 +113,22 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
+        console.log(
+          JSON.stringify({ params: ctx.params, meta: ctx.meta }, null, 4)
+        );
+
         // getDataSourceMaxViewId has same params
         const damaViewId = await this.actions.getDataSourceMaxViewId(
           ctx.params,
           { parentCtx: ctx }
+        );
+
+        console.log(
+          JSON.stringify(
+            { params: ctx.params, meta: ctx.meta, damaViewId },
+            null,
+            4
+          )
         );
 
         const columnNames =
@@ -357,10 +369,10 @@ export default {
         });
 
         const {
-          rows: [damaSrcMeta],
+          rows: [newDamaSource],
         } = await ctx.call("dama_db.query", q);
 
-        return damaSrcMeta;
+        return newDamaSource;
       },
     },
 

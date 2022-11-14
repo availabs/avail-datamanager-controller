@@ -7,6 +7,7 @@ import Cursor from "pg-cursor";
 
 import { Context } from "moleculer";
 
+import { v4 as uuidv4 } from "uuid";
 import pgFormat from "pg-format";
 import dedent from "dedent";
 
@@ -17,11 +18,26 @@ import getPgEnvFromCtx from "../dama_utils/getPgEnvFromContext";
 import {
   NodePgPool,
   NodePgPoolClient,
+  NodePgQueryConfig,
+  NodePgQueryResult,
   getConnectedNodePgPool,
 } from "./postgres/PostgreSQL";
 
 export type ServiceContext = Context & {
   params: FSA;
+};
+
+export type QueryLogEntry = {
+  query: NodePgQueryConfig | string;
+  result: NodePgQueryResult | string | null;
+};
+
+export type DamaDbTransaction = {
+  transactionId: string;
+  begin: () => Promise<void>;
+  commit: () => Promise<void>;
+  rollback: () => Promise<void>;
+  queryLog: QueryLogEntry[];
 };
 
 type LocalVariables = {
@@ -96,7 +112,20 @@ export default {
       return connection;
     },
 
-    async *makeIterator(pgEnv, query, config = {}) {
+    getTransactionIdFromCtx(ctx: Context) {
+      const {
+        // @ts-ignore
+        meta: { transactionId = null },
+      } = ctx;
+
+      return transactionId;
+    },
+
+    async *makeIterator(
+      pgEnv: string,
+      query: string | NodePgQueryConfig,
+      config = {}
+    ) {
       // @ts-ignore
       const { rowCount = 500 } = config;
 
@@ -177,13 +206,28 @@ export default {
           params,
         } = ctx;
         const pgEnv = getPgEnvFromCtx(ctx);
+        const transactionId = this.getTransactionIdFromCtx(ctx);
 
         // @ts-ignore
         params = params.queries || params;
         const multiQueries = Array.isArray(params);
         const queries = multiQueries ? params : [params];
 
-        const dbconn = <NodePgPoolClient>await this.getDbConnection(pgEnv);
+        const transactionConn = <NodePgPoolClient>(
+          this._local_.transactionConnections?.[pgEnv]?.[transactionId]
+        );
+
+        if (transactionConn) {
+          console.log(
+            "using transaction",
+            transactionId,
+            "database connection"
+          );
+        }
+
+        const dbconn =
+          transactionConn ||
+          <NodePgPoolClient>await this.getDbConnection(pgEnv);
 
         try {
           const results = [];
@@ -197,8 +241,95 @@ export default {
 
           return multiQueries ? results : results[0];
         } finally {
-          dbconn.release();
+          if (!transactionConn) {
+            dbconn.release();
+          }
         }
+      },
+    },
+
+    createTransaction: {
+      visibility: "protected",
+
+      async handler(ctx: Context): Promise<DamaDbTransaction> {
+        const pgEnv = getPgEnvFromCtx(ctx);
+        const transactionId = uuidv4();
+
+        this._local_.transactionConnections[pgEnv] =
+          this._local_.transactionConnections[pgEnv] = {};
+
+        this._local_.transactionConnections[pgEnv][transactionId] = {
+          async query() {
+            // Because DB connections are a limited resource.
+            throw new Error(
+              "Database connection must be created using the transaction's begin method."
+            );
+          },
+        };
+
+        const queryLog: QueryLogEntry[] = [];
+
+        const cleanup = async (cmd: "COMMIT" | "ROLLBACK") => {
+          try {
+            await this._local_.transactionConnections[pgEnv][
+              transactionId
+            ].query(cmd);
+          } finally {
+            await this._local_.transactionConnections[pgEnv][
+              transactionId
+            ].release();
+
+            delete this._local_.transactionConnections[pgEnv][transactionId];
+          }
+        };
+
+        const begin = async () => {
+          const dbConnection = <NodePgPoolClient>(
+            await this.getDbConnection(pgEnv)
+          );
+
+          // FIXME: Need to make a more complete proxy.
+          // https://github.com/DefinitelyTyped/DefinitelyTyped/blob/aa6077f5a368664068ba1f613c624fa31a5fedcc/types/pg/index.d.ts#L211-L278
+          const proxy = {
+            async query(query: NodePgQueryConfig | string) {
+              try {
+                // @ts-ignore
+                const result = await dbConnection.query(query);
+
+                queryLog.push({
+                  query,
+                  result: _.omit(result, "_types"),
+                });
+
+                return result;
+              } catch (err) {
+                queryLog.push({
+                  query,
+                  result: err.message,
+                });
+                throw err;
+              }
+            },
+
+            release() {
+              dbConnection.release();
+            },
+          };
+
+          this._local_.transactionConnections[pgEnv][transactionId] = proxy;
+
+          await proxy.query("BEGIN");
+        };
+
+        const commit = async () => {
+          await cleanup("COMMIT");
+        };
+
+        const rollback = async () => {
+          await cleanup("ROLLBACK");
+        };
+
+        return { transactionId, begin, commit, rollback, queryLog };
       },
     },
 
@@ -328,6 +459,7 @@ export default {
   created() {
     this._local_ = <LocalVariables>{
       dbs: {},
+      transactionConnections: {},
     };
   },
 

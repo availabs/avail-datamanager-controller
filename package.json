@@ -65,7 +65,8 @@
     "sql": "^0.78.0",
     "tileserver-gl-light": "^4.1.2",
     "tmp": "^0.2.1",
-    "typescript": "^3.8.3"
+    "typescript": "^3.8.3",
+    "uuid": "^9.0.0"
   },
   "engines": {
     "node": ">= 14.x.x"

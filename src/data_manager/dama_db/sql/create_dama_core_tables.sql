@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   version                 TEXT, -- default 1
   source_url              TEXT, -- external source url
   publisher               TEXT,
-  data_table              TEXT, -- schema.table of internal destination
   table_schema            TEXT,
   table_name              TEXT,
+  data_table              TEXT,
   download_url            TEXT, -- url for client download
   tiles_url               TEXT, -- tiles
   start_date              DATE,
