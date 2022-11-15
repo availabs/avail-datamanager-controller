@@ -130,37 +130,37 @@ export const createSqls = (table_name, viewId, schema_name) => {
                   crop_damage_adjusted double precision,
                   CONSTRAINT event_id_pkey${viewId ? `_${viewId}` : ``} PRIMARY KEY (event_id)
                       INCLUDE(event_id)
-              )`,
-    tl_2017_cousub: `
-              CREATE TABLE IF NOT EXISTS ${schema_name || tables.tl_2017_cousub.schema}.${table_name || tables.tl_2017_cousub.name}${viewId ? `_${viewId}` : ``}
-              (
-                  geom geometry(MultiPolygon,4269),
-                  statefp character varying(2) COLLATE pg_catalog."default",
-                  countyfp character varying(3) COLLATE pg_catalog."default",
-                  geoid character varying(10) COLLATE pg_catalog."default",
-                  name character varying(100) COLLATE pg_catalog."default",
-                  namelsad character varying(100) COLLATE pg_catalog."default"
-              )
-    `,
-    zone_to_county: `
-              CREATE TABLE IF NOT EXISTS ${schema_name || tables.zone_to_county.schema}.${table_name || tables.zone_to_county.name}${viewId ? `_${viewId}` : ``}
-              (
-                  "id" integer,
-                  geom geometry(Point,4326),
-                  state character varying COLLATE pg_catalog."default",
-                  zone integer,
-                  cwa character varying COLLATE pg_catalog."default",
-                  name character varying COLLATE pg_catalog."default",
-                  state_zone character varying COLLATE pg_catalog."default",
-                  county character varying COLLATE pg_catalog."default",
-                  fips integer,
-                  time_zone character varying COLLATE pg_catalog."default",
-                  fe_area character varying COLLATE pg_catalog."default",
-                  lat double precision,
-                  lon double precision,
-                  CONSTRAINT zone_to_county_pkey${viewId ? `_${viewId}` : ``} PRIMARY KEY (id)
-              )
-    `
+              )`
+    // tl_2017_cousub: `
+    //           CREATE TABLE IF NOT EXISTS ${schema_name || tables.tl_2017_cousub.schema}.${table_name || tables.tl_2017_cousub.name}${viewId ? `_${viewId}` : ``}
+    //           (
+    //               geom geometry(MultiPolygon,4326),
+    //               statefp character varying(2) COLLATE pg_catalog."default",
+    //               countyfp character varying(3) COLLATE pg_catalog."default",
+    //               geoid character varying(10) COLLATE pg_catalog."default",
+    //               name character varying(100) COLLATE pg_catalog."default",
+    //               namelsad character varying(100) COLLATE pg_catalog."default"
+    //           )
+    // `,
+    // zone_to_county: `
+    //           CREATE TABLE IF NOT EXISTS ${schema_name || tables.zone_to_county.schema}.${table_name || tables.zone_to_county.name}${viewId ? `_${viewId}` : ``}
+    //           (
+    //               "id" integer,
+    //               geom geometry(Point,4326),
+    //               state character varying COLLATE pg_catalog."default",
+    //               zone integer,
+    //               cwa character varying COLLATE pg_catalog."default",
+    //               name character varying COLLATE pg_catalog."default",
+    //               state_zone character varying COLLATE pg_catalog."default",
+    //               county character varying COLLATE pg_catalog."default",
+    //               fips integer,
+    //               time_zone character varying COLLATE pg_catalog."default",
+    //               fe_area character varying COLLATE pg_catalog."default",
+    //               lat double precision,
+    //               lon double precision,
+    //               CONSTRAINT zone_to_county_pkey${viewId ? `_${viewId}` : ``} PRIMARY KEY (id)
+    //           )
+    // `
   }
 
   return sqls[table_name];
