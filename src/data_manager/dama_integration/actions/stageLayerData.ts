@@ -1,5 +1,6 @@
 import { Context } from "moleculer";
 import _ from "lodash";
+import { v4 as uuid } from "uuid";
 
 import { FSA } from "flux-standard-action";
 
@@ -54,6 +55,14 @@ export default async function stageLayerData(ctx: Context) {
   await ctx.call("dama_dispatcher.dispatch", stageReqEvent);
 
   const gdi = new GeospatialDatasetIntegrator(gis_upload_id);
+
+  const uniqId = uuid().replace(/[^0-9A-Z]/gi, "");
+
+  // NOTE: Changes the  the staged table's tableSchema and tableName
+  const tableDescriptor = await gdi.getLayerTableDescriptor(layerName);
+  tableDescriptor.tableSchema = "staged_gis_datasets";
+  tableDescriptor.tableName = `etlctx_${etl_context_id}_${uniqId}`;
+  await gdi.persistLayerTableDescriptor(tableDescriptor);
 
   const migration_result = await gdi.loadTable({ layerName, pgEnv });
 
