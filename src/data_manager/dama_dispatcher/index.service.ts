@@ -69,7 +69,7 @@ export default {
         const { type, payload, meta = null, error = null } = params;
 
         const q = `
-            INSERT INTO _data_manager_admin.event_store_prototype (
+            INSERT INTO _data_manager_admin.dama_event_store (
               etl_context_id,
               type,
               payload,
@@ -141,7 +141,7 @@ export default {
               payload,
               meta,
               error
-            FROM _data_manager_admin.event_store_prototype AS a
+            FROM _data_manager_admin.dama_event_store AS a
               INNER JOIN cte_ctx_tree AS b
                 ON (
                   ( ( meta->>'etl_context_id' )::INTEGER = b.context_id )
@@ -229,7 +229,7 @@ export default {
               payload,
               meta,
               error
-            FROM _data_manager_admin.event_store_prototype
+            FROM _data_manager_admin.dama_event_store
             WHERE ( event_id = $1 )
         `;
 

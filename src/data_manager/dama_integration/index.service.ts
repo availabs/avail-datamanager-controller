@@ -28,6 +28,7 @@ export default {
   name: serviceName,
 
   actions: {
+    // List of the GIS Dataset uploads in the etl-work-dir directory.
     async getExistingDatasetUploads() {
       const dirs = await readdirAsync(etlDir, {
         encoding: "utf8",

@@ -1,5 +1,6 @@
+import { Readable } from "stream";
+
 import { Context, Service, ServiceBroker } from "moleculer";
-import { isFSA } from "flux-standard-action";
 import ApiGateway from "moleculer-web";
 
 import _ from "lodash";
@@ -37,6 +38,12 @@ export default class ApiService extends Service {
               ) {
                 return res.end(JSON.stringify(pgEnvs));
               },
+
+              "GET getTileServerUrl":
+                "dama/tilerserver-controller.getTileServerUrl",
+
+              "GET getServerHealthStatus":
+                "dama/tilerserver-controller.getServerHealthStatus",
             },
 
             bodyParsers: {
@@ -50,6 +57,16 @@ export default class ApiService extends Service {
               },
             },
           },
+
+          /*
+          // FIXME: Cannot get proxying to work.
+          // import proxy from "express-http-proxy";
+          {
+            path: "/dama-tiles",
+
+            use: proxy(`127.0.0.1:${process.env.TILESERVER_PORT}`),
+          },
+          */
 
           {
             path: "/dama-admin/:pgEnv",
@@ -177,6 +194,32 @@ export default class ApiService extends Service {
                 );
 
                 return res.end(JSON.stringify(damaaEvents));
+              },
+
+              async "gis/dama-view-geojsonl/:damaViewId"(
+                req: IncomingRequest,
+                res: GatewayResponse
+              ) {
+                const {
+                  $params: { damaViewId },
+                } = req;
+
+                res.setHeader(
+                  "Content-Type",
+                  "application/json; charset=utf-8"
+                );
+
+                res.setHeader(
+                  "Content-Disposition",
+                  `attachment; filename="gis-dataset-${damaViewId}.geojsonl"`
+                );
+
+                const stream: Readable = await req.$ctx.call(
+                  "dama/gis.makeDamaGisDatasetViewGeoJsonlStream",
+                  { damaViewId }
+                );
+
+                return stream.pipe(res);
               },
 
               "POST metadata/createNewDataSource":

@@ -158,6 +158,252 @@ async function generatePublishSql(
   return publishSql;
 }
 
+async function initializeDamaSourceMetadataUsingViews({
+  execQuery,
+  damaSourceId,
+}: any) {
+  const dataSrcMetaSql = dedent(`
+    SELECT
+        metadata
+      FROM data_manager.sources
+      WHERE ( id = $1 )
+  `);
+
+  let rows: QueryResult["rows"];
+
+  rows = (
+    await execQuery({
+      text: dataSrcMetaSql,
+      values: [damaSourceId],
+    })
+  ).rows;
+
+  if (rows.length === 0) {
+    throw new Error(`Invalid DaMa SourceID: ${damaSourceId}`);
+  }
+
+  const [{ metadata }] = rows;
+
+  // Already has metadata. NoOp.
+  if (metadata) {
+    return metadata;
+  }
+
+  const consistentDamaViewMetaSql = dedent(`
+    SELECT
+        views_metadata_summary
+      FROM _data_manager_admin.dama_source_distinct_view_metadata
+      WHERE (
+        ( source_id = $1 )
+      )
+  `);
+
+  rows = (
+    await execQuery({
+      text: consistentDamaViewMetaSql,
+      values: [damaSourceId],
+    })
+  ).rows;
+
+  if (!rows.length) {
+    throw new Error(`No views for DaMaSource ${damaSourceId}`);
+  }
+
+  const [{ views_metadata_summary }] = rows;
+
+  if (views_metadata_summary.length > 1) {
+    throw new Error(
+      `DaMaSource ${damaSourceId} Views metadata are inconsistent. Cannot auto-initialize the source metadata.`
+    );
+  }
+
+  const [
+    {
+      view_ids: [view_id],
+      view_metadata,
+    },
+  ] = views_metadata_summary;
+
+  const initDataSrcMetadataSql = dedent(`
+    CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 );
+  `);
+
+  await execQuery({ text: initDataSrcMetadataSql, values: [view_id] });
+
+  return view_metadata;
+}
+
+async function conformDamaSourceViewTableSchema({
+  execQuery,
+  damaViewId,
+}: any) {
+  let rows: QueryResult["rows"];
+
+  const damaViewSourceIdSql = dedent(`
+    SELECT
+        source_id
+      FROM data_manager.views
+      WHERE ( id = $1 )
+  `);
+
+  rows = (
+    await execQuery({
+      text: damaViewSourceIdSql,
+      values: [damaViewId],
+    })
+  ).rows;
+
+  if (rows.length === 0) {
+    throw new Error(`Invalid DaMa ViewID: ${damaViewId}`);
+  }
+
+  const [{ source_id: damaSourceId }] = rows;
+
+  const dataSrcMetaSql = dedent(`
+    SELECT
+        table_schemas_summary
+      FROM _data_manager_admin.dama_source_distinct_view_table_schemas
+      WHERE ( source_id = $1 )
+  `);
+
+  rows = (
+    await execQuery({
+      text: dataSrcMetaSql,
+      values: [damaSourceId],
+    })
+  ).rows;
+
+  if (rows.length === 0) {
+    throw new Error(`Invalid DaMa SourceID: ${damaSourceId}`);
+  }
+
+  const [{ table_schemas_summary }] = rows;
+
+  if (
+    !Array.isArray(table_schemas_summary) ||
+    table_schemas_summary.length === 0
+  ) {
+    throw new Error(`No table_schemas_summary for DaMaSource: ${damaSourceId}`);
+  }
+
+  if (table_schemas_summary.length === 1) {
+    // Everything is already consistent
+    return;
+  }
+
+  const { table_schema: thisViewTableSchema } = table_schemas_summary.find(
+    ({ view_ids }) => view_ids.includes(damaViewId)
+  );
+
+  const otherViewsSchemaSummaries = table_schemas_summary.filter(
+    ({ view_ids }) => !_.isEqual(view_ids, [damaViewId])
+  );
+
+  if (otherViewsSchemaSummaries.length > 1) {
+    throw new Error(
+      `The other DaMaSource Views table schemas are inconsistent. Cannot auto-conform view ${damaViewId}.`
+    );
+  }
+
+  const [{ view_ids: otherViewIds, table_schema: otherViewsTableSchema }] =
+    otherViewsSchemaSummaries;
+
+  const otherSchemasConsistentWithDataSourceMetadataSql = dedent(`
+    SELECT NOT EXISTS (
+      SELECT
+          1
+        FROM _data_manager_admin.dama_views_metadata_conformity
+        WHERE (
+          ( view_id = ANY($1) )
+          AND
+          (
+            ( source_metadata_only IS NOT NULL )
+            OR
+            ( view_metadata_only IS NOT NULL )
+          )
+        )
+    ) AS all_other_schemas_consistent;
+  `);
+
+  const {
+    rows: [{ all_other_schemas_consistent }],
+  } = await execQuery({
+    text: otherSchemasConsistentWithDataSourceMetadataSql,
+    values: [otherViewIds],
+  });
+
+  if (!all_other_schemas_consistent) {
+    throw new Error(
+      "The other DaMa Views are inconsistent with the DaMa Source metadata."
+    );
+  }
+
+  const allColumns = _.union(
+    Object.keys(thisViewTableSchema),
+    Object.keys(otherViewsTableSchema)
+  );
+
+  const schemasDiff = allColumns.reduce((acc, col) => {
+    const thisViewColType = thisViewTableSchema[col] || null;
+    const otherViewsColType = otherViewsTableSchema[col] || null;
+
+    if (thisViewColType !== otherViewsColType) {
+      acc[col] = { thisView: thisViewColType, otherViews: otherViewsColType };
+    }
+
+    return acc;
+  }, {});
+
+  const diffCols = Object.keys(schemasDiff);
+
+  const diffOnlyOmittedCols = diffCols.every(
+    (col) => schemasDiff[col].thisView === null
+  );
+
+  console.log(JSON.stringify({ schemasDiff, diffOnlyOmittedCols }, null, 4));
+
+  if (!diffOnlyOmittedCols) {
+    throw new Error(
+      `conformDamaSourceViewTableSchema currently only supports adding columns to a View's data table. The the schema diff requires more: ${JSON.stringify(
+        schemasDiff
+      )}`
+    );
+  }
+
+  const viewDataTableSql = dedent(`
+    SELECT
+        table_schema,
+        table_name
+      FROM data_manager.views
+      WHERE ( id = $1 )
+  `);
+
+  const {
+    rows: [{ table_schema, table_name }],
+  } = await execQuery({ text: viewDataTableSql, values: [damaViewId] });
+
+  for (const col of diffCols) {
+    const addColSql = dedent(
+      pgFormat(
+        `
+          ALTER TABLE %I.%I
+            ADD COLUMN %I ${schemasDiff[col].otherViews}
+          ;
+        `,
+        table_schema,
+        table_name,
+        col
+      )
+    );
+
+    console.log(addColSql);
+
+    await execQuery(addColSql);
+  }
+
+  return schemasDiff;
+}
+
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
   const {
@@ -184,12 +430,16 @@ export default async function publish(ctx: Context) {
   const sqlLog: any[] = [];
   const resLog: QueryResult[] = [];
 
-  try {
-    let res: QueryResult;
-
-    sqlLog.push("BEGIN ;");
-    res = await dbConnection.query("BEGIN ;");
+  const execQuery = async (q: any): Promise<QueryResult> => {
+    sqlLog.push(q);
+    const res = await dbConnection.query(q);
     resLog.push(res);
+
+    return res;
+  };
+
+  try {
+    await execQuery("BEGIN ;");
 
     const viewMetadataSubmittedEvent =
       eventByType[EventTypes.VIEW_METADATA_SUBMITTED];
@@ -199,15 +449,13 @@ export default async function publish(ctx: Context) {
       viewMetadataSubmittedEvent
     );
 
-    sqlLog.push(insertViewMetaSql);
-    res = await dbConnection.query(insertViewMetaSql);
-
     const {
       rows: [viewMetadata],
-    } = res;
+    } = await execQuery(insertViewMetaSql);
 
     const {
-      id: dama_view_id,
+      id: damaViewId,
+      source_id: damaSourceId,
       table_schema: origTableSchema,
       table_name: origTableName,
     } = viewMetadata;
@@ -220,7 +468,7 @@ export default async function publish(ctx: Context) {
       const normalizedDataSrcName = _.snakeCase(
         dataSrcName.replace(/^0-9a-z/gi, "_").replace(/_{1,}/, "_")
       );
-      table_name = `${normalizedDataSrcName}__v${dama_view_id}`;
+      table_name = `${normalizedDataSrcName}__v${damaViewId}`;
     }
 
     if (origTableSchema !== table_schema || origTableName !== table_name) {
@@ -239,12 +487,10 @@ export default async function publish(ctx: Context) {
 
       const q = {
         text: updateViewMetaSql,
-        values: [table_schema, table_name, data_table, dama_view_id],
+        values: [table_schema, table_name, data_table, damaViewId],
       };
 
-      sqlLog.push(q);
-      res = await dbConnection.query(q);
-      resLog.push(res);
+      await execQuery(q);
     }
 
     const dataStagedEvent = eventByType[EventTypes.LAYER_DATA_STAGED];
@@ -256,24 +502,46 @@ export default async function publish(ctx: Context) {
       table_name
     );
 
-    for (const cmd of publishSql) {
-      sqlLog.push(cmd);
-      res = await dbConnection.query(cmd);
-      resLog.push(res);
+    for (const q of publishSql) {
+      await execQuery(q);
     }
 
-    // We need the data_manager.views id
-    dbConnection.query("COMMIT;");
+    let initializeDamaSourceMetadataWarning: string | undefined;
+
+    try {
+      await initializeDamaSourceMetadataUsingViews({ execQuery, damaSourceId });
+    } catch (err) {
+      console.error(err);
+      initializeDamaSourceMetadataWarning = err.message;
+    }
+
+    let conformDamaSourceViewTableSchemaWarning: string | undefined;
+
+    try {
+      await conformDamaSourceViewTableSchema({ execQuery, damaViewId });
+    } catch (err) {
+      console.error(err);
+      conformDamaSourceViewTableSchemaWarning = err.message;
+    }
+
+    await execQuery("COMMIT");
     dbConnection.release();
 
     console.log(`PUBLISHED: ${table_schema}.${table_name}`);
 
+    const publishSqlLog = sqlLog.map((q, i) => ({
+      query: q,
+      result: resLog[i],
+    }));
+
     const finalEvent = {
       type: EventTypes.FINAL,
       payload: {
-        data_manager_view_id: dama_view_id,
-        publishSql: sqlLog,
-        publishCmdResults: resLog,
+        damaSourceId,
+        damaViewId,
+        publishSqlLog,
+        initializeDamaSourceMetadataWarning,
+        conformDamaSourceViewTableSchemaWarning,
       },
       meta: {
         etl_context_id,

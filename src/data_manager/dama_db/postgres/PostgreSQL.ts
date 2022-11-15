@@ -4,13 +4,15 @@ import { join } from "path";
 import dotenv from "dotenv";
 import _ from "lodash";
 
-import { Client, Pool, Connection } from "pg";
+import { Client, Pool, Connection, PoolClient, QueryResult } from "pg";
 
 const configDir = join(__dirname, "../../../../config/");
 
 export type NodePgClient = Client;
 export type NodePgPool = Pool;
 export type NodePgConnection = Connection;
+export type NodePgPoolClient = PoolClient;
+export type NodePgQueryResult = QueryResult;
 export type PgEnv = string;
 
 export type PsqlConfig = {
@@ -167,7 +169,7 @@ export async function getConnectedNodePgClient(
 ): Promise<NodePgClient> {
   const nodePgCreds = getNodePgCredentials(pgEnv);
 
-  console.log(JSON.stringify({ nodePgCreds }, null, 4));
+  // console.log(JSON.stringify({ nodePgCreds }, null, 4));
 
   const db = new Client(nodePgCreds);
   await db.connect();
@@ -181,7 +183,7 @@ export async function getConnectedNodePgPool(
 ): Promise<NodePgPool> {
   const nodePgCreds = getNodePgCredentials(pgEnv);
 
-  console.log(JSON.stringify({ nodePgCreds }, null, 4));
+  // console.log(JSON.stringify({ nodePgCreds }, null, 4));
 
   const db = new Pool(nodePgCreds);
   await db.connect();
