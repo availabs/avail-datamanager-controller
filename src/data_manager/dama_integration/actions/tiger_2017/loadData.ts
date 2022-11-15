@@ -1,20 +1,15 @@
-import { Context } from "moleculer";
-
-import { PoolClient, QueryConfig, QueryResult } from "pg";
 import {execSync} from "child_process";
-import EventTypes from "../../constants/EventTypes";
 import fs from "fs";
-import tmp from "tmp";
-import https from "https";
-import {getFiles} from "./scrapper";
-import {data} from "cheerio/lib/api/attributes";
-import {getPostgresConnectionString} from '../../../../data_manager/dama_db/postgres/PostgreSQL'
-import {createSqls} from "../upload";
+import { PoolClient, QueryConfig, QueryResult } from "pg";
+import { Context } from "moleculer";
 import {FSA} from "flux-standard-action";
 import dedent from "dedent";
 import pgFormat from "pg-format";
-import {tables} from "../tables";
+import EventTypes from "../../constants/EventTypes";
+import {getPostgresConnectionString} from "../../../../data_manager/dama_db/postgres/PostgreSQL"
+import {getFiles} from "./scrapper";
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const shapefileToGeojson = require("shapefile-to-geojson");
 
 export const ReadyToPublishPrerequisites = [
@@ -22,42 +17,41 @@ export const ReadyToPublishPrerequisites = [
   EventTypes.VIEW_METADATA_SUBMITTED,
 ];
 
-const url = 'https://www2.census.gov/geo/tiger/TIGER2017/COUSUB/'
 // mol $ call 'dama/data_source_integrator.testDownloadAction' --table_name details --#pgEnv dama_dev_1
 
-const fetchFileList = async (fileName) => {
-  console.log('fetching...', url + fileName)
-  if(!fs.existsSync("tl_2017_cousub/")){
-    fs.mkdirSync("tl_2017_cousub/")
+const fetchFileList = async (fileName, url, table) => {
+  console.log("fetching...", url + fileName);
+  if(!fs.existsSync(`tl_2017_${table}/`)){
+    fs.mkdirSync(`tl_2017_${table}/`);
   }
-  const file_path = "data/" + "tl_2017_cousub/" + fileName;
+  const file_path = "data/" + `tl_2017_${table}/` + fileName;
 
-  execSync(`curl -o ${fileName} 'https://www2.census.gov/geo/tiger/TIGER2017/COUSUB/${fileName}'`);
-  execSync(`rm -rf data/tl_2017_cousub/tmp_dir`);
-  execSync(`mkdir -p data/tl_2017_cousub/tmp_dir`);
-  execSync(`unzip -d data/tl_2017_cousub/tmp_dir ${fileName}`, { encoding: 'utf-8' });
+  execSync(`curl -o ${fileName} '${url}${fileName}'`);
+  execSync(`rm -rf data/tl_2017_${table}/tmp_dir`);
+  execSync(`mkdir -p data/tl_2017_${table}/tmp_dir`);
+  execSync(`unzip -d data/tl_2017_${table}/tmp_dir ${fileName}`, { encoding: "utf-8" });
 
-  const geoJSON = await shapefileToGeojson.parseFiles(`data/tl_2017_cousub/tmp_dir/${fileName.replace('.zip', '.shp')}`, `data/tl_2017_cousub/tmp_dir/${fileName.replace('.zip', '.dbf')}`);
+  const geoJSON = await shapefileToGeojson.parseFiles(`data/tl_2017_${table}/tmp_dir/${fileName.replace(".zip", ".shp")}`, `data/tl_2017_${table}/tmp_dir/${fileName.replace(".zip", ".dbf")}`);
   geoJSON.features = geoJSON.features.map(f => {
     f.properties.geoid = f.properties.GEOID;
     f.properties.name = f.properties.NAMELSAD;
     return f;
   })
 
-  fs.writeFileSync(`data/tl_2017_cousub/${fileName.replace(".zip", ".json")}`, JSON.stringify(geoJSON), "utf8");
+  fs.writeFileSync(`data/tl_2017_${table}/${fileName.replace(".zip", ".json")}`, JSON.stringify(geoJSON), "utf8");
 
-  execSync(`rm -rf data/tl_2017_cousub/tmp_dir`);
-}
+  execSync(`rm -rf data/tl_2017_${table}/tmp_dir`);
+};
 
-const uploadFiles = (fileName, pgEnv="dama_dev_1") => {
+const uploadFiles = (fileName, pgEnv="dama_dev_1", url, table) => {
   console.log("uploading...", url + fileName)
 
   const pg = getPostgresConnectionString(pgEnv);
   execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite`,
-    {cwd: "./data/tl_2017_cousub/"}
-  ) // -nln tl_2017_cousub
+    {cwd: `./data/tl_2017_${table}/`}
+  ) // -nln tl_2017_${table}
 
-  execSync(`rm -rf ./data/tl_2017_cousub/${fileName.replace(".zip", ".json")}`);
+  execSync(`rm -rf ./data/tl_2017_${table}/${fileName.replace(".zip", ".json")}`);
 };
 
 async function getInsertViewMetadataSql(
@@ -104,7 +98,7 @@ const create_view = async (etl_context_id, ctx) => {
 
 }
 
-const update_view = async (dama_view_id, ctx) => {
+const update_view = async (dama_view_id, ctx, table) => {
   // update view meta
   const updateViewMetaSql = dedent(
     `
@@ -117,16 +111,16 @@ const update_view = async (dama_view_id, ctx) => {
       `
   );
 
-  const data_table = pgFormat("%I.%I", "geo", `tl_2017_cousub_${dama_view_id}`);
+  const data_table = pgFormat("%I.%I", "geo", `tl_2017_${table}_${dama_view_id}`);
 
   return ctx.call("dama_db.query", {
     text: updateViewMetaSql,
-    values: ["geo", `tl_2017_cousub_${dama_view_id}`, data_table, dama_view_id],
+    values: ["geo", `tl_2017_${table}_${dama_view_id}`, data_table, dama_view_id],
   });
 
 };
 
-const mergeTables = async (ctx, fileNames, view_id) => {
+const mergeTables = async (ctx, fileNames, view_id, table) => {
   let sql = fileNames.map(file =>
     `SELECT geom, statefp, countyfp, geoid2 as geoid, name2 as name, namelsad FROM geo.${file} `
     ).join(` UNION ALL `);
@@ -135,7 +129,7 @@ const mergeTables = async (ctx, fileNames, view_id) => {
                     ${sql}
                     )
 
-        SELECT * INTO geo.tl_2017_cousub_${view_id} FROM t;`;
+        SELECT * INTO geo.tl_2017_${table}_${view_id} FROM t;`;
 
   return ctx.call("dama_db.query", {
     text: sql,
@@ -148,14 +142,15 @@ export default async function publish(ctx: Context) {
 
   const etlcontextid = await ctx.call(
     "dama_dispatcher.spawnDamaContext",
-    { etl_context_id: null, pgEnv: null }
+    { etl_context_id: null, pgEnv: null, table: null }
   );
 
   const {
     // @ts-ignore
-    params: { etl_context_id = etlcontextid, src_id },
+    params: { etl_context_id = etlcontextid, table, src_id },
     meta: { pgEnv },
   } = ctx;
+  const url = `https://www2.census.gov/geo/tiger/TIGER2017/${table}/`;
 
   if (!(etl_context_id)) {
     throw new Error("The etl_context_id parameter is required.");
@@ -167,7 +162,7 @@ export default async function publish(ctx: Context) {
 
     await files.reduce(async (acc, curr) => {
               await acc;
-              return fetchFileList(curr).then(() => uploadFiles(curr, pgEnv));
+              return fetchFileList(curr, url, table).then(() => uploadFiles(curr, pgEnv, url, table));
             }, Promise.resolve());
 
     const {
@@ -176,9 +171,9 @@ export default async function publish(ctx: Context) {
       table_name: origTableName,
     } = await create_view(etl_context_id, ctx);
 
-    await mergeTables(ctx, files.map(f => f.replace(".zip", "")), dama_view_id);
+    await mergeTables(ctx, files.map(f => f.replace(".zip", "")), dama_view_id, table);
 
-    await update_view(dama_view_id, ctx);
+    await update_view(dama_view_id, ctx, table.toLowerCase());
 
     const finalEvent = {
       type: EventTypes.FINAL,

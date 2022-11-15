@@ -225,17 +225,17 @@ export default class ApiService extends Service {
               "/staged-geospatial-dataset/testAction":
                 "dama/data_source_integrator.testAction",
 
-              "/staged-geospatial-dataset/testDownloadAction":
-                "dama/data_source_integrator.testDownloadAction",
-
-              "/staged-geospatial-dataset/testUploadAction":
-                "dama/data_source_integrator.testUploadAction",
+              "/staged-geospatial-dataset/loadNCEI":
+                "dama/data_source_integrator.loadNCEI",
 
               "/staged-geospatial-dataset/csvUploadAction":
                 "dama/data_source_integrator.csvUploadAction",
 
-              "/staged-geospatial-dataset/cousubDownloadAction":
-                "dama/data_source_integrator.cousubDownloadAction",
+              "/staged-geospatial-dataset/tigerDownloadAction":
+                "dama/data_source_integrator.tigerDownloadAction",
+
+              "/staged-geospatial-dataset/versionSelectorUtils":
+                "dama/data_source_integrator.versionSelectorUtils",
             },
           },
 

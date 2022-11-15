@@ -2,8 +2,8 @@ import { Context } from "moleculer";
 
 import { PoolClient, QueryConfig, QueryResult } from "pg";
 
-import {loadFiles, createSqls} from "./upload";
-import {tables} from "./tables";
+import {loadFiles, createSqls} from "./ncei_storm_events/utils/upload";
+import {tables} from "./ncei_storm_events/utils/tables";
 import {postProcess} from "./postUploadProcessing";
 
 import EventTypes from "../constants/EventTypes";
