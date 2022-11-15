@@ -10,7 +10,7 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.to_snake_case( p_string TEXT )
   RETURNS NULL ON NULL INPUT
   AS
   $$
-    SELECT 
+    SELECT
       TRIM(
         BOTH '_'
         FROM LOWER(
@@ -20,7 +20,7 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.to_snake_case( p_string TEXT )
                 regexp_replace(
                   regexp_replace(
                     p_string,
-                    -- non-alphanumeric characters to _ 
+                    -- non-alphanumeric characters to _
                     '[^0-9A-Z]',
                     '_',
                     'gi'
@@ -99,18 +99,18 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name(
   RETURNS NULL ON NULL INPUT
   AS
   $$
-  
+
     SELECT
         --  Max Postgres DB object name is 63 characters.
-        --    We need to leave some space (10 characters) for index/trigger name extensions
+        --    We need to leave some space for index/trigger name extensions
         substring(
-          dama_src_normalized_name
-          FROM 1 FOR (63 - 10 - char_length(dama_view_suffix))
-        ) || dama_view_suffix
+          ( dama_view_prefix || '_' || dama_src_normalized_name )
+          FROM 1 FOR 50
+        )
       FROM (
         SELECT
-            _data_manager_admin.to_snake_case(a.name) AS dama_src_normalized_name,
-            ( '_s' || source_id::TEXT || '_v' || view_id::TEXT ) AS dama_view_suffix
+            ( 's' || source_id::TEXT || '_v' || view_id::TEXT ) AS dama_view_prefix,
+            _data_manager_admin.to_snake_case(a.name) AS dama_src_normalized_name
           FROM data_manager.sources AS a
             INNER JOIN data_manager.views AS b
               USING ( source_id )
