@@ -90,6 +90,20 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_global_id( damaViewId I
   $$
 ;
 
+CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name_prefix( damaViewId INTEGER )
+  RETURNS TEXT
+  LANGUAGE SQL
+  IMMUTABLE
+  RETURNS NULL ON NULL INPUT
+  AS
+  $$
+    SELECT 
+        ( 's' || source_id::TEXT || '_v' || view_id::TEXT )
+      FROM data_manager.views AS a
+      WHERE ( view_id = damaViewId )
+  $$
+;
+
 CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name(
   damaViewId INTEGER
 )
@@ -109,7 +123,7 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name(
         )
       FROM (
         SELECT
-            ( 's' || source_id::TEXT || '_v' || view_id::TEXT ) AS dama_view_prefix,
+            _data_manager_admin.dama_view_name_prefix(damaViewId) as dama_view_prefix,
             _data_manager_admin.to_snake_case(a.name) AS dama_src_normalized_name
           FROM data_manager.sources AS a
             INNER JOIN data_manager.views AS b

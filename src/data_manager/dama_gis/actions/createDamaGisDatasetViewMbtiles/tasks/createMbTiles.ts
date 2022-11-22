@@ -8,17 +8,18 @@ import { existsSync, createWriteStream } from "fs";
 import { pipeline } from "stream";
 import { promisify } from "util";
 import { createGzip } from "zlib";
+import { basename } from "path";
 
 import tmp from "tmp";
 
 import { Feature } from "geojson";
 
-import tippecanoePath from "../../src/data_utils/gis/tippecanoe/constants/tippecanoePath";
-import installTippecanoe from "../../src/data_utils/gis/tippecanoe/bin/installTippecanoe";
+import tippecanoePath from "../../../../../data_utils/gis/tippecanoe/constants/tippecanoePath";
+import installTippecanoe from "../../../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
 
-import etlDir from "../../src/constants/etlDir";
+import etlDir from "../../../../../constants/etlDir";
 
-import asyncGeneratorToNdjsonStream from "../../src/data_utils/streaming/asyncGeneratorToNdjsonStream";
+import asyncGeneratorToNdjsonStream from "../../../../../data_utils/streaming/asyncGeneratorToNdjsonStream";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -89,13 +90,18 @@ export default async function main({
     fail = reject;
   });
 
+  const name = basename(mbtilesFilePath, ".mbtiles");
+
   const tippecanoeArgs = [
     "--no-progress-indicator",
+    "--read-parallel",
     "--no-feature-limit",
     "--no-tile-size-limit",
     "--generate-ids",
     "-r1",
     "--force",
+    "--name",
+    name,
     "--layer",
     layerName,
     "-o",

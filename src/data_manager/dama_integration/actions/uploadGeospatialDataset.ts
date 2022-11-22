@@ -141,6 +141,8 @@ export default async function uploadGeospatialDataset(ctx: Context) {
 
     return { id };
   } catch (err) {
+    console.error(err);
+
     const errEvent = {
       type: EventTypes.GIS_FILE_UPLOAD_ERROR,
       payload: err.message,

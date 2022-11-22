@@ -360,7 +360,6 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_int_ids
       ) AS t
 ;
 
-
 CREATE OR REPLACE VIEW _data_manager_admin.dama_sources_comprehensive
   AS
     SELECT
@@ -376,9 +375,24 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_comprehensive
     SELECT
         *,
         _data_manager_admin.dama_view_global_id(view_id) AS dama_global_id,
+        _data_manager_admin.dama_view_name_prefix(view_id) AS dama_view_name_prefix,
         _data_manager_admin.dama_view_name(view_id) AS dama_view_name
       FROM data_manager.views
         NATURAL LEFT JOIN _data_manager_admin.dama_views_int_ids
         NATURAL LEFT JOIN _data_manager_admin.dama_views_missing_tables
         NATURAL LEFT JOIN _data_manager_admin.dama_views_metadata_conformity
+        LEFT OUTER JOIN (
+          SELECT
+              view_id,
+              geojson_type
+            FROM (
+              SELECT
+                  view_id,
+                  json_type->'properties'->'type'->'enum'->>0 as geojson_type,
+                  row_number() OVER (PARTITION BY view_id ORDER BY column_number) AS row_number
+                FROM _data_manager_admin.dama_table_column_types
+                WHERE ( is_geometry_col )
+            ) AS t
+            WHERE ( row_number = 1 )
+        ) AS x USING ( view_id )
 ;

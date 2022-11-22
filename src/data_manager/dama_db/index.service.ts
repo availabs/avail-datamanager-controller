@@ -53,6 +53,7 @@ const dbInitializationScripts = [
   "create_geojson_schema_table.sql",
   "create_dama_table_schema_utils.sql",
   "create_data_source_metadata_utils.sql",
+  "create_mbtiles_tables.sql",
 ];
 
 async function initializeDamaTables(dbConnection: NodePgPoolClient) {
@@ -189,6 +190,14 @@ export default {
 
         return await this.getDbConnection(pgEnv);
       },
+    },
+
+    async runDatabaseInitializationDDL(ctx: Context) {
+      const pgEnv = getPgEnvFromCtx(ctx);
+
+      const dbconn = <NodePgPoolClient>await this.getDbConnection(pgEnv);
+
+      await initializeDamaTables(dbconn);
     },
 
     //  Execute a query or array of queries.
@@ -400,6 +409,13 @@ export default {
       const { values } = insrtStmtObj;
 
       return { text, values };
+    },
+
+    async insertNewRow(ctx: Context) {
+      const q = await this.actions.generateInsertStatement(ctx.params, {
+        parentCtx: ctx,
+      });
+      return await this.actions.query(q, { parentCtx: ctx });
     },
 
     async describeTable(ctx: Context) {

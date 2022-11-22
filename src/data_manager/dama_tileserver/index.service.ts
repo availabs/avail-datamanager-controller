@@ -146,7 +146,7 @@ export default {
       );
     }
 
-    // Because we proxy
+    // Because we may proxy
     const public_url =
       process.env.TILESERVER_PUBLIC_URL || `http://127.0.0.1:${port}`;
 
@@ -154,11 +154,9 @@ export default {
       config: tileserverConfigPath,
       port,
       verbose: true,
-      "no-cors": true,
+      // "no-cors": false,
       public_url,
     };
-
-    console.log(JSON.stringify({ tileserverConfig }, null, 4));
 
     this.__local__ = <LocalVariables>{
       tileserverConfig,

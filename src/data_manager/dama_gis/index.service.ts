@@ -1,27 +1,16 @@
-import { rename as renameAsync } from "fs/promises";
-import { join, basename } from "path";
-
 import { Context } from "moleculer";
 
 import pgFormat from "pg-format";
 import dedent from "dedent";
 import _ from "lodash";
-import tmp from "tmp";
 
 import asyncGeneratorToNdjsonStream from "../../data_utils/streaming/asyncGeneratorToNdjsonStream";
 
 import { NodePgQueryResult } from "../dama_db/postgres/PostgreSQL";
 
-import etlDir from "../../constants/etlDir";
-
-import { getTimestamp } from "../../data_utils/time";
-
-import createMbtilesTask from "../../../tasks/create-mbtiles";
-
-import mbtilesDir from "../../constants/mbtilesDir";
+import createDamaGisDatasetViewMbtiles from "./actions/createDamaGisDatasetViewMbtiles";
 
 import serviceName from "./constants/serviceName";
-import { timeStamp } from "console";
 
 export default {
   name: serviceName,
@@ -257,56 +246,7 @@ export default {
     createDamaGisDatasetViewMbtiles: {
       visibility: "published",
 
-      async handler(ctx: Context) {
-        const {
-          // @ts-ignore
-          params: { damaViewId },
-        } = ctx;
-
-        const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
-          await new Promise((resolve, reject) =>
-            tmp.dir({ tmpdir: etlDir }, (err, path, cleanupCallback) => {
-              if (err) {
-                return reject(err);
-              }
-
-              resolve({ path, cleanupCallback });
-            })
-          );
-
-        const [damaViewName, damaViewGlobalId] = await Promise.all([
-          ctx.call("dama/metadata.getDamaViewName", {
-            damaViewId,
-          }),
-
-          ctx.call("dama/metadata.getDamaViewGlobalId", {
-            damaViewId,
-          }),
-        ]);
-
-        const ts = getTimestamp();
-        const mbtilesFileName = `${damaViewGlobalId}_${ts}.mbtiles`;
-        const mbtilesFilePath = join(etlWorkDir, mbtilesFileName);
-
-        const featuresAsyncIterator =
-          await this.actions.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
-            ctx.params,
-            { parentCtx: ctx }
-          );
-
-        await createMbtilesTask({
-          layerName: <string>damaViewName,
-          mbtilesFilePath,
-          featuresAsyncIterator,
-          etlWorkDir,
-        });
-
-        const mbtilesBaseName = basename(mbtilesFilePath);
-        const servedMbtilesPath = join(mbtilesDir, mbtilesBaseName);
-
-        await renameAsync(mbtilesFilePath, servedMbtilesPath);
-        await eltWorkDirCleanup();
-      },
+      handler: createDamaGisDatasetViewMbtiles,
     },
 
     async testIter(ctx: Context) {
