@@ -17,9 +17,12 @@ import EventTypes from "./constants/EventTypes";
 import uploadGeospatialDataset from "./actions/uploadGeospatialDataset";
 import stageLayerData from "./actions/stageLayerData";
 import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
-import testAction from "./actions/testAction";
-import testDownloadAction from "./actions/testDownloadAction";
-import testUploadAction from "./actions/testUploadAction";
+import testAction from "./actions/ncei_storm_events/testAction";
+// import testDownloadAction from "./actions/ncei_storm_events/DownloadAction";
+import loadNCEI from "./actions/ncei_storm_events/loadData";
+import csvUploadAction from "./actions/csvUploadAction";
+import tigerDownloadAction from "./actions/tiger_2017/loadData";
+import versionSelectorUtils from "./actions/versionSelectorUtils";
 
 export default {
   name: serviceName,
@@ -136,9 +139,7 @@ export default {
 
     testAction,
 
-    testDownloadAction,
-
-    testUploadAction,
+    loadNCEI,
 
     async testDbIterator(ctx: Context) {
       const iter = await ctx.call("dama_db.makeIterator", ctx.params);
@@ -148,5 +149,10 @@ export default {
         console.log(row);
       }
     },
+    csvUploadAction,
+
+    tigerDownloadAction,
+
+    versionSelectorUtils,
   },
 };

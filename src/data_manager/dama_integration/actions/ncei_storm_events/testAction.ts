@@ -1,16 +1,19 @@
 import { Context } from "moleculer";
 
 import { PoolClient, QueryConfig, QueryResult } from "pg";
+import pgFormat from "pg-format";
+import dedent from "dedent";
+import _ from "lodash";
 
-import {loadFiles, createSqls} from "./upload";
+import { FSA } from "flux-standard-action";
 
-import EventTypes from "../constants/EventTypes";
+import EventTypes from "../../constants/EventTypes";
 
 export const ReadyToPublishPrerequisites = [
   EventTypes.QA_APPROVED,
   EventTypes.VIEW_METADATA_SUBMITTED,
 ];
-// mol $ call 'dama/data_source_integrator.testUploadAction' --table_name details --#pgEnv dama_dev_1
+
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
 
@@ -21,7 +24,7 @@ export default async function publish(ctx: Context) {
 
   const {
     // @ts-ignore
-    params: { etl_context_id = etlcontextid, table_name},
+    params: { etl_context_id = etlcontextid},
   } = ctx;
   //
   if (!(etl_context_id)) {
@@ -39,34 +42,15 @@ export default async function publish(ctx: Context) {
     res = await dbConnection.query("BEGIN ;");
     resLog.push(res);
 
+    const publishSql = "SELECT count(1) from _data_manager_admin.event_store_prototype;";
 
-    const createSchema = `CREATE SCHEMA IF NOT EXISTS severe_weather_new;`;
-    sqlLog.push(createSchema);
+    sqlLog.push(publishSql);
+
     res = await ctx.call("dama_db.query", {
-      text: createSchema
+      text: publishSql
     });
     resLog.push(res);
-    console.log("see this:", res.rows)
-
-    sqlLog.push(createSqls[table_name]);
-    res = await ctx.call("dama_db.query", {
-      text: createSqls[table_name]
-    });
-    resLog.push(res);
-    console.log("see this:", res.rows)
-
-
-    await loadFiles(table_name, ctx);
-    console.log("uploaded!");
-
-    const testUploadSql = `SELECT count(1) FROM severe_weather_new.${table_name};`
-    sqlLog.push(testUploadSql);
-    res = await ctx.call("dama_db.query", {
-      text: testUploadSql
-    });
-    resLog.push(res);
-    console.log("testing upload", res.rows);
-
+    console.log('see this:', res.rows)
     // We need the data_manager.views id
     dbConnection.query("COMMIT;");
     dbConnection.release();
@@ -75,8 +59,7 @@ export default async function publish(ctx: Context) {
       type: EventTypes.FINAL,
       payload: {
         data_manager_view_id: -1,
-        createSchema: sqlLog,
-        createTable: sqlLog,
+        publishSql: sqlLog,
         publishCmdResults: resLog,
       },
       meta: {
@@ -95,8 +78,7 @@ export default async function publish(ctx: Context) {
       type: EventTypes.PUBLISH_ERROR,
       payload: {
         message: err.message,
-        successfulcreateSchema: sqlLog,
-        successfulcreateTable: sqlLog,
+        successfulPublishSql: sqlLog,
         successfulPublishCmdResults: resLog,
       },
       meta: {

@@ -1,18 +1,22 @@
 import { Context } from "moleculer";
 
 import { PoolClient, QueryConfig, QueryResult } from "pg";
-import pgFormat from "pg-format";
-import dedent from "dedent";
-import _ from "lodash";
 
-import { FSA } from "flux-standard-action";
+import {loadFiles, createSqls} from "./ncei_storm_events/utils/upload";
+import {tables} from "./ncei_storm_events/utils/tables";
+import {postProcess} from "./postUploadProcessing";
 
 import EventTypes from "../constants/EventTypes";
+import {FSA} from "flux-standard-action";
+import dedent from "dedent";
+import pgFormat from "pg-format";
 
 export const ReadyToPublishPrerequisites = [
   EventTypes.QA_APPROVED,
   EventTypes.VIEW_METADATA_SUBMITTED,
 ];
+// mol $ call 'dama/data_source_integrator.csvUploadAction' --table_name details --#pgEnv dama_dev_1
+
 
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
@@ -24,7 +28,7 @@ export default async function publish(ctx: Context) {
 
   const {
     // @ts-ignore
-    params: { etl_context_id = etlcontextid},
+    params: { etl_context_id = etlcontextid, type},
   } = ctx;
   //
   if (!(etl_context_id)) {
@@ -36,31 +40,35 @@ export default async function publish(ctx: Context) {
   const resLog: QueryResult[] = [];
 
   try {
-    let res: QueryResult;
+    let resSources: QueryResult;
+    let resViews: QueryResult;
 
-    sqlLog.push("BEGIN ;");
-    res = await dbConnection.query("BEGIN ;");
-    resLog.push(res);
-
-    const publishSql = "SELECT count(1) from _data_manager_admin.event_store_prototype;";
-
-    sqlLog.push(publishSql);
-
-    res = await ctx.call("dama_db.query", {
-      text: publishSql
+    const getSrcs = `SELECT * FROM data_manager.sources WHERE type ='${type}';`;
+    sqlLog.push(getSrcs);
+    resSources = await ctx.call("dama_db.query", {
+      text: getSrcs
     });
-    resLog.push(res);
-    console.log('see this:', res.rows)
-    // We need the data_manager.views id
+    resLog.push(resSources.rows);
+    console.log("see this:", resSources.rows);
+
+    const getViews = `SELECT * FROM data_manager.views WHERE source_id IN (${resSources.rows.map(src => src.id)});`;
+    sqlLog.push(getViews);
+    resViews = await ctx.call("dama_db.query", {
+      text: getViews
+    });
+    resLog.push(resViews.rows);
+    console.log("see this:", resViews.rows);
+
+
     dbConnection.query("COMMIT;");
     dbConnection.release();
 
     const finalEvent = {
       type: EventTypes.FINAL,
+      sources: resSources.rows,
+      views: resViews.rows,
       payload: {
         data_manager_view_id: -1,
-        publishSql: sqlLog,
-        publishCmdResults: resLog,
       },
       meta: {
         timestamp: new Date().toISOString(),
@@ -78,7 +86,6 @@ export default async function publish(ctx: Context) {
       type: EventTypes.PUBLISH_ERROR,
       payload: {
         message: err.message,
-        successfulPublishSql: sqlLog,
         successfulPublishCmdResults: resLog,
       },
       meta: {

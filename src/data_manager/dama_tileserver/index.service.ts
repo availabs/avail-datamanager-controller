@@ -1,5 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 
+import { mkdirSync } from "fs";
+
 import {
   writeFile as writeFileAsync,
   readdir as readdirAsync,
@@ -27,10 +29,11 @@ type LocalVariables = {
   };
 };
 
-const tileserverConfigPath = join(
-  __dirname,
-  "/config/auto-generated-config.json"
-);
+const configDir = join(__dirname, "/config");
+
+mkdirSync(configDir, { recursive: true });
+
+const tileserverConfigPath = join(configDir, "auto-generated-config.json");
 
 const tileserverConfigFileBase = {
   options: {

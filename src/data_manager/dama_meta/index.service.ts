@@ -232,7 +232,6 @@ export default {
           ctx.params,
           { parentCtx: ctx }
         );
-
         const {
           rows: [{ view_id: dama_view_id }],
         } = await ctx.call("dama_db.query", query);
@@ -338,6 +337,21 @@ export default {
       return dama_view_name;
     },
 
+    async getDamaViewNamePrefix(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId },
+      } = ctx;
+
+      const { dama_view_name_prefix } =
+        await this.actions.getDamaViewProperties(
+          { damaViewId, properties: ["dama_view_name_prefix"] },
+          { parentCtx: ctx }
+        );
+
+      return dama_view_name_prefix;
+    },
+
     async getDamaViewGlobalId(ctx: Context) {
       const {
         // @ts-ignore
@@ -350,6 +364,33 @@ export default {
       );
 
       return dama_global_id;
+    },
+
+    async getDamaViewMapboxPaintStyle(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId },
+      } = ctx;
+
+      const text = dedent(`
+        SELECT
+            mapbox_paint_style
+          FROM _data_manager_admin.dama_views_mapbox_comprehensive
+          WHERE ( view_id = $1 )
+      `);
+
+      const { rows } = await ctx.call("dama_db.query", {
+        text,
+        values: [damaViewId],
+      });
+
+      if (rows.length === 0) {
+        throw new Error(`Invalid DamaViewId: ${damaViewId}`);
+      }
+
+      const [{ mapbox_paint_style }] = rows;
+
+      return mapbox_paint_style;
     },
 
     async generateCreateDamaSourceSql(ctx: Context) {
