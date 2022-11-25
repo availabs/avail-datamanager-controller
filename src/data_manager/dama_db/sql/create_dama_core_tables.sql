@@ -1,12 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS data_manager ;
 CREATE SCHEMA IF NOT EXISTS _data_manager_admin;
 
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS postgis_raster;
-CREATE EXTENSION IF NOT EXISTS postgis_topology;
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 CREATE TABLE IF NOT EXISTS data_manager.database_id
   AS
     SELECT

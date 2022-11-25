@@ -3,6 +3,7 @@
       use an existing dama view to initialize it.
 */
 
+-- Tries to replicate Lodash's snakeCase function.
 CREATE OR REPLACE FUNCTION _data_manager_admin.to_snake_case( p_string TEXT )
   RETURNS TEXT
   LANGUAGE SQL
@@ -113,7 +114,6 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name(
   RETURNS NULL ON NULL INPUT
   AS
   $$
-
     SELECT
         --  Max Postgres DB object name is 63 characters.
         --    We need to leave some space for index/trigger name extensions

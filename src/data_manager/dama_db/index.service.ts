@@ -47,6 +47,7 @@ type LocalVariables = {
 
 // Order matters
 const dbInitializationScripts = [
+  "create_required_extensions.sql",
   "create_dama_core_tables.sql",
   "create_dama_etl_tables.sql",
   "create_dama_admin_helper_functions.sql",
