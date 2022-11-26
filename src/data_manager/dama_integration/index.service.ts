@@ -136,33 +136,6 @@ export default {
       await ctx.call("dama_dispatcher.dispatch", event);
     },
 
-    async submitViewMeta(ctx: Context) {
-      const { params } = ctx;
-
-      // @ts-ignore
-      const { etl_context_id, user_id } = params;
-
-      if (!(etl_context_id && user_id)) {
-        throw new Error(
-          "The etl_context_id and user_id parameters are required."
-        );
-      }
-
-      const event = {
-        type: EventTypes.VIEW_METADATA_SUBMITTED,
-        payload: params,
-        meta: {
-          etl_context_id,
-          user_id,
-          timestamp: new Date().toISOString(),
-        },
-      };
-
-      const result = await ctx.call("dama_dispatcher.dispatch", event);
-
-      return result;
-    },
-
     publishGisDatasetLayer,
 
     testAction,
@@ -171,6 +144,14 @@ export default {
 
     enhanceNCEI,
 
+    async testDbIterator(ctx: Context) {
+      const iter = await ctx.call("dama_db.makeIterator", ctx.params);
+
+      // @ts-ignore
+      for await (const row of iter) {
+        console.log(row);
+      }
+    },
     csvUploadAction,
 
     tigerDownloadAction,

@@ -146,7 +146,7 @@ export default {
       );
     }
 
-    // Because we proxy
+    // Because we may proxy
     const public_url =
       process.env.TILESERVER_PUBLIC_URL || `http://127.0.0.1:${port}`;
 
@@ -154,11 +154,9 @@ export default {
       config: tileserverConfigPath,
       port,
       verbose: true,
-      "no-cors": true,
+      // "no-cors": false,
       public_url,
     };
-
-    console.log(JSON.stringify({ tileserverConfig }, null, 4));
 
     this.__local__ = <LocalVariables>{
       tileserverConfig,
@@ -223,6 +221,22 @@ export default {
         console.log(`tileserver exited with code ${code} by signal ${signal}`);
       }
     );
+
+    const killTileserver = () => {
+      if (this.__local__.tileserverProcess.exitCode === null) {
+        this.__local__.tileserverProcess.kill();
+      }
+    };
+
+    // SEE:
+    //    https://nodejs.org/api/process.html#warning-using-uncaughtexception-correctly
+    //    https://stackoverflow.com/a/14032965/3970755
+    process.on("exit", killTileserver);
+
+    process.on("uncaughtException", (err) => {
+      killTileserver();
+      throw err;
+    });
   },
 
   async stopped() {

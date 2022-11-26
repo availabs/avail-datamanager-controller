@@ -282,7 +282,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_table_column_types
   AS
     SELECT
         a.source_id,
-        a.id AS view_id,
+        a.view_id,
         b.*
       FROM data_manager.views AS a
         INNER JOIN _data_manager_admin.table_column_types AS b
@@ -293,7 +293,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_table_json_schema
   AS
     SELECT
         a.source_id,
-        a.id AS view_id,
+        a.view_id,
         b.*
       FROM data_manager.views AS a
         INNER JOIN _data_manager_admin.table_json_schema AS b

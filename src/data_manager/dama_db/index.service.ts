@@ -7,6 +7,10 @@ import Cursor from "pg-cursor";
 
 import { Context } from "moleculer";
 
+import { v4 as uuidv4 } from "uuid";
+import pgFormat from "pg-format";
+import dedent from "dedent";
+
 import { FSA } from "flux-standard-action";
 
 import getPgEnvFromCtx from "../dama_utils/getPgEnvFromContext";
@@ -14,11 +18,26 @@ import getPgEnvFromCtx from "../dama_utils/getPgEnvFromContext";
 import {
   NodePgPool,
   NodePgPoolClient,
+  NodePgQueryConfig,
+  NodePgQueryResult,
   getConnectedNodePgPool,
 } from "./postgres/PostgreSQL";
 
 export type ServiceContext = Context & {
   params: FSA;
+};
+
+export type QueryLogEntry = {
+  query: NodePgQueryConfig | string;
+  result: NodePgQueryResult | string | null;
+};
+
+export type DamaDbTransaction = {
+  transactionId: string;
+  begin: () => Promise<void>;
+  commit: () => Promise<void>;
+  rollback: () => Promise<void>;
+  queryLog: QueryLogEntry[];
 };
 
 type LocalVariables = {
@@ -28,12 +47,14 @@ type LocalVariables = {
 
 // Order matters
 const dbInitializationScripts = [
+  "create_required_extensions.sql",
   "create_dama_core_tables.sql",
   "create_dama_etl_tables.sql",
+  "create_dama_admin_helper_functions.sql",
   "create_geojson_schema_table.sql",
   "create_dama_table_schema_utils.sql",
   "create_data_source_metadata_utils.sql",
-  "create_api_support_views.sql",
+  "create_mbtiles_tables.sql",
 ];
 
 async function initializeDamaTables(dbConnection: NodePgPoolClient) {
@@ -93,7 +114,20 @@ export default {
       return connection;
     },
 
-    async *makeIterator(pgEnv, query, config = {}) {
+    getTransactionIdFromCtx(ctx: Context) {
+      const {
+        // @ts-ignore
+        meta: { transactionId = null },
+      } = ctx;
+
+      return transactionId;
+    },
+
+    async *makeIterator(
+      pgEnv: string,
+      query: string | NodePgQueryConfig,
+      config = {}
+    ) {
       // @ts-ignore
       const { rowCount = 500 } = config;
 
@@ -159,6 +193,14 @@ export default {
       },
     },
 
+    async runDatabaseInitializationDDL(ctx: Context) {
+      const pgEnv = getPgEnvFromCtx(ctx);
+
+      const dbconn = <NodePgPoolClient>await this.getDbConnection(pgEnv);
+
+      await initializeDamaTables(dbconn);
+    },
+
     //  Execute a query or array of queries.
     //    Works with
     //      * SQL strings
@@ -174,13 +216,28 @@ export default {
           params,
         } = ctx;
         const pgEnv = getPgEnvFromCtx(ctx);
+        const transactionId = this.getTransactionIdFromCtx(ctx);
 
         // @ts-ignore
         params = params.queries || params;
         const multiQueries = Array.isArray(params);
         const queries = multiQueries ? params : [params];
 
-        const dbconn = <NodePgPoolClient>await this.getDbConnection(pgEnv);
+        const transactionConn = <NodePgPoolClient>(
+          this._local_.transactionConnections?.[pgEnv]?.[transactionId]
+        );
+
+        if (transactionConn) {
+          console.log(
+            "using transaction",
+            transactionId,
+            "database connection"
+          );
+        }
+
+        const dbconn =
+          transactionConn ||
+          <NodePgPoolClient>await this.getDbConnection(pgEnv);
 
         try {
           const results = [];
@@ -194,9 +251,210 @@ export default {
 
           return multiQueries ? results : results[0];
         } finally {
-          dbconn.release();
+          if (!transactionConn) {
+            dbconn.release();
+          }
         }
       },
+    },
+
+    createTransaction: {
+      visibility: "protected",
+
+      async handler(ctx: Context): Promise<DamaDbTransaction> {
+        const pgEnv = getPgEnvFromCtx(ctx);
+        const transactionId = uuidv4();
+
+        this._local_.transactionConnections[pgEnv] =
+          this._local_.transactionConnections[pgEnv] = {};
+
+        this._local_.transactionConnections[pgEnv][transactionId] = {
+          async query() {
+            // Because DB connections are a limited resource.
+            throw new Error(
+              "Database connection must be created using the transaction's begin method."
+            );
+          },
+        };
+
+        const queryLog: QueryLogEntry[] = [];
+
+        const cleanup = async (cmd: "COMMIT" | "ROLLBACK") => {
+          try {
+            await this._local_.transactionConnections[pgEnv][
+              transactionId
+            ].query(cmd);
+          } finally {
+            await this._local_.transactionConnections[pgEnv][
+              transactionId
+            ].release();
+
+            delete this._local_.transactionConnections[pgEnv][transactionId];
+          }
+        };
+
+        const begin = async () => {
+          const dbConnection = <NodePgPoolClient>(
+            await this.getDbConnection(pgEnv)
+          );
+
+          // FIXME: Need to make a more complete proxy.
+          // https://github.com/DefinitelyTyped/DefinitelyTyped/blob/aa6077f5a368664068ba1f613c624fa31a5fedcc/types/pg/index.d.ts#L211-L278
+          const proxy = {
+            async query(query: NodePgQueryConfig | string) {
+              try {
+                // @ts-ignore
+                const result = await dbConnection.query(query);
+
+                queryLog.push({
+                  query,
+                  result: _.omit(result, "_types"),
+                });
+
+                return result;
+              } catch (err) {
+                queryLog.push({
+                  query,
+                  result: err.message,
+                });
+                throw err;
+              }
+            },
+
+            release() {
+              dbConnection.release();
+            },
+          };
+
+          this._local_.transactionConnections[pgEnv][transactionId] = proxy;
+
+          await proxy.query("BEGIN");
+        };
+
+        const commit = async () => {
+          await cleanup("COMMIT");
+        };
+
+        const rollback = async () => {
+          await cleanup("ROLLBACK");
+        };
+
+        return { transactionId, begin, commit, rollback, queryLog };
+      },
+    },
+
+    async generateInsertStatement(ctx: Context) {
+      const {
+        params: {
+          // @ts-ignore
+          tableSchema,
+          // @ts-ignore
+          tableName,
+          // @ts-ignore
+          newRow,
+        },
+      } = ctx;
+
+      const newRowProps = Object.keys(newRow);
+
+      // Get the data_manager.sources table columns
+      const tableDescription = await this.actions.describeTable(
+        {
+          tableSchema,
+          tableName,
+        },
+        { parentCtx: ctx }
+      );
+
+      const tableCols = Object.keys(tableDescription);
+
+      const createStmtCols = _.intersection(newRowProps, tableCols);
+
+      const insrtStmtObj = createStmtCols.reduce(
+        (acc, col, i) => {
+          acc.formatTypes.push("%I");
+          acc.formatValues.push(col);
+
+          const { column_type } = tableDescription[col];
+
+          acc.placeholders.push(`$${i + 1}::${column_type}`);
+
+          const v = newRow[col];
+          acc.values.push(v === "" ? null : v);
+
+          return acc;
+        },
+        {
+          formatTypes: <string[]>[],
+          formatValues: <string[]>[],
+          placeholders: <string[]>[],
+          values: <any[]>[],
+        }
+      );
+
+      const text = dedent(
+        pgFormat(
+          `
+            INSERT INTO %I.%I (
+                ${insrtStmtObj.formatTypes}
+              ) VALUES (${insrtStmtObj.placeholders})
+              RETURNING *
+            ;
+          `,
+          tableSchema,
+          tableName,
+          ...insrtStmtObj.formatValues
+        )
+      );
+
+      const { values } = insrtStmtObj;
+
+      return { text, values };
+    },
+
+    async insertNewRow(ctx: Context) {
+      const q = await this.actions.generateInsertStatement(ctx.params, {
+        parentCtx: ctx,
+      });
+      return await this.actions.query(q, { parentCtx: ctx });
+    },
+
+    async describeTable(ctx: Context) {
+      // @ts-ignore
+      const { tableSchema, tableName } = ctx.params;
+
+      const text = dedent(`
+        SELECT
+            column_name,
+            column_type,
+            column_number
+          FROM _data_manager_admin.table_column_types
+          WHERE (
+            ( table_schema = $1 )
+            AND
+            ( table_name = $2 )
+          )
+        ;
+      `);
+
+      const { rows } = await ctx.call("dama_db.query", {
+        text,
+        values: [tableSchema, tableName],
+      });
+
+      if (rows.length === 0) {
+        return null;
+      }
+
+      const tableDescription = rows.reduce(
+        (acc: any, { column_name, column_type, column_number }) => {
+          acc[column_name] = { column_type, column_number };
+          return acc;
+        },
+        {}
+      );
+
+      return tableDescription;
     },
 
     makeIterator: {
@@ -218,6 +476,7 @@ export default {
   created() {
     this._local_ = <LocalVariables>{
       dbs: {},
+      transactionConnections: {},
     };
   },
 

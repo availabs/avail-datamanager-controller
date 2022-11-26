@@ -7,7 +7,7 @@
 CREATE OR REPLACE VIEW _data_manager_admin.dama_views_missing_tables AS
   SELECT
       a.source_id,
-      a.id AS view_id
+      a.view_id
     FROM data_manager.views AS a
       FULL OUTER JOIN information_schema.tables AS b
         USING (table_schema, table_name)
@@ -17,7 +17,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_missing_tables AS
 CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
   WITH cte_sources_meta AS (
     SELECT
-        id AS source_id,
+        source_id,
         COALESCE(metadata, '[]'::JSONB) AS metadata
       FROM data_manager.sources
   ), cte_sources_meta_elems AS (
@@ -85,7 +85,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
           ( source_metadata_only IS NULL )
           AND
           ( view_metadata_only IS NULL )
-        ) AS view_metadata_is_comformant
+        ) AS view_metadata_is_conformant
       FROM cte_view_metadata_summary
 ;
 
@@ -117,7 +117,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_source_distinct_view_metadata AS
 
             FROM data_manager.sources AS a
               INNER JOIN _data_manager_admin.dama_table_json_schema AS b
-                ON ( a.id = b.source_id )
+                USING ( source_id )
         ) AS t
         GROUP BY source_id, view_metadata
     ) AS t
@@ -227,7 +227,7 @@ CREATE OR REPLACE PROCEDURE _data_manager_admin.initialize_dama_src_metadata_usi
             SELECT
                 source_id
               FROM data_manager.views
-              WHERE ( id = %L )
+              WHERE ( view_id = %L )
             ',
             p_view_id
           )
@@ -242,7 +242,7 @@ CREATE OR REPLACE PROCEDURE _data_manager_admin.initialize_dama_src_metadata_usi
             SELECT
                 metadata IS NOT NULL
               FROM data_manager.sources
-              WHERE ( id = %L )
+              WHERE ( source_id = %L )
             ',
             v_source_id
           )
@@ -259,10 +259,10 @@ CREATE OR REPLACE PROCEDURE _data_manager_admin.initialize_dama_src_metadata_usi
                 source_id,
                 table_simplified_schema AS metadata
               FROM _data_manager_admin.dama_table_json_schema
-              WHERE ( id = p_view_id )
+              WHERE ( view_id = p_view_id )
           ) AS b
           WHERE (
-            ( a.id = b.source_id )
+            ( a.source_id = b.source_id )
             AND
             ( a.metadata IS NULL )
           )
@@ -270,4 +270,129 @@ CREATE OR REPLACE PROCEDURE _data_manager_admin.initialize_dama_src_metadata_usi
 
     END ;
 
-  $$;
+  $$
+;
+
+-- Query based on https://stackoverflow.com/a/9985338/3970755
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_views_int_ids
+  AS
+    SELECT
+        source_id,
+        view_id,
+        table_schema,
+        table_name,
+        primary_key_summary,
+        has_simple_int_pkey,
+        has_dama_id_col,
+
+        CASE
+          WHEN has_dama_id_col
+            THEN '__id__'
+          WHEN has_simple_int_pkey
+            THEN primary_key_summary->0->>'column_name'
+          ELSE NULL
+        END AS int_id_column_name
+      FROM (
+
+        SELECT
+            t.source_id,
+            t.view_id,
+            t.table_schema,
+            t.table_name,
+            t.primary_key_summary,
+
+            (
+              ( jsonb_array_length(t.primary_key_summary) = 1 )
+              AND
+              ( t.primary_key_summary->0->>'column_type' IN ( 'bigint', 'integer', 'smallint' ) )
+            ) AS has_simple_int_pkey,
+
+            ( c.column_name IS NOT NULL ) AS has_dama_id_col
+
+          FROM (
+            SELECT
+                v.source_id,
+                v.view_id,
+                v.table_schema,
+                v.table_name,
+
+                jsonb_agg(
+                  jsonb_build_object(
+                    'column_name',
+                    c.column_name,
+
+                    'column_type',
+                    c.data_type
+                  )
+                ) AS primary_key_summary
+
+              FROM data_manager.views AS v
+                INNER JOIN information_schema.table_constraints a
+                  USING ( table_schema, table_name )
+                INNER JOIN information_schema.constraint_column_usage AS b
+                  USING (constraint_schema, constraint_name)
+                INNER JOIN information_schema.columns AS c
+                  ON (
+                    ( c.table_schema = a.constraint_schema )
+                    AND
+                    ( a.table_name = c.table_name )
+                    AND
+                    ( b.column_name = c.column_name )
+                  )
+              WHERE ( constraint_type = 'PRIMARY KEY' )
+              GROUP BY 1,2,3,4
+        ) AS t
+          LEFT OUTER JOIN information_schema.columns AS c
+            ON (
+              -- FIXME: Make there there is a UNIQUE constraint on the column
+              ( t.table_schema = c.table_schema )
+              AND
+              ( t.table_name = c.table_name )
+              AND
+              ( c.column_name = '__id__' )
+              AND
+              ( c.is_nullable = 'NO' )
+              AND
+              ( column_default LIKE 'nextval(%' )
+            )
+
+      ) AS t
+;
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_sources_comprehensive
+  AS
+    SELECT
+        *,
+        _data_manager_admin.create_dama_source_global_id(source_id) AS dama_global_id,
+        _data_manager_admin.to_snake_case(name) AS dama_src_normalized_name
+      FROM data_manager.sources
+        NATURAL LEFT JOIN _data_manager_admin.dama_source_distinct_view_table_schemas
+;
+
+CREATE OR REPLACE VIEW _data_manager_admin.dama_views_comprehensive
+  AS
+    SELECT
+        *,
+        _data_manager_admin.dama_view_global_id(view_id) AS dama_global_id,
+        _data_manager_admin.dama_view_name_prefix(view_id) AS dama_view_name_prefix,
+        _data_manager_admin.dama_view_name(view_id) AS dama_view_name
+      FROM data_manager.views
+        NATURAL LEFT JOIN _data_manager_admin.dama_views_int_ids
+        NATURAL LEFT JOIN _data_manager_admin.dama_views_missing_tables
+        NATURAL LEFT JOIN _data_manager_admin.dama_views_metadata_conformity
+        LEFT OUTER JOIN (
+          SELECT
+              view_id,
+              geojson_type
+            FROM (
+              SELECT
+                  view_id,
+                  json_type->'properties'->'type'->'enum'->>0 as geojson_type,
+                  row_number() OVER (PARTITION BY view_id ORDER BY column_number) AS row_number
+                FROM _data_manager_admin.dama_table_column_types
+                WHERE ( is_geometry_col )
+            ) AS t
+            WHERE ( row_number = 1 )
+        ) AS x USING ( view_id )
+;

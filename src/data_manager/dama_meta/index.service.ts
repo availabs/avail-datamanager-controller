@@ -7,11 +7,13 @@ import pgFormat from "pg-format";
 
 import { FSA } from "flux-standard-action";
 
+import serviceName from "./constants/serviceName";
+
+import EventTypes from "./constants/EventTypes";
+
 export type ServiceContext = Context & {
   params: FSA;
 };
-
-const serviceName = "dama/metadata";
 
 export default {
   name: serviceName,
@@ -53,7 +55,7 @@ export default {
 
       async handler(ctx: Context) {
         // @ts-ignore
-        const { dataSourceViewId } = ctx.params;
+        const { damaViewId } = ctx.params;
 
         const text = dedent(`
           SELECT
@@ -61,14 +63,14 @@ export default {
             FROM information_schema.columns AS a
               INNER JOIN data_manager.views AS b
                 USING ( table_schema, table_name )
-            WHERE ( b.id = $1 )
+            WHERE ( b.view_id = $1 )
             ORDER BY a.ordinal_position
           ;
         `);
 
         const { rows } = await ctx.call("dama_db.query", {
           text,
-          values: [dataSourceViewId],
+          values: [damaViewId],
         });
 
         const columnNames = rows.map(({ column_name }) => column_name);
@@ -82,11 +84,11 @@ export default {
 
       async handler(ctx: Context) {
         // @ts-ignore
-        const { dataSourceId } = ctx.params;
+        const { damaSourceId } = ctx.params;
 
         const text = dedent(`
           SELECT
-              MAX(id) AS latest_view_id
+              MAX(view_id) AS latest_view_id
             FROM data_manager.views
             WHERE ( source_id = $1 )
           ;
@@ -94,7 +96,7 @@ export default {
 
         const { rows } = await ctx.call("dama_db.query", {
           text,
-          values: [dataSourceId],
+          values: [damaSourceId],
         });
 
         if (rows.length < 1) {
@@ -111,15 +113,27 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
+        console.log(
+          JSON.stringify({ params: ctx.params, meta: ctx.meta }, null, 4)
+        );
+
         // getDataSourceMaxViewId has same params
-        const dataSourceViewId = await this.actions.getDataSourceMaxViewId(
+        const damaViewId = await this.actions.getDataSourceMaxViewId(
           ctx.params,
           { parentCtx: ctx }
         );
 
+        console.log(
+          JSON.stringify(
+            { params: ctx.params, meta: ctx.meta, damaViewId },
+            null,
+            4
+          )
+        );
+
         const columnNames =
           await this.actions.getDataSourceViewDataTableColumnsNames(
-            { dataSourceViewId },
+            { damaViewId },
             { parentCtx: ctx }
           );
 
@@ -154,7 +168,6 @@ export default {
           ..._.pick(payload, columnNames),
           root_etl_context_id,
           etl_context_id,
-          last_updated: new Date().toISOString(),
         };
 
         const cols: string[] = [];
@@ -162,7 +175,7 @@ export default {
 
         const selectClauses = Object.keys(viewMeta)
           .map((k) => {
-            if (k === "id" || k === "source_id") {
+            if (k === "view_id" || k === "source_id") {
               return null;
             }
 
@@ -196,7 +209,7 @@ export default {
             source_id, ${cols.join(", ")}
           )
             SELECT
-                a.id AS source_id,
+                a.source_id,
                 ${selectClauses}
               FROM data_manager.sources AS a
               WHERE ( name = $${queryParams.push(data_source_name)} )
@@ -219,12 +232,11 @@ export default {
           ctx.params,
           { parentCtx: ctx }
         );
-        console.log('q', query);
-        // const {
-        //   rows: [{ id: dama_view_id }],
-        // } = await ctx.call("dama_db.query", query);
-        //
-        // return { dama_view_id };
+        const {
+          rows: [{ view_id: dama_view_id }],
+        } = await ctx.call("dama_db.query", query);
+
+        return { dama_view_id };
       },
     },
 
@@ -254,12 +266,12 @@ export default {
     },
 
     getDamaDataSources: {
-      visibility: "public",
+      visibility: "published",
 
       async handler(ctx: Context) {
         const q = dedent(`
           SELECT
-              id,
+              source_id,
               name
             FROM data_manager.sources
             ORDER BY 1
@@ -272,49 +284,242 @@ export default {
       },
     },
 
-    createNewDataSource: {
-      visibility: "published",
+    async getDamaViewProperties(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId, properties },
+      } = ctx;
 
-      async handler(ctx: Context) {
-        const newSrcProps = <object>ctx.params;
+      const formatObj = properties.reduce(
+        (acc: any, prop: string) => {
+          acc.formatTypes.push("%I");
+          acc.formatValues.push(prop);
+          return acc;
+        },
+        { formatTypes: [], formatValues: [] }
+      );
 
-        const tableCols = <string[]>await this.actions.getTableColumns(
-          {
-            tableSchema: "data_manager",
-            tableName: "sources",
-          },
+      const q = dedent(
+        pgFormat(
+          `
+            SELECT
+                ${formatObj.formatTypes}
+              FROM _data_manager_admin.dama_views_comprehensive
+              WHERE ( view_id = $1 )
+          `,
+          ...formatObj.formatValues
+        )
+      );
+
+      const { rows } = await ctx.call("dama_db.query", {
+        text: q,
+        values: [damaViewId],
+      });
+
+      if (rows.length !== 1) {
+        throw new Error(`Invalid DamaViewID ${damaViewId}`);
+      }
+
+      return rows[0];
+    },
+
+    async getDamaViewName(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId },
+      } = ctx;
+
+      const { dama_view_name } = await this.actions.getDamaViewProperties(
+        { damaViewId, properties: ["dama_view_name"] },
+        { parentCtx: ctx }
+      );
+
+      return dama_view_name;
+    },
+
+    async getDamaViewNamePrefix(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId },
+      } = ctx;
+
+      const { dama_view_name_prefix } =
+        await this.actions.getDamaViewProperties(
+          { damaViewId, properties: ["dama_view_name_prefix"] },
           { parentCtx: ctx }
         );
 
-        const props = Object.keys(newSrcProps);
-        const cols = _.pull(_.intersection(tableCols, props), "id");
+      return dama_view_name_prefix;
+    },
 
-        const colTags = cols.map(() => "%I");
-        const params = _.range(1, cols.length + 1).map((i) => `$${i}`);
+    async getDamaViewGlobalId(ctx: Context) {
+      const {
         // @ts-ignore
-        const values = cols
-          .map((c) => newSrcProps[c])
-          .map((v) => (v === "" ? null : v));
+        params: { damaViewId },
+      } = ctx;
 
-        const text = dedent(
-          pgFormat(
-            `
-            INSERT INTO data_manager.sources (
-                ${colTags}
-              ) VALUES (${params})
-              RETURNING *
-            ;
-          `,
-            ...cols
-          )
-        );
+      const { dama_global_id } = await this.actions.getDamaViewProperties(
+        { damaViewId, properties: ["dama_global_id"] },
+        { parentCtx: ctx }
+      );
+
+      return dama_global_id;
+    },
+
+    async getDamaViewMapboxPaintStyle(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { damaViewId },
+      } = ctx;
+
+      const text = dedent(`
+        SELECT
+            mapbox_paint_style
+          FROM _data_manager_admin.dama_views_mapbox_comprehensive
+          WHERE ( view_id = $1 )
+      `);
+
+      const { rows } = await ctx.call("dama_db.query", {
+        text,
+        values: [damaViewId],
+      });
+
+      if (rows.length === 0) {
+        throw new Error(`Invalid DamaViewId: ${damaViewId}`);
+      }
+
+      const [{ mapbox_paint_style }] = rows;
+
+      return mapbox_paint_style;
+    },
+
+    async generateCreateDamaSourceSql(ctx: Context) {
+      return await ctx.call("dama_db.generateInsertStatement", {
+        tableSchema: "data_manager",
+        tableName: "sources",
+        newRow: ctx.params,
+      });
+    },
+
+    createNewDamaSource: {
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const q = await this.actions.generateCreateDamaSourceSql(ctx.params, {
+          parentCtx: ctx,
+        });
+
+        const {
+          rows: [newDamaSource],
+        } = await ctx.call("dama_db.query", q);
+
+        return newDamaSource;
+      },
+    },
+
+    async queueEtlCreateDamaSource(ctx: Context) {
+      // @ts-ignore
+      const { params }: { params: object } = ctx;
+
+      // @ts-ignore
+      const { etlContextId } = params;
+
+      if (!etlContextId) {
+        throw new Error("The etlContextId parameter is required.");
+      }
+
+      const payload = _.omit(params, ["etlContextId"]);
+
+      const event = {
+        type: EventTypes.QUEUE_CREATE_NEW_DAMA_SOURCE,
+        payload,
+        meta: {
+          etl_context_id: etlContextId,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const result = await ctx.call("dama_dispatcher.dispatch", event);
+
+      return result;
+    },
+
+    generateCreateDamaViewSql: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        // @ts-ignore
+        const { params }: { params: object } = ctx;
+
+        // @ts-ignore
+        let { etl_context_id } = params;
+
+        if (!etl_context_id) {
+          // @ts-ignore
+          etl_context_id = ctx.meta.etl_context_id || null;
+        }
+
+        const root_etl_context_id = etl_context_id
+          ? await ctx.call("dama_dispatcher.queryRootContextId", {
+              etl_context_id,
+            })
+          : null;
+
+        const newRow = {
+          ...params,
+          root_etl_context_id,
+          etl_context_id,
+        };
+
+        return await ctx.call("dama_db.generateInsertStatement", {
+          tableSchema: "data_manager",
+          tableName: "views",
+          newRow,
+        });
+      },
+    },
+
+    createNewDamaView: {
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const q = await this.actions.generateCreateDamaViewSql(ctx.params, {
+          parentCtx: ctx,
+        });
 
         const {
           rows: [damaSrcMeta],
-        } = await ctx.call("dama_db.query", { text, values });
+        } = await ctx.call("dama_db.query", q);
 
         return damaSrcMeta;
       },
+    },
+
+    async queueEtlCreateDamaView(ctx: Context) {
+      // @ts-ignore
+      const { params }: { params: object } = ctx;
+
+      // @ts-ignore
+      const { etlContextId } = params;
+
+      if (!etlContextId) {
+        throw new Error("The etlContextId parameter is required.");
+      }
+
+      const payload = _.omit(params, ["etlContextId"]);
+
+      const event = {
+        type: EventTypes.QUEUE_CREATE_NEW_DAMA_VIEW,
+        payload,
+        meta: {
+          etl_context_id: etlContextId,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const result = await ctx.call("dama_dispatcher.dispatch", event);
+
+      return result;
     },
   },
 };

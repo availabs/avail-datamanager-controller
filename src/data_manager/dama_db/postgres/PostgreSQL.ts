@@ -4,7 +4,14 @@ import { join } from "path";
 import dotenv from "dotenv";
 import _ from "lodash";
 
-import { Client, Pool, Connection, PoolClient, QueryResult } from "pg";
+import {
+  Client,
+  Pool,
+  Connection,
+  PoolClient,
+  QueryConfig,
+  QueryResult,
+} from "pg";
 
 const configDir = join(__dirname, "../../../../config/");
 
@@ -12,6 +19,7 @@ export type NodePgClient = Client;
 export type NodePgPool = Pool;
 export type NodePgConnection = Connection;
 export type NodePgPoolClient = PoolClient;
+export type NodePgQueryConfig = QueryConfig;
 export type NodePgQueryResult = QueryResult;
 export type PgEnv = string;
 

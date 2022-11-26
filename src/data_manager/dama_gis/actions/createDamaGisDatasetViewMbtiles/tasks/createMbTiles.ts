@@ -7,30 +7,32 @@ import { spawn } from "child_process";
 import { existsSync, createWriteStream } from "fs";
 import { pipeline } from "stream";
 import { promisify } from "util";
-import { join } from "path";
 import { createGzip } from "zlib";
+import { basename } from "path";
 
 import tmp from "tmp";
 
 import { Feature } from "geojson";
 
-import tippecanoePath from "../../src/data_utils/gis/tippecanoe/constants/tippecanoePath";
-import installTippecanoe from "../../src/data_utils/gis/tippecanoe/bin/installTippecanoe";
+import tippecanoePath from "../../../../../data_utils/gis/tippecanoe/constants/tippecanoePath";
+import installTippecanoe from "../../../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
 
-import etlDir from "../../src/constants/etlDir";
+import etlDir from "../../../../../constants/etlDir";
 
-import asyncGeneratorToNdjsonStream from "../../src/data_utils/streaming/asyncGeneratorToNdjsonStream";
+import asyncGeneratorToNdjsonStream from "../../../../../data_utils/streaming/asyncGeneratorToNdjsonStream";
 
 const pipelineAsync = promisify(pipeline);
 
 export type CreateMBTilesConfig = {
   layerName: string;
+  mbtilesFilePath: string;
   featuresAsyncIterator: AsyncGenerator<Feature>;
   etlWorkDir?: string;
 };
 
 export default async function main({
   layerName,
+  mbtilesFilePath,
   featuresAsyncIterator,
   etlWorkDir,
 }: CreateMBTilesConfig) {
@@ -45,8 +47,6 @@ export default async function main({
       })
     );
   }
-
-  const mbtilesFilePath = join(etlWorkDir, `${layerName}.mbtiles`);
 
   const {
     path: geojsonFilePath,
@@ -65,6 +65,7 @@ export default async function main({
     )
   );
 
+  // @ts-ignore
   const ws = createWriteStream(null, {
     fd: geojsonFileDescriptor,
   });
@@ -89,13 +90,18 @@ export default async function main({
     fail = reject;
   });
 
+  const name = basename(mbtilesFilePath, ".mbtiles");
+
   const tippecanoeArgs = [
     "--no-progress-indicator",
+    "--read-parallel",
     "--no-feature-limit",
     "--no-tile-size-limit",
     "--generate-ids",
     "-r1",
     "--force",
+    "--name",
+    name,
     "--layer",
     layerName,
     "-o",
@@ -134,6 +140,7 @@ export default async function main({
   return {
     layerName,
     mbtilesFilePath,
+    geojsonFilePath,
     tippecanoeArgs,
     tippecanoeStdout,
     tippecanoeStderr,

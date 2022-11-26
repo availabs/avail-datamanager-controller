@@ -1,21 +1,16 @@
-// FIXME: Need subEtlContexts for each layer
-
 import { Context } from "moleculer";
 
 import pgFormat from "pg-format";
 import dedent from "dedent";
 import _ from "lodash";
-import tmp from "tmp";
 
 import asyncGeneratorToNdjsonStream from "../../data_utils/streaming/asyncGeneratorToNdjsonStream";
 
 import { NodePgQueryResult } from "../dama_db/postgres/PostgreSQL";
 
-import etlDir from "../../constants/etlDir";
+import createDamaGisDatasetViewMbtiles from "./actions/createDamaGisDatasetViewMbtiles";
 
 import serviceName from "./constants/serviceName";
-
-import createMbtilesTask from "../../../tasks/create-mbtiles";
 
 export default {
   name: serviceName,
@@ -251,41 +246,7 @@ export default {
     createDamaGisDatasetViewMbtiles: {
       visibility: "published",
 
-      async handler(ctx: Context) {
-        const {
-          // @ts-ignore
-          params: { damaViewId },
-        } = ctx;
-        const etlWorkDir: string = await new Promise((resolve, reject) =>
-          tmp.dir({ tmpdir: etlDir }, (err, path) => {
-            if (err) {
-              return reject(err);
-            }
-
-            resolve(path);
-          })
-        );
-
-        const { tableName: layerName } =
-          await this.actions.getDamaGisDatasetViewTableSchemaSummary(
-            { damaViewId },
-            { parentCtx: ctx }
-          );
-
-        const featuresAsyncIterator =
-          await this.actions.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
-            ctx.params,
-            { parentCtx: ctx }
-          );
-
-        const result = await createMbtilesTask({
-          layerName,
-          featuresAsyncIterator,
-          etlWorkDir,
-        });
-
-        console.log(JSON.stringify(result, null, 4));
-      },
+      handler: createDamaGisDatasetViewMbtiles,
     },
 
     async testIter(ctx: Context) {
