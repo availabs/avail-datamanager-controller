@@ -127,14 +127,10 @@ export default async function publish(ctx: Context) {
   const sqlLog: any[] = [];
   const resLog: QueryResult[] = [];
 
-  // let dama_view_id = 64
+  // let dama_view_id = 13
   try {
     let res: QueryResult;
     const data_cleaning_file_path = "src/data_manager/dama_integration/actions/ncei_storm_events/utils/";
-
-    sqlLog.push("BEGIN ;");
-    res = await dbConnection.query("BEGIN ;");
-    resLog.push(res);
 
     // download step 1
     const files = await getFiles();
@@ -158,12 +154,16 @@ export default async function publish(ctx: Context) {
 
     // insert into views, get view id, and use it in table name.
 
+    sqlLog.push("BEGIN ;");
+    res = await dbConnection.query("BEGIN ;");
+    resLog.push(res);
+
     const {
       id: dama_view_id,
       table_schema: origTableSchema,
       table_name: origTableName,
     } = await create_view(etl_context_id, dbConnection, ctx, sqlLog);
-
+    console.log('new view id:', dama_view_id)
 
     // create schema
     const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name].schema};`;
@@ -172,7 +172,7 @@ export default async function publish(ctx: Context) {
       text: createSchema
     });
     resLog.push(res);
-    console.log("see this:", res.rows)
+    console.log("see this:", res.rows);
 
     // create table
     sqlLog.push(createSqls(table_name, dama_view_id));
@@ -180,25 +180,23 @@ export default async function publish(ctx: Context) {
       text: createSqls(table_name, dama_view_id)
     });
     resLog.push(res);
-    console.log("see this:", res.rows)
+    console.log("see this:", res.rows);
 
-
-
-    await loadFiles(table_name, dama_view_id, ctx);
-    console.log("uploaded!");
-
-
-    // await postProcess(ctx, `${table_name}${dama_view_id ? `_${dama_view_id}` : ``}`, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
-    // console.log("post upload process finished.");
+    await dbConnection.query("COMMIT;");
 
 
     // update view meta
-
-
     await update_view(table_name, dama_view_id, dbConnection, sqlLog, resLog);
 
+    await dbConnection.query("COMMIT;");
+
+
+    await loadFiles(table_name, dama_view_id, ctx);
+
+    console.log("uploaded!");
+
     // We need the data_manager.views id
-    dbConnection.query("COMMIT;");
+    await dbConnection.query("COMMIT;");
     dbConnection.release();
 
     const finalEvent = {

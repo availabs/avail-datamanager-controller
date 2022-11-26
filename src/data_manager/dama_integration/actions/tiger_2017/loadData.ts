@@ -47,7 +47,7 @@ const uploadFiles = (fileName, pgEnv="dama_dev_1", url, table) => {
   console.log("uploading...", url + fileName)
 
   const pg = getPostgresConnectionString(pgEnv);
-  execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite`,
+  execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite`,
     {cwd: `./data/tl_2017_${table}/`}
   ) // -nln tl_2017_${table}
 
