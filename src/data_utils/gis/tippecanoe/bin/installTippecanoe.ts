@@ -1,7 +1,7 @@
 import { exec } from "child_process";
 import { existsSync } from "fs";
 import { rm as rmAsync, mkdir as mkdirAsync } from "fs/promises";
-import { basename } from "path";
+import { dirname } from "path";
 import { promisify } from "util";
 
 import dedent from "dedent";
@@ -20,7 +20,7 @@ export default async function installTippecanoe(clean = false) {
   }
 
   await rmAsync(tippecanoeDir, { recursive: true, force: true });
-  await mkdirAsync(tippecanoeDir, { recursive: true });
+  await mkdirAsync(dirname(tippecanoeDir), { recursive: true });
 
   console.log("installing tippecanoe in", tippecanoeDir);
 
@@ -31,7 +31,7 @@ export default async function installTippecanoe(clean = false) {
       make -j
     `),
     {
-      cwd: basename(tippecanoeDir),
+      cwd: dirname(tippecanoeDir),
     }
   );
 
