@@ -20,7 +20,7 @@ export default async function installTippecanoe(clean = false) {
   }
 
   await rmAsync(tippecanoeDir, { recursive: true, force: true });
-  await mkdirAsync(tippecanoeDir);
+  await mkdirAsync(tippecanoeDir, { recursive: true });
 
   console.log("installing tippecanoe in", tippecanoeDir);
 
