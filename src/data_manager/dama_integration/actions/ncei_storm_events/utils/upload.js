@@ -15,22 +15,29 @@ export const loadFiles = (table, dama_view_id, ctx) => {
 
     return files
         .reduce(async (acc, file, fileI) => {
-            // if(fileI < 48) return Promise.resolve();
+            // if(fileI < 47) return Promise.resolve();
             await acc;
             return new Promise((resolve, reject) => {
                 console.log(`file ${++fileI} of ${files.length} ${fileI*100/files.length}% ${file}`);
                 console.log(pathToFiles + table + "/" + file)
                 fs.readFile(pathToFiles + table + "/" + file, "utf8", (err,d) => {
-                  console.log('testing', d, err)
-                    const headers = d.split(/\r?\n/).slice(0, 1)[0].split("|").map(h => h.toLowerCase());
+
+                    const headers = d.split(/\r?\n/).slice(0, 1)[0].split("\t").map(h => h.toLowerCase());
 
                     const values =
                         d.split(/\r?\n/)
                             .slice(1, d.split(/\r?\n/).length)
-                            .map(d1 => d1.split("|"))
+                            .map(d1 => d1.split("\t"))
                             .filter(d2 => d2.length > 1)
                             .map((d2) => {
                                 return d2.reduce((acc_d2, value, index) => {
+                                  if(acc_d2.length > headers.length){
+                                    console.log('checking len', headers, acc_d2)
+                                  }
+                                  if(!headers[index]){
+                                    console.log('erroring here', index, headers.length)
+                                    console.log(d2)
+                                  }
                                     acc_d2[headers[index]] =
                                             (working_table.numericColumns || []).includes(headers[index]) && [null, "", " ", undefined].includes(value) ?
                                                 0 :
@@ -131,17 +138,17 @@ export const createSqls = (table_name, viewId, schema_name) => {
                   CONSTRAINT event_id_pkey${viewId ? `_${viewId}` : ``} PRIMARY KEY (event_id)
                       INCLUDE(event_id)
               )`,
-    tl_2017_cousub: `
-              CREATE TABLE IF NOT EXISTS ${schema_name || tables.tl_2017_cousub.schema}.${table_name || tables.tl_2017_cousub.name}${viewId ? `_${viewId}` : ``}
-              (
-                  geom geometry(MultiPolygon,4269),
-                  statefp character varying(2) COLLATE pg_catalog."default",
-                  countyfp character varying(3) COLLATE pg_catalog."default",
-                  geoid character varying(10) COLLATE pg_catalog."default",
-                  name character varying(100) COLLATE pg_catalog."default",
-                  namelsad character varying(100) COLLATE pg_catalog."default"
-              )
-    `,
+    // tl_2017_cousub: `
+    //           CREATE TABLE IF NOT EXISTS ${schema_name || tables.tl_2017_cousub.schema}.${table_name || tables.tl_2017_cousub.name}${viewId ? `_${viewId}` : ``}
+    //           (
+    //               geom geometry(MultiPolygon,4326),
+    //               statefp character varying(2) COLLATE pg_catalog."default",
+    //               countyfp character varying(3) COLLATE pg_catalog."default",
+    //               geoid character varying(10) COLLATE pg_catalog."default",
+    //               name character varying(100) COLLATE pg_catalog."default",
+    //               namelsad character varying(100) COLLATE pg_catalog."default"
+    //           )
+    // `,
     zone_to_county: `
               CREATE TABLE IF NOT EXISTS ${schema_name || tables.zone_to_county.schema}.${table_name || tables.zone_to_county.name}${viewId ? `_${viewId}` : ``}
               (

@@ -20,6 +20,7 @@ import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
 import testAction from "./actions/ncei_storm_events/testAction";
 // import testDownloadAction from "./actions/ncei_storm_events/DownloadAction";
 import loadNCEI from "./actions/ncei_storm_events/loadData";
+import enhanceNCEI from "./actions/ncei_storm_events/postUploadProcessData";
 import csvUploadAction from "./actions/csvUploadAction";
 import tigerDownloadAction from "./actions/tiger_2017/loadData";
 import versionSelectorUtils from "./actions/versionSelectorUtils";
@@ -140,6 +141,8 @@ export default {
     testAction,
 
     loadNCEI,
+
+    enhanceNCEI,
 
     async testDbIterator(ctx: Context) {
       const iter = await ctx.call("dama_db.makeIterator", ctx.params);

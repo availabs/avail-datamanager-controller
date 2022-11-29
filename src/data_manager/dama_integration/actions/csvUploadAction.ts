@@ -95,6 +95,7 @@ export default async function publish(ctx: Context) {
 
     // create schema
     const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name].schema};`;
+    // console.log('create', createSchema)
     sqlLog.push(createSchema);
     res = await ctx.call("dama_db.query", {
       text: createSchema
@@ -104,6 +105,7 @@ export default async function publish(ctx: Context) {
 
     // create table
     sqlLog.push(createSqls(table_name, dama_view_id));
+    // console.log('create table', createSqls(table_name, dama_view_id));
     res = await ctx.call("dama_db.query", {
       text: createSqls(table_name, dama_view_id)
     });

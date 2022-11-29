@@ -66,20 +66,24 @@ def process():
 
         csv.astype(convert_dict)
 
+        csv.replace(to_replace='\t', value=' ')
+
         if sys.argv[1] == 'details':
             csv['EVENT_NARRATIVE'] = \
                 csv['EVENT_NARRATIVE'] \
                     .astype('string') \
                     .str.replace('\n', ' ') \
+                    .str.replace('\t', ' ') \
                     .str.replace('|', '')
 
             csv['EPISODE_NARRATIVE'] = \
                 csv['EPISODE_NARRATIVE'] \
                     .astype('string') \
                     .str.replace('\n', ' ') \
+                    .str.replace('\t', ' ') \
                     .str.replace('|', '')
 
-        csv.to_csv(path_or_buf=path + fileName, sep='|', index=False)
+        csv.to_csv(path_or_buf=path + fileName, sep='\t', index=False)
 
 
 if __name__ == '__main__':

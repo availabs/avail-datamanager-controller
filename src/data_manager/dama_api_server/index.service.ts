@@ -6,6 +6,7 @@ import ApiGateway from "moleculer-web";
 import _ from "lodash";
 
 import pgEnvs from "../../var/pgEnvs";
+import enhanceNCEI from "../dama_integration/actions/ncei_storm_events/postUploadProcessData";
 
 // https://github.com/moleculerjs/moleculer-web/blob/master/index.d.ts
 type IncomingRequest = typeof ApiGateway.IncomingRequest;
@@ -276,6 +277,9 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/loadNCEI":
                 "dama/data_source_integrator.loadNCEI",
+
+              "/staged-geospatial-dataset/enhanceNCEI":
+                "dama/data_source_integrator.enhanceNCEI",
 
               "/staged-geospatial-dataset/csvUploadAction":
                 "dama/data_source_integrator.csvUploadAction",
