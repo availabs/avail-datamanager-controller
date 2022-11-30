@@ -3,8 +3,8 @@ CREATE SCHEMA IF NOT EXISTS _data_manager_admin ;
 -- https://docs.mapbox.com/mapbox-gl-js/style-spec/layers/#type
 
 CREATE TABLE IF NOT EXISTS _data_manager_admin.default_mapbox_paint_styles (
-  mapbox_type     TEXT PRIMARY KEY,
-  mapbox_paint_style     JSONB NOT NULL
+  mapbox_type             TEXT PRIMARY KEY,
+  mapbox_paint_style      JSONB NOT NULL
 ) ;
 
 INSERT INTO _data_manager_admin.default_mapbox_paint_styles (
@@ -89,7 +89,8 @@ CREATE OR REPLACE VIEW _data_manager_admin.geojson_type_default_mapbox_paint_sty
 CREATE TABLE IF NOT EXISTS _data_manager_admin.dama_sources_bespoke_mapbox_paint_style (
   source_id             INTEGER PRIMARY KEY,
   mapbox_type           TEXT NOT NULL,
-  mapbox_paint_style    JSONB NOT NULL
+  mapbox_paint_style    JSONB NOT NULL,
+  mapbox_symbology      JSONB
 ) ;
 
 
@@ -97,7 +98,9 @@ CREATE TABLE IF NOT EXISTS _data_manager_admin.dama_sources_bespoke_mapbox_paint
 CREATE TABLE IF NOT EXISTS _data_manager_admin.dama_views_bespoke_mapbox_paint_style (
   view_id               INTEGER PRIMARY KEY,
   mapbox_type           TEXT NOT NULL,
-  mapbox_paint_style    JSONB NOT NULL
+  mapbox_paint_style    JSONB NOT NULL,
+  mapbox_symbology      JSONB
+
 ) ;
 
 CREATE TABLE IF NOT EXISTS _data_manager_admin.dama_views_mbtiles_metadata (
@@ -124,6 +127,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_mapbox_comprehensive
         t.*,
 
         jsonb_build_object(
+
           'layers',
           jsonb_build_array(
             jsonb_build_object(
@@ -163,7 +167,11 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_mapbox_comprehensive
                 t.source_type
               )
             )
-          )
+          ),
+
+          'symbology',
+          mapbox_symbology
+
         ) AS mapbox_config
 
       FROM (
@@ -174,11 +182,18 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_mapbox_comprehensive
               c.mapbox_type,
               b.mapbox_type
             ) AS mapbox_type,
+
             COALESCE(
               d.mapbox_paint_style,
               c.mapbox_paint_style,
               b.mapbox_paint_style
             ) AS mapbox_paint_style,
+
+            COALESCE(
+              d.mapbox_symbology,
+              c.mapbox_symbology
+            ) AS mapbox_symbology,
+
             (
               (
                 COALESCE(
