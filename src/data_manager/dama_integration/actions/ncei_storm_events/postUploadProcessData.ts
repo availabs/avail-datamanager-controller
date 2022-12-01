@@ -56,7 +56,7 @@ const create_view = async (etl_context_id, dbConnection, ctx, sqlLog) => {
 
 }
 
-const update_view = async (ncei_schema, table_name, dama_view_id, dbConnection, sqlLog, resLog) => {
+const update_view = async (ncei_schema, table_name, view_id, dbConnection, sqlLog, resLog) => {
   const updateViewMetaSql = dedent(
     `
         UPDATE data_manager.views
@@ -64,15 +64,15 @@ const update_view = async (ncei_schema, table_name, dama_view_id, dbConnection, 
             table_schema  = $1,
             table_name    = $2,
             data_table    = $3
-          WHERE id = $4
+          WHERE view_id = $4
       `
   );
 
-  const data_table = pgFormat("%I.%I", ncei_schema, `${table_name}_${dama_view_id}`);
+  const data_table = pgFormat("%I.%I", ncei_schema, `${table_name}_${view_id}`);
 
   const q = {
     text: updateViewMetaSql,
-    values: [ncei_schema, `${table_name}_${dama_view_id}`, data_table, dama_view_id],
+    values: [ncei_schema, `${table_name}_${view_id}`, data_table, view_id],
   };
 
   sqlLog.push(q);
@@ -85,7 +85,7 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: { etl_context_id, table_name, src_id, ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table},
+    params: { etl_context_id, table_name, src_id, view_id, ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table},
   } = ctx;
   //
   if (!(etl_context_id)) {
@@ -101,23 +101,13 @@ export default async function publish(ctx: Context) {
   const sqlLog: any[] = [];
   const resLog: QueryResult[] = [];
   console.log('tables', table_name, src_id, ncei_schema, ncei_table, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
-  // let dama_view_id = 64
+  // let view_id = 64
   try {
     let res: QueryResult;
 
     sqlLog.push("BEGIN ;");
     res = await dbConnection.query("BEGIN ;");
     resLog.push(res);
-
-    // insert into views, get view id, and use it in table name.
-
-    const {
-      id: dama_view_id,
-      table_schema: origTableSchema,
-      table_name: origTableName,
-    } = await create_view(etl_context_id, dbConnection, ctx, sqlLog);
-
-
     // // create schema
     // const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name].schema};`;
     // sqlLog.push(createSchema);
@@ -129,7 +119,7 @@ export default async function publish(ctx: Context) {
 
     // create table
     const createTableSql = `
-                SELECT * INTO ${ncei_schema}.${table_name || tables.details.name}${dama_view_id ? `_${dama_view_id}` : ``}
+                SELECT * INTO ${ncei_schema}.${table_name || tables.details.name}${view_id ? `_${view_id}` : ``}
                     FROM (SELECT * FROM ${ncei_schema}.${ncei_table}) t;
     `;
     sqlLog.push(createTableSql);
@@ -139,16 +129,16 @@ export default async function publish(ctx: Context) {
     resLog.push(res);
     console.log("see this:", res.rows)
 
-    await postProcess(ctx, `${table_name}${dama_view_id ? `_${dama_view_id}` : ``}`, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
+    await postProcess(ctx, `${table_name}${view_id ? `_${view_id}` : ``}`, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
     console.log("post upload process finished.");
 
 
     // update view meta
 
-    await update_view(ncei_schema, table_name, dama_view_id, dbConnection, sqlLog, resLog);
+    await update_view(ncei_schema, table_name, view_id, dbConnection, sqlLog, resLog);
 
     // We need the data_manager.views id
-    dbConnection.query("COMMIT;");
+    await dbConnection.query("COMMIT;");
     dbConnection.release();
 
     const finalEvent = {

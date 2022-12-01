@@ -82,7 +82,7 @@ const create_view = async (etl_context_id, dbConnection, ctx, sqlLog) => {
 
 }
 
-const update_view = async (table_name, dama_view_id, dbConnection, sqlLog, resLog) => {
+const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
   const updateViewMetaSql = dedent(
     `
         UPDATE data_manager.views
@@ -90,15 +90,15 @@ const update_view = async (table_name, dama_view_id, dbConnection, sqlLog, resLo
             table_schema  = $1,
             table_name    = $2,
             data_table    = $3
-          WHERE id = $4
+          WHERE view_id = $4
       `
   );
 
-  const data_table = pgFormat("%I.%I", tables[table_name].schema, `${table_name}_${dama_view_id}`);
+  const data_table = pgFormat("%I.%I", tables[table_name].schema, `${table_name}_${view_id}`);
 
   const q = {
     text: updateViewMetaSql,
-    values: [tables[table_name].schema, `${table_name}_${dama_view_id}`, data_table, dama_view_id],
+    values: [tables[table_name].schema, `${table_name}_${view_id}`, data_table, view_id],
   };
 
   sqlLog.push(q);
@@ -111,7 +111,7 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: { etl_context_id, table_name },
+    params: { etl_context_id, table_name, view_id },
   } = ctx;
   //
   if (!(etl_context_id)) {
@@ -127,7 +127,7 @@ export default async function publish(ctx: Context) {
   const sqlLog: any[] = [];
   const resLog: QueryResult[] = [];
 
-  // let dama_view_id = 13
+  // let view_id = 13
   try {
     let res: QueryResult;
     const data_cleaning_file_path = "src/data_manager/dama_integration/actions/ncei_storm_events/utils/";
@@ -158,13 +158,6 @@ export default async function publish(ctx: Context) {
     res = await dbConnection.query("BEGIN ;");
     resLog.push(res);
 
-    const {
-      id: dama_view_id,
-      table_schema: origTableSchema,
-      table_name: origTableName,
-    } = await create_view(etl_context_id, dbConnection, ctx, sqlLog);
-    console.log('new view id:', dama_view_id)
-
     // create schema
     const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name].schema};`;
     sqlLog.push(createSchema);
@@ -175,9 +168,9 @@ export default async function publish(ctx: Context) {
     console.log("see this:", res.rows);
 
     // create table
-    sqlLog.push(createSqls(table_name, dama_view_id));
+    sqlLog.push(createSqls(table_name, view_id));
     res = await ctx.call("dama_db.query", {
-      text: createSqls(table_name, dama_view_id)
+      text: createSqls(table_name, view_id)
     });
     resLog.push(res);
     console.log("see this:", res.rows);
@@ -186,12 +179,12 @@ export default async function publish(ctx: Context) {
 
 
     // update view meta
-    await update_view(table_name, dama_view_id, dbConnection, sqlLog, resLog);
+    await update_view(table_name, view_id, dbConnection, sqlLog, resLog);
 
     await dbConnection.query("COMMIT;");
 
 
-    await loadFiles(table_name, dama_view_id, ctx);
+    await loadFiles(table_name, view_id, ctx);
 
     console.log("uploaded!");
 

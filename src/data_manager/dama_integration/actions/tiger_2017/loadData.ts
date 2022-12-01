@@ -98,7 +98,7 @@ const create_view = async (etl_context_id, ctx) => {
 
 }
 
-const update_view = async (dama_view_id, ctx, table) => {
+const update_view = async (view_id, ctx, table) => {
   // update view meta
   const updateViewMetaSql = dedent(
     `
@@ -107,15 +107,15 @@ const update_view = async (dama_view_id, ctx, table) => {
             table_schema  = $1,
             table_name    = $2,
             data_table    = $3
-          WHERE id = $4
+          WHERE view_id = $4
       `
   );
 
-  const data_table = pgFormat("%I.%I", "geo", `tl_2017_${table}_${dama_view_id}`);
+  const data_table = pgFormat("%I.%I", "geo", `tl_2017_${table}_${view_id}`);
 
   return ctx.call("dama_db.query", {
     text: updateViewMetaSql,
-    values: ["geo", `tl_2017_${table}_${dama_view_id}`, data_table, dama_view_id],
+    values: ["geo", `tl_2017_${table}_${view_id}`, data_table, view_id],
   });
 
 };
@@ -147,7 +147,7 @@ export default async function publish(ctx: Context) {
 
   const {
     // @ts-ignore
-    params: { etl_context_id = etlcontextid, table, src_id },
+    params: { etl_context_id = etlcontextid, table, src_id, view_id },
     meta: { pgEnv },
   } = ctx;
   const url = `https://www2.census.gov/geo/tiger/TIGER2017/${table}/`;
@@ -165,15 +165,10 @@ export default async function publish(ctx: Context) {
               return fetchFileList(curr, url, table).then(() => uploadFiles(curr, pgEnv, url, table));
             }, Promise.resolve());
 
-    const {
-      id: dama_view_id,
-      table_schema: origTableSchema,
-      table_name: origTableName,
-    } = await create_view(etl_context_id, ctx);
 
-    await mergeTables(ctx, files.map(f => f.replace(".zip", "")), dama_view_id, table);
+    await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table);
 
-    await update_view(dama_view_id, ctx, table.toLowerCase());
+    await update_view(view_id, ctx, table.toLowerCase());
 
     const finalEvent = {
       type: EventTypes.FINAL,

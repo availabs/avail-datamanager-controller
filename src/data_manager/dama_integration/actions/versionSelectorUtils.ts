@@ -51,7 +51,9 @@ export default async function publish(ctx: Context) {
     resLog.push(resSources.rows);
     console.log("see this:", resSources.rows);
 
-    const getViews = `SELECT * FROM data_manager.views WHERE source_id IN (${resSources.rows.map(src => src.id)});`;
+    const getViews = `SELECT * FROM data_manager.views WHERE source_id IN (${resSources.rows.map(src => src.source_id)});`;
+    console.log('??', getSrcs)
+    console.log('??', getViews)
     sqlLog.push(getViews);
     resViews = await ctx.call("dama_db.query", {
       text: getViews
@@ -60,7 +62,7 @@ export default async function publish(ctx: Context) {
     console.log("see this:", resViews.rows);
 
 
-    dbConnection.query("COMMIT;");
+    await dbConnection.query("COMMIT;");
     dbConnection.release();
 
     const finalEvent = {

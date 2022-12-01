@@ -5,7 +5,7 @@ import {tables} from "./tables";
 
 sql.setDialect("postgres");
 
-export const loadFiles = (table, dama_view_id, ctx) => {
+export const loadFiles = (table, dama_view_id, ctx, seperator = "\t") => {
   const working_table = Object.assign({}, tables[table], {name: `${tables[table].name}${dama_view_id ? `_${dama_view_id}` : ``}`})
   console.log('welcome to upload!', working_table)
   const details = sql.define(working_table);
@@ -22,12 +22,12 @@ export const loadFiles = (table, dama_view_id, ctx) => {
                 console.log(pathToFiles + table + "/" + file)
                 fs.readFile(pathToFiles + table + "/" + file, "utf8", (err,d) => {
 
-                    const headers = d.split(/\r?\n/).slice(0, 1)[0].split("\t").map(h => h.toLowerCase());
+                    const headers = d.split(/\r?\n/).slice(0, 1)[0].split(seperator).map(h => h.toLowerCase());
 
                     const values =
                         d.split(/\r?\n/)
                             .slice(1, d.split(/\r?\n/).length)
-                            .map(d1 => d1.split("\t"))
+                            .map(d1 => d1.split(seperator))
                             .filter(d2 => d2.length > 1)
                             .map((d2) => {
                                 return d2.reduce((acc_d2, value, index) => {
