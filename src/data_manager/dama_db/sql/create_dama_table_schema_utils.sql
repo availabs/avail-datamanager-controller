@@ -229,6 +229,14 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
               FROM pg_catalog.pg_class AS a
                 INNER JOIN pg_catalog.pg_attribute AS b
                   ON (a.oid = b.attrelid)
+                --  Tried the following to speed up _data_manager_admin.dama_views_comprehensive
+                --    Did not work.
+                -- INNER JOIN data_manager.views AS c
+                --   ON (
+                --     ( a.relnamespace::regnamespace::TEXT = c.table_schema )
+                --     AND
+                --     ( a.relname::TEXT = c.table_name )
+                --   )
               WHERE (
                 ( NOT b.attisdropped )
                 AND
