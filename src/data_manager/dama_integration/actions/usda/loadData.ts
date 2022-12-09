@@ -5,7 +5,7 @@ import dedent from "dedent";
 import pgFormat from "pg-format";
 import EventTypes from "../../constants/EventTypes";
 import {postProcess} from "../postUploadProcessing";
-// import {tables} from "./utils/tables";
+import {tables} from "./tables";
 import fs from "fs";
 import https from "https";
 import {execSync} from "child_process";
@@ -83,29 +83,29 @@ async function getInsertViewMetadataSql(
   return insertViewMetaSql;
 }
 
-// const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
-//   const updateViewMetaSql = dedent(
-//     `
-//         UPDATE data_manager.views
-//           SET
-//             table_schema  = $1,
-//             table_name    = $2,
-//             data_table    = $3
-//           WHERE view_id = $4
-//       `
-//   );
-//
-//   const data_table = pgFormat("%I.%I", tables[table_name].schema, `${table_name}_${view_id}`);
-//
-//   const q = {
-//     text: updateViewMetaSql,
-//     values: [tables[table_name].schema, `${table_name}_${view_id}`, data_table, view_id],
-//   };
-//
-//   sqlLog.push(q);
-//   const res = await dbConnection.query(q);
-//   resLog.push(res);
-// };
+const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
+  const updateViewMetaSql = dedent(
+    `
+        UPDATE data_manager.views
+          SET
+            table_schema  = $1,
+            table_name    = $2,
+            data_table    = $3
+          WHERE view_id = $4
+      `
+  );
+
+  const data_table = pgFormat("%I.%I", tables[table_name](view_id).schema, `${table_name}_${view_id}`);
+
+  const q = {
+    text: updateViewMetaSql,
+    values: [tables[table_name](view_id).schema, `${table_name}_${view_id}`, data_table, view_id],
+  };
+
+  sqlLog.push(q);
+  const res = await dbConnection.query(q);
+  resLog.push(res);
+};
 
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
@@ -131,48 +131,29 @@ export default async function publish(ctx: Context) {
   // let view_id = 13
   try {
     let res: QueryResult;
-    const data_cleaning_file_path = "src/data_manager/dama_integration/actions/ncei_storm_events/utils/";
 
-    // download step 1
-
-    console.log("downloading",table_name);
-    // await fetchFileList(table_name, 1989, 2022);
-    await loadFiles(ctx);
-    //
-    // // download step 2
-    // const dc_op = execSync(`python ${data_cleaning_file_path}/dataCleaning.py ${table_name}`, { encoding: 'utf-8' });
-    //
-    // console.log('dc op', dc_op);
-    //
-    //
-    // // insert into views, get view id, and use it in table name.
-    //
     // sqlLog.push("BEGIN ;");
     // res = await dbConnection.query("BEGIN ;");
     // resLog.push(res);
     //
-    // // create schema
-    // const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name].schema};`;
-    // sqlLog.push(createSchema);
-    // res = await ctx.call("dama_db.query", {
-    //   text: createSchema
-    // });
-    // resLog.push(res);
-    // console.log("see this:", res.rows);
-    //
-    // // create table
-    // sqlLog.push(createSqls(table_name, view_id));
-    // res = await ctx.call("dama_db.query", {
-    //   text: createSqls(table_name, view_id)
-    // });
-    // resLog.push(res);
-    // console.log("see this:", res.rows);
-    //
-    // await dbConnection.query("COMMIT;");
+    // create schema
+    const createSchema = `CREATE SCHEMA IF NOT EXISTS open_fema_data;`;
+    sqlLog.push(createSchema);
+    res = await ctx.call("dama_db.query", {
+      text: createSchema
+    });
+    resLog.push(res);
+    console.log("see this:", res.rows);
+
+    console.log("downloading",table_name);
+    await fetchFileList(table_name, 1989, 2022);
+    await loadFiles(ctx, view_id);
+
+    await dbConnection.query("COMMIT;");
     //
     //
     // // update view meta
-    // await update_view(table_name, view_id, dbConnection, sqlLog, resLog);
+    await update_view(table_name, view_id, dbConnection, sqlLog, resLog);
     //
     // await dbConnection.query("COMMIT;");
     //

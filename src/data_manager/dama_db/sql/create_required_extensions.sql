@@ -7,7 +7,7 @@ DO
   LANGUAGE plpgsql
   $$
     BEGIN
-      IF ( SELECT PostGIS_Version() > '2' )
+      IF ( SELECT PostGIS_Version() >= '3' )
         THEN
           CREATE EXTENSION IF NOT EXISTS postgis_raster;
       END IF ;
