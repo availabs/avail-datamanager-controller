@@ -44,7 +44,7 @@ export default class ApiService extends Service {
               "GET getTileServerUrl":
                 "dama/tilerserver-controller.getTileServerUrl",
 
-              "GET getServerHealthStatus":
+              "GET getTileServerHealthStatus":
                 "dama/tilerserver-controller.getServerHealthStatus",
             },
 
@@ -240,6 +240,9 @@ export default class ApiService extends Service {
 
               "POST /etl/contextId/:etlContextId/queueCreateDamaView":
                 "dama/metadata.queueEtlCreateDamaView",
+
+              "gis/create-mbtiles/damaViewId/:damaViewId":
+                "dama/gis.createDamaGisDatasetViewMbtiles",
 
               "GET staged-geospatial-dataset/existingDatasetUploads":
                 "dama/data_source_integrator.getExistingDatasetUploads",
