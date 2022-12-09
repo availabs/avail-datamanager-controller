@@ -24,7 +24,8 @@ import enhanceNCEI from "./actions/ncei_storm_events/postUploadProcessData";
 import csvUploadAction from "./actions/csvUploadAction";
 import tigerDownloadAction from "./actions/tiger_2017/loadData";
 import versionSelectorUtils from "./actions/versionSelectorUtils";
-import openFemaDataLoader from "./actions/openFemaData/openFemaDataLoader"
+import openFemaDataLoader from "./actions/openFemaData/openFemaDataLoader";
+import usdaLoader from "./actions/usda/loadData";
 
 export default {
   name: serviceName,
@@ -160,5 +161,7 @@ export default {
     versionSelectorUtils,
 
     openFemaDataLoader,
+
+    usdaLoader,
   },
 };
