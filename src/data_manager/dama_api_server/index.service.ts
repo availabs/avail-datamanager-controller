@@ -299,6 +299,9 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/usdaLoader":
                 "dama/data_source_integrator.usdaLoader",
+
+              "/staged-geospatial-dataset/sbaLoader":
+                "dama/data_source_integrator.sbaLoader",
             },
           },
 

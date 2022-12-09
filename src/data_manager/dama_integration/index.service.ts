@@ -26,6 +26,7 @@ import tigerDownloadAction from "./actions/tiger_2017/loadData";
 import versionSelectorUtils from "./actions/versionSelectorUtils";
 import openFemaDataLoader from "./actions/openFemaData/openFemaDataLoader";
 import usdaLoader from "./actions/usda/loadData";
+import sbaLoader from "./actions/sba/loadData";
 
 export default {
   name: serviceName,
@@ -163,5 +164,7 @@ export default {
     openFemaDataLoader,
 
     usdaLoader,
+
+    sbaLoader,
   },
 };
