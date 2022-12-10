@@ -7,7 +7,7 @@ import EventTypes from "../../constants/EventTypes";
 import {postProcess} from "../postUploadProcessing";
 import {loadFiles, createSqls} from "./utils/upload";
 // import {tables} from "./utils/tables";
-import {get} from "lodash";
+import {get, chunk} from "lodash";
 import fs from "fs";
 import https from "https";
 import {execSync} from "child_process";
@@ -20,44 +20,44 @@ sql.setDialect("postgres");
 
 // mol $ call "dama/data_source_integrator.testUploadAction" --table_name details --#pgEnv dama_dev_1
 const url = "https://www.fema.gov/api/open/v1/OpenFemaDataSets"
-const camelToSnakeCase = str => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+const camelToSnakeCase = (str = "") => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 
 
 const datasets = [
-  // "data_set_fields_v1",
-  // "data_sets_v1",
-  // "disaster_declarations_summaries_v1",
+  "data_set_fields_v1",
+  "data_sets_v1",
+  "disaster_declarations_summaries_v1",
   "disaster_declarations_summaries_v2",
-  // "emergency_management_performance_grants_v1",
-  // "fema_regions_v1",
-  // "fema_regions_v2",
-  // "fema_web_declaration_areas_v1",
+  "emergency_management_performance_grants_v1",
+  "fema_regions_v1",
+  "fema_regions_v2",
+  "fema_web_declaration_areas_v1",
   "fema_web_disaster_declarations_v1",
   "fema_web_disaster_summaries_v1",
-  // "fima_nfip_claims_v1",
-  // "fima_nfip_policies_v1",
-  // "hazard_mitigation_assistance_mitigated_properties_v1",
+  "fima_nfip_claims_v1",
+  "fima_nfip_policies_v1",
+  "hazard_mitigation_assistance_mitigated_properties_v1",
   "hazard_mitigation_assistance_mitigated_properties_v2",
-  // "hazard_mitigation_assistance_projects_by_nfip_crs_communities_v1",
-  // "hazard_mitigation_assistance_projects_v1",
+  "hazard_mitigation_assistance_projects_by_nfip_crs_communities_v1",
+  "hazard_mitigation_assistance_projects_v1",
   "hazard_mitigation_assistance_projects_v2",
-  // "hazard_mitigation_grant_program_disaster_summaries_v1",
-  // "hazard_mitigation_grant_program_property_acquisitions_v1",
-  // "hazard_mitigation_grants_v1",
-  // "hazard_mitigation_plan_statuses_v1",
-  // "housing_assistance_owners_v1",
+  "hazard_mitigation_grant_program_disaster_summaries_v1",
+  "hazard_mitigation_grant_program_property_acquisitions_v1",
+  "hazard_mitigation_grants_v1",
+  "hazard_mitigation_plan_statuses_v1",
+  "housing_assistance_owners_v1",
   "housing_assistance_owners_v2",
   "housing_assistance_renters_v1",
-  // "housing_assistance_renters_v2",
+  "housing_assistance_renters_v2",
   "individual_assistance_housing_registrants_large_disasters_v1",
   "individuals_and_households_program_valid_registrations_v1",
-  // "ipaws_archived_alerts_v1",
-  // "mission_assignments_v1",
-  // "non_disaster_assistance_firefighter_grants_v1",
+  "ipaws_archived_alerts_v1",
+  "mission_assignments_v1",
+  "non_disaster_assistance_firefighter_grants_v1",
   "public_assistance_applicants_v1",
   "public_assistance_funded_projects_details_v1",
-  // "public_assistance_funded_projects_summaries_v1",
-  // "registration_intake_individuals_household_programs_v1",
+  "public_assistance_funded_projects_summaries_v1",
+  "registration_intake_individuals_household_programs_v1",
   "registration_intake_individuals_household_programs_v2"
 ]
 
@@ -78,7 +78,7 @@ const createSchema = async (sqlLog, resLog, ctx) => {
   resLog.push(res);
 }
 
-const upload = async (ctx, view_id, table_name) => {
+const upload = async (ctx, view_id, table_name, dbConnection) => {
   return fetch(url)
     .then(res => res.json())
     .then(data => {
@@ -146,16 +146,14 @@ const upload = async (ctx, view_id, table_name) => {
         return values.reduce(async (out, table) => {
           await out;
 
-          const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery()
-          console.log('create sql', createSql)
+          const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery();
 
           await ctx.call("dama_db.query", {text: createSql.text});
 
           table.name = `${table.name}_${view_id}`;
           out[table.name] = table;
 
-          console.log("??", table.columns.map(c => c.name))
-          return updateChunks(inserts[0], ctx, table.columns, view_id);
+          return updateChunks(inserts[0], ctx, table.columns, view_id, dbConnection);
         }, {});
       });
     });
@@ -176,6 +174,7 @@ async function getInsertViewMetadataSql(
 }
 
 const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
+  console.log('updating view');
   const updateViewMetaSql = dedent(
     `
         UPDATE data_manager.views
@@ -199,25 +198,26 @@ const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) =>
   resLog.push(res);
 };
 
-const updateChunks = async (source, ctx, cols, view_id) => {
+const updateChunks = async (source, ctx, cols, view_id, dbConnection) => {
   let skips = []
   let progress = 0
 
   const [schema,table] = source.table.split('.');
   const sql_table = sql.define(tables[table](view_id));
   //   const sql_table = sql.define(Object.assign({}, tables[table](view_id), {columns: cols}));
-  console.log('table', sql_table.columns.map(c => c.name))
-
+  console.log('total', source.record_count, 'records')
   for(let i=0; i < source.record_count; i+=1000){
     skips.push(i)
   }
+  console.log('skips', skips)
   return Promise.map(skips,(skip =>{
     return new Promise((resolve,reject) => {
-      console.time(`fetch skip ${skip}`)
+      console.time(`fetch skip ${skip}`);
+      console.log(`${source.data_url}?$skip=${skip}`)
       fetch(`${source.data_url}?$skip=${skip}`)
         .then(res => res.json())
         .then(res => {
-          console.timeEnd(`fetch skip ${skip}`)
+          console.timeEnd(`fetch skip ${skip}`);
           let dataKey = source.data_url.split('/')[source.data_url.split('/').length-1]
           let data = res[dataKey]
           let notNullCols = [
@@ -239,7 +239,7 @@ const updateChunks = async (source, ctx, cols, view_id) => {
           },{})
 
           Promise.all(
-            arrayChunk(newData,500)
+            chunk(newData,500)
               //.filter((k,i) => i < 1)
               .map(chunk =>{
                 let query = sql_table
@@ -250,7 +250,7 @@ const updateChunks = async (source, ctx, cols, view_id) => {
                   })
                   .toQuery()
 
-                return ctx.call("dama_db.query", query);
+                return ctx.call("dama_db.query", query).then(() => dbConnection.query("COMMIT;"));
               })
           )
             .then(ins => {
@@ -267,17 +267,7 @@ const updateChunks = async (source, ctx, cols, view_id) => {
 
         })
     })
-  }),{concurrency: 5})
-}
-
-
-function arrayChunk(arr, chunkSize) {
-  const res = [];
-  for (let i = 0; i < arr.length; i += chunkSize) {
-    const chunk = arr.slice(i, i + chunkSize);
-    res.push(chunk);
-  }
-  return res;
+  }),{concurrency: 3})
 }
 
 export default async function publish(ctx: Context) {
@@ -306,7 +296,7 @@ export default async function publish(ctx: Context) {
     let res: QueryResult;
 
     await createSchema(sqlLog, resLog, ctx);
-    await upload(ctx, view_id, table_name);
+    await upload(ctx, view_id, table_name, dbConnection);
     await update_view(table_name, view_id, dbConnection, sqlLog, resLog);
 
     await dbConnection.query("COMMIT;");

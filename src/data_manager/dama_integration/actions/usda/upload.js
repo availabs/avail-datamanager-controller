@@ -11,7 +11,7 @@ const converToBool = (value) =>
 
 const formatValue = (value) => value.trim().replace(/\0/g, ``)
 
-export const loadFiles = async (ctx, view_id, table = 'usda_crop_insurance_cause_of_loss') => {
+export const loadFiles = async (ctx, view_id, dbConnection, table = 'usda_crop_insurance_cause_of_loss') => {
   console.warn('for bigger files:  node --max-old-space-size=8192 upload.js ')
   console.log('Creating Table', table)
   const crop_loss = sql.define(tables.usda_crop_insurance_cause_of_loss(view_id));
@@ -23,7 +23,8 @@ export const loadFiles = async (ctx, view_id, table = 'usda_crop_insurance_cause
 
   console.log('uploading')
 
-  let dataFolder = './data/usda/'
+  let dataFolder = `./data/${table}/`;
+
   let files = fs.readdirSync(dataFolder).filter(f => f.substr(0, 1) !== '.' && !f.includes('.zip')); // filtering any open files
 
   return files
@@ -59,7 +60,9 @@ export const loadFiles = async (ctx, view_id, table = 'usda_crop_insurance_cause
                 // if (linesIndex < 2 ) return Promise.resolve();
 
                 await accLines;
-                console.log(linesIndex, `${linesIndex * 1500} / ${lines.length}`, (linesIndex * 1500 * 100) / lines.length)
+                await dbConnection.query("COMMIT;");
+
+                console.log(linesIndex, `${linesIndex * 1500} / ${lines.length}`, (linesIndex * 1500 * 100) / lines.length);
 
                 let values =
                   currLines

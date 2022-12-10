@@ -147,7 +147,7 @@ export default async function publish(ctx: Context) {
 
     console.log("downloading",table_name);
     await fetchFileList(table_name, 1989, 2022);
-    await loadFiles(ctx, view_id);
+    await loadFiles(ctx, view_id, dbConnection);
 
     await dbConnection.query("COMMIT;");
     //

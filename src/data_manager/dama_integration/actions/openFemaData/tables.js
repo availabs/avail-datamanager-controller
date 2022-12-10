@@ -1381,5 +1381,52 @@ module.exports = {
         "primaryKey": false
       }
     ]
+  }),
+  "fima_nfip_claims_v1": (view_id) => ({
+    "name": `fima_nfip_claims_v1_${view_id}`,
+    "schema": "open_fema_data",
+    "columns": [
+        { "name": "base_flood_elevation",  "dataType": "double precision"},
+        { "name": "basement_enclosure_crawlspace_type",  "dataType": "double precision"},
+        { "name": "policy_count",  "dataType": "double precision"},
+        { "name": "community_rating_system_discount",  "dataType": "double precision"},
+        { "name": "elevation_certificate_indicator",  "dataType": "double precision"},
+        { "name": "elevation_difference",  "dataType": "double precision"},
+        { "name": "location_of_contents",  "dataType": "double precision"},
+        { "name": "number_of_floors_in_the_insured_building",  "dataType": "double precision"},
+        { "name": "obstruction_type",  "dataType": "double precision"},
+        { "name": "occupancy_type",  "dataType": "double precision"},
+        { "name": "amount_paid_on_increased_cost_of_compliance_claim",  "dataType": "double precision"},
+        { "name": "total_building_insurance_coverage",  "dataType": "double precision"},
+        { "name": "total_contents_insurance_coverage",  "dataType": "double precision"},
+        { "name": "yearof_loss",  "dataType": "double precision"},
+        { "name": "year_of_loss",  "dataType": "double precision"},
+        { "name": "latitude",  "dataType": "double precision"},
+        { "name": "longitude",  "dataType": "double precision"},
+        { "name": "lowest_adjacent_grade",  "dataType": "double precision"},
+        { "name": "lowest_floor_elevation",  "dataType": "double precision"},
+        { "name": "amount_paid_on_building_claim",  "dataType": "double precision"},
+        { "name": "amount_paid_on_contents_claim",  "dataType": "double precision"},
+        { "name": "as_of_date",  "dataType": "timestamp with time zone"},
+        { "name": "date_of_loss",  "dataType": "timestamp with time zone"},
+        { "name": "original_construction_date",  "dataType": "timestamp with time zone"},
+        { "name": "original_n_b_date",  "dataType": "timestamp with time zone"},
+        { "name": "agriculture_structure_indicator",  "dataType": "boolean"},
+        { "name": "elevated_building_indicator",  "dataType": "boolean"},
+        { "name": "house_worship",  "dataType": "boolean"},
+        { "name": "non_profit_indicator",  "dataType": "boolean"},
+        { "name": "post_f_i_r_m_construction_indicator",  "dataType": "boolean"},
+        { "name": "small_business_indicator_building",  "dataType": "boolean"},
+        { "name": "primary_residence",  "dataType": "boolean"},
+        { "name": "reported_city",  "dataType": "character varying"},
+        { "name": "condominium_indicator",  "dataType": "character varying"},
+        { "name": "county_code",  "dataType": "character varying"},
+        { "name": "census_tract",  "dataType": "character varying"},
+        { "name": "flood_zone",  "dataType": "character varying"},
+        { "name": "rate_method",  "dataType": "character varying"},
+        { "name": "state",  "dataType": "character varying"},
+        { "name": "reported_zip_code",  "dataType": "character varying"},
+        { "name": "id",  "dataType": "character varying", "primaryKey": true}
+    ]
   })
 }
