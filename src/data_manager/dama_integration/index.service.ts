@@ -27,6 +27,7 @@ import versionSelectorUtils from "./actions/versionSelectorUtils";
 import openFemaDataLoader from "./actions/openFemaData/openFemaDataLoader";
 import usdaLoader from "./actions/usda/loadData";
 import sbaLoader from "./actions/sba/loadData";
+import nriLoader from "./actions/nri/loadData";
 
 export default {
   name: serviceName,
@@ -166,5 +167,7 @@ export default {
     usdaLoader,
 
     sbaLoader,
+
+    nriLoader
   },
 };

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS _data_manager_admin.default_mapbox_paint_styles (
 INSERT INTO _data_manager_admin.default_mapbox_paint_styles (
   mapbox_type,
   mapbox_paint_style
-) VALUES 
+) VALUES
   (
     'circle',
     '
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS _data_manager_admin.geojson_type_to_mapbox_type (
 INSERT INTO _data_manager_admin.geojson_type_to_mapbox_type (
   geojson_type,
   mapbox_type
-) VALUES 
+) VALUES
   (
     'LineString',
     'line'
