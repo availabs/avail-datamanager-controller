@@ -62,6 +62,38 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   _modified_timestamp     TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
 
+
+/*
+-- NOTE: Have not tested this yet.
+CREATE OR REPLACE FUNCTION data_manager.table_single_row_enforcer_trigger_fn()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  AS
+  $$
+    DECLARE
+      table_is_empty  BOOLEAN ;
+
+    BEGIN
+
+      EXECUTE FORMAT ('
+          SELECT
+              COUNT(1)
+              FROM %I.%I
+        ',
+        TG_TABLE_SCHEMA,
+        TG_TABLE_NAME
+      ) INTO table_is_empty ;
+
+      IF NOT table_is_empty
+        THEN
+          RAISE EXCEPTION 'Table %.% MUST contain ONLY single row.', TG_TABLE_SCHEMA, TG_TABLE_NAME ;
+      END IF ;
+
+    END ;
+  $$
+;
+*/
+
 CREATE OR REPLACE FUNCTION data_manager.dama_update_modified_timestamp_fn()
   RETURNS TRIGGER
   LANGUAGE plpgsql

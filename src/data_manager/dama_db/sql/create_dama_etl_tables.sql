@@ -12,5 +12,21 @@ CREATE TABLE IF NOT EXISTS _data_manager_admin.dama_event_store (
   type              TEXT NOT NULL,
   payload           JSONB,
   meta              JSONB,
-  error             BOOLEAN
+  error             BOOLEAN,
+  timestamp         TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
+
+-- For querying active etl_context_ids for an ETL Task
+-- EG:
+--      SELECT DISTINCT
+--          etl_context_id
+--        FROM dama_event_store
+--        WHERE ( type LIKE 'FOO/%' )
+--      EXCLUDE ALL
+--      SELECT DISTINCT
+--          etl_context_id
+--        FROM dama_event_store
+--        WHERE ( right(type, 6) = 'FINAL' )
+CREATE INDEX IF NOT EXISTS etl_context_type_ts_ctx_idx
+  ON _data_manager_admin.dama_event_store (type text_pattern_ops, right(type, 6), etl_context_id)
+;
