@@ -305,6 +305,9 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/nriLoader":
                 "dama/data_source_integrator.nriLoader",
+
+              "/staged-geospatial-dataset/pbSWDLoader":
+                "dama/data_source_integrator.pbSWDLoader",
             },
           },
 

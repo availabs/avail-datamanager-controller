@@ -28,6 +28,7 @@ import openFemaDataLoader from "./actions/openFemaData/openFemaDataLoader";
 import usdaLoader from "./actions/usda/loadData";
 import sbaLoader from "./actions/sba/loadData";
 import nriLoader from "./actions/nri/loadData";
+import pbSWDLoader from "./actions/per_basis_swd/loadData";
 
 export default {
   name: serviceName,
@@ -168,6 +169,8 @@ export default {
 
     sbaLoader,
 
-    nriLoader
+    nriLoader,
+
+    pbSWDLoader
   },
 };
