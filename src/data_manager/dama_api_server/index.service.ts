@@ -292,6 +292,12 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/versionSelectorUtils":
                 "dama/data_source_integrator.versionSelectorUtils",
+
+              "/data-sources/npmrds/travel-times/downloader/getNpmrdsDataDateExtent":
+                "dama/data_sources/npmrds/travel_times/downloader.getNpmrdsDataDateExtent",
+
+              "/data-sources/npmrds/travel-times/downloader/queueNpmrdsExportRequest":
+                "dama/data_sources/npmrds/travel_times/downloader.queueNpmrdsExportRequest",
             },
           },
 

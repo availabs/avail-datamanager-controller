@@ -16,7 +16,12 @@ const npmrdsDownloadServiceMainPath = join(
   "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/main"
 );
 
-export const serviceName = "dama/data_sources/npmrds/travel_times_download";
+const loadDownloadedExportsIntoSqlitePath = join(
+  __dirname,
+  "../../../../tasks/avail-datasources-watcher/tasks/downloadedExportsIntoSqlite/run"
+);
+
+export const serviceName = "dama/data_sources/npmrds/travel_times/downloader";
 
 const IDLE_TIMEOUT = 1000 * 60 * 60; // One Hour
 
@@ -91,6 +96,19 @@ export default {
           })
           // @ts-ignore
           .on("error", failed)
+          .on("exit", (code, signal) => {
+            if (code) {
+              console.warn(
+                `The NpmrdsDownloadService exited with code ${code}`
+              );
+            }
+
+            if (signal) {
+              console.warn(
+                `The NpmrdsDownloadService terminated due to signal ${signal}`
+              );
+            }
+          })
           .on("message", (event: FSA) => {
             console.log(
               JSON.stringify({ npmrdsDownloadServiceEvent: event }, null, 4)
@@ -98,12 +116,31 @@ export default {
             // KEEPALIVE events will resetIdleShutdownTimer
             this.resetIdleShutdownTimer();
 
+            // The NpmrdsDownloadService.READY event payload is the available date extent.
             if (event.type === "NpmrdsDownloadService:READY") {
-              this._npmrds_data_date_extent = event.payload;
+              // @ts-ignore
+              const extent: { year: number; month: number; date: number }[] =
+                event.payload;
+
+              const [
+                { year: minYear, month: minM, date: minD },
+                { year: maxYear, month: maxM, date: maxD },
+              ] = extent;
+
+              const minMM = `0${minM}`.slice(-2);
+              const minDD = `0${minD}`.slice(-2);
+
+              const maxMM = `0${maxM}`.slice(-2);
+              const maxDD = `0${maxD}`.slice(-2);
+
+              const minDate = `${minYear}-${minMM}-${minDD}`;
+              const maxDate = `${maxYear}-${maxMM}-${maxDD}`;
+
+              this._npmrds_data_date_extent = [minDate, maxDate];
               ready();
               this.resetIdleShutdownTimer();
             } else {
-              this.handleNpmrdsDownloadServiceEvent.bind(this);
+              this.handleNpmrdsDownloadServiceEvent(event);
             }
           });
 
@@ -115,14 +152,17 @@ export default {
 
     async handleNpmrdsDownloadServiceEvent(event: FSA) {
       // @ts-ignore
-      const { type, meta: { pgEnv, etl_context_id } = {} } = event;
+      const { type, payload, meta: { pgEnv, etl_context_id } = {} } = event;
 
       if (!(pgEnv && etl_context_id)) {
         return;
       }
 
       // TODO: FINAL events must trigger data_manager.views updates.
-      if (/:FINAL$/.test(type)) {
+      if (type === "NpmrdsDownloadService:FINAL") {
+        // @ts-ignore
+        const { npmrdsDownloadName } = payload;
+
         const opts = {
           meta: {
             pgEnv,
@@ -130,16 +170,36 @@ export default {
         };
 
         // FIXME: Need to emit the DamaView info into the event_store
-        const newEvent = {
+        const downloadedEvent = {
           ...event,
-          type: `${serviceName}:FINAL`,
+          type: `${serviceName}:NPMRDS_TRAVEL_TIMES_EXPORT_DOWNLOADED`,
         };
 
-        return await this.broker.call(
+        await this.broker.call(
           "dama_dispatcher.dispatch",
-          newEvent,
+          downloadedEvent,
           opts
         );
+
+        const transformDoneData =
+          await this.transformDownloadedNpmrdsExportIntoSqliteDb(
+            npmrdsDownloadName
+          );
+
+        const finalEvent = {
+          type: `${serviceName}:FINAL`,
+          payload: {
+            ...(event.payload || {}),
+            ...transformDoneData,
+          },
+          meta: event.meta,
+        };
+
+        console.log(
+          JSON.stringify({ [`${serviceName}:FINAL`]: finalEvent }, null, 4)
+        );
+
+        await this.broker.call("dama_dispatcher.dispatch", finalEvent, opts);
       }
 
       //  We just prefixing the type with this serviceName and
@@ -164,6 +224,57 @@ export default {
         );
       }
     },
+
+    async transformDownloadedNpmrdsExportIntoSqliteDb(
+      npmrdsDownloadName: string
+    ) {
+      let success: (...args: any) => void;
+      let failure: (err: Error) => void;
+
+      const done = new Promise((resolve, reject) => {
+        success = resolve;
+        failure = reject;
+      });
+
+      fork(
+        loadDownloadedExportsIntoSqlitePath,
+        ["--npmrdsDownloadName", npmrdsDownloadName],
+        { stdio: "inherit" }
+      )
+        .on("spawn", () => {
+          console.log(
+            "spawned a transformDownloadedNpmrdsExportIntoSqliteDb for",
+            npmrdsDownloadName
+          );
+        })
+        // @ts-ignore
+        .on("error", failure)
+        .on("exit", (code, signal) => {
+          if (code) {
+            failure(
+              new Error(`The NpmrdsDownloadService exited with code ${code}`)
+            );
+          }
+
+          if (signal) {
+            failure(
+              new Error(
+                `The NpmrdsDownloadService terminated due to signal ${signal}`
+              )
+            );
+          }
+        })
+        .on("message", (event: FSA) => {
+          const { type, payload } = event;
+          if (type === "downloadedExportsIntoSqlite:FINAL") {
+            success(payload);
+          }
+        });
+
+      const sqliteDbPath = await done;
+
+      return sqliteDbPath;
+    },
   },
 
   actions: {
@@ -175,7 +286,6 @@ export default {
     //    1. publish raw RITIS schema CSVs in data_manager.views
     //    2. transform to SQLite should kick off
     // 6. after transformed, publish HERE schema CSV in data_manager.views
-
     async queueNpmrdsExportRequest(ctx: Context) {
       const {
         // @ts-ignore
@@ -183,8 +293,6 @@ export default {
         // @ts-ignore
         meta: { pgEnv },
       } = ctx;
-
-      console.log(ctx.params);
 
       const etl_context_id = await ctx.call("dama_dispatcher.spawnDamaContext");
 
@@ -217,11 +325,20 @@ export default {
         // @ts-ignore
         etl_context: { pgEnv, etl_context_id, dama_controller_host },
       });
+      console.log(
+        "=".repeat(5),
+        "Sending NpmrdsDownloadRequest",
+        "=".repeat(5)
+      );
+      console.log(req);
 
       // NpmrdsDownloadService.queueNpmrdsDownloadRequest(req);
       await this.queueNpmrdsExportRequest(req);
 
-      return req.name;
+      return {
+        etl_context_id,
+        npmrds_download_name: req.name,
+      };
     },
 
     async getNpmrdsDataDateExtent() {
@@ -229,6 +346,17 @@ export default {
       await this.getNpmrdsDownloadService();
 
       return this._npmrds_data_date_extent;
+    },
+
+    testTransformDownloadedNpmrdsExportIntoSqliteDb: {
+      visibility: "protected",
+
+      async handler(ctx: Context) {
+        return await this.transformDownloadedNpmrdsExportIntoSqliteDb(
+          // @ts-ignore
+          ctx.params.npmrdsDownloadName
+        );
+      },
     },
   },
 
