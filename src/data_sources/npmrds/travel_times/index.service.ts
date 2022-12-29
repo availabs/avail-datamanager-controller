@@ -14,6 +14,7 @@ import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-da
 const npmrdsDownloadServiceMainPath = join(
   __dirname,
   "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/main"
+  // "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/mock"
 );
 
 const loadDownloadedExportsIntoSqlitePath = join(
@@ -151,6 +152,18 @@ export default {
     },
 
     async handleNpmrdsDownloadServiceEvent(event: FSA) {
+      console.log(
+        "@!".repeat(10),
+        "handleNpmrdsDownloadServiceEvent",
+        "!@".repeat(10)
+      );
+
+      console.log(
+        JSON.stringify({ npmrdsDownloadServiceEvent: event }, null, 4)
+      );
+
+      console.log("@!".repeat(40));
+
       // @ts-ignore
       const { type, payload, meta: { pgEnv, etl_context_id } = {} } = event;
 
@@ -178,6 +191,22 @@ export default {
         await this.broker.call(
           "dama_dispatcher.dispatch",
           downloadedEvent,
+          opts
+        );
+
+        const transformEvent = {
+          type: `${serviceName}:STATUS_UPDATE`,
+          payload: {
+            status: "TRANSFORMING",
+            // @ts-ignore
+            npmrdsDownloadName: event.payload.npmrdsDownloadName,
+          },
+          meta: event.meta,
+        };
+
+        await this.broker.call(
+          "dama_dispatcher.dispatch",
+          transformEvent,
           opts
         );
 
@@ -357,6 +386,38 @@ export default {
           ctx.params.npmrdsDownloadName
         );
       },
+    },
+
+    async getOpenRequestsStatuses(ctx: Context) {
+      // @ts-ignore
+      const openRequestStatuses: any[] = await ctx.call(
+        "dama_db.queryOpenEtlProcessesStatusUpdatesForService",
+        {
+          serviceName,
+        }
+      );
+
+      openRequestStatuses.sort((a: any, b: any) => {
+        const {
+          payload: { queuePriority: aPri = 1, npmrdsDownloadName: aName },
+        } = a;
+
+        const {
+          payload: { queuePriority: bPri = 1, npmrdsDownloadName: bName },
+        } = b;
+
+        if (aPri !== bPri) {
+          return bPri - aPri;
+        }
+
+        const aTs = aName.replace(/.*_v/, "");
+        const bTs = bName.replace(/.*_v/, "");
+
+        return aTs.localeCompare(bTs);
+      });
+
+      console.log(JSON.stringify({ openRequestStatuses }, null, 4));
+      return openRequestStatuses;
     },
   },
 

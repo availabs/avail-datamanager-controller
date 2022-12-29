@@ -471,6 +471,64 @@ export default {
         return this.makeIterator(pgEnv, query, config);
       },
     },
+
+    // ASSUMES the following CONVENTIONs:
+    //    1. Event type prefixed by serviceName. E.G:  `${serviceName}/foo/bar:BAZ`
+    //    2. All ETL processes for the service end with a ":FINAL" or ":ERROR" event
+    //    3. All status update types end with "UPDATE"
+    async queryOpenEtlProcessesStatusUpdatesForService(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { serviceName },
+      } = ctx;
+
+      const q = dedent(
+        pgFormat(
+          `
+            SELECT
+                etl_context_id,
+                payload
+              FROM (
+                SELECT
+                    etl_context_id,
+                    payload,
+                    row_number() OVER (PARTITION BY etl_context_id ORDER BY event_id DESC) AS row_number
+                  FROM _data_manager_admin.dama_event_store
+                    INNER JOIN (
+
+                      SELECT
+                          etl_context_id
+                        FROM _data_manager_admin.dama_event_store
+                        WHERE ( type LIKE ( %L || '%' ) )
+                      EXCEPT
+                      SELECT
+                          etl_context_id
+                        FROM _data_manager_admin.dama_event_store
+                        WHERE (
+                          ( type LIKE ( %L || '%' ) )
+                          AND
+                          (
+                            ( right(type, 6) = ':FINAL' )
+                            OR
+                            ( right(type, 6) = ':ERROR' )
+                          )
+                        )
+
+                     ) AS t USING (etl_context_id)
+                  WHERE ( right(type, 6) = 'UPDATE' )
+              ) AS t
+              WHERE ( row_number = 1 )
+          `,
+          serviceName,
+          serviceName
+        )
+      );
+
+      // @ts-ignore
+      const { rows } = await ctx.call("dama_db.query", q);
+
+      return rows;
+    },
   },
 
   created() {

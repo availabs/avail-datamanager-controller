@@ -298,6 +298,9 @@ export default class ApiService extends Service {
 
               "/data-sources/npmrds/travel-times/downloader/queueNpmrdsExportRequest":
                 "dama/data_sources/npmrds/travel_times/downloader.queueNpmrdsExportRequest",
+
+              "/data-sources/npmrds/travel-times/downloader/getOpenRequestsStatuses":
+                "dama/data_sources/npmrds/travel_times/downloader.getOpenRequestsStatuses",
             },
           },
 
