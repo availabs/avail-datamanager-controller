@@ -1,4 +1,4 @@
-import { fork } from "child_process";
+import { ChildProcess, fork } from "child_process";
 import { hostname } from "os";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -13,8 +13,8 @@ import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-da
 
 const npmrdsDownloadServiceMainPath = join(
   __dirname,
-  "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/main"
-  // "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/mock"
+  // "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/main"
+  "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/mock"
 );
 
 const loadDownloadedExportsIntoSqlitePath = join(
@@ -22,7 +22,8 @@ const loadDownloadedExportsIntoSqlitePath = join(
   "../../../../tasks/avail-datasources-watcher/tasks/downloadedExportsIntoSqlite/run"
 );
 
-export const serviceName = "dama/data_sources/npmrds/travel_times/downloader";
+export const serviceName =
+  "dama/data_sources/npmrds/travel_times_export/downloader";
 
 const IDLE_TIMEOUT = 1000 * 60 * 60; // One Hour
 
@@ -45,12 +46,12 @@ export default {
     async stopNpmrdsDownloadService() {
       console.log("stopNpmrdsDownloadService");
 
-      const stillRunning =
-        this._downloadServiceCP && this._downloadServiceCP.exitCode !== null;
+      const downloadService = await this._downloadServiceCP;
+      const stillRunning = downloadService && downloadService.exitCode !== null;
 
       if (stillRunning) {
         // TODO: Check return value and handle problem cases
-        this._downloadServiceCP.kill();
+        downloadService.kill();
       }
 
       this._downloadServiceCP = null;
@@ -76,94 +77,85 @@ export default {
       // We always restart the timer
       this.resetIdleShutdownTimer();
 
-      const isRunning =
-        this._downloadServiceCP && this._downloadServiceCP.exitCode === null;
+      const downloadService = await this._downloadServiceCP;
+      const isRunning = downloadService && downloadService.exitCode === null;
 
       if (!isRunning) {
-        let ready: (...args: any) => void;
-        let failed: (err: Error) => void;
-
-        const done = new Promise((resolve, reject) => {
-          ready = resolve;
-          failed = reject;
-        });
-
         clearTimeout(this._idleShutdownTimer);
 
-        this._downloadServiceCP = fork(npmrdsDownloadServiceMainPath)
-          // @ts-ignore
-          .on("spawn", () => {
-            console.log("npmrdsDownloadService spawned");
-          })
-          // @ts-ignore
-          .on("error", failed)
-          .on("exit", (code, signal) => {
-            if (code) {
-              console.warn(
-                `The NpmrdsDownloadService exited with code ${code}`
-              );
-            }
-
-            if (signal) {
-              console.warn(
-                `The NpmrdsDownloadService terminated due to signal ${signal}`
-              );
-            }
-          })
-          .on("message", (event: FSA) => {
-            console.log(
-              JSON.stringify({ npmrdsDownloadServiceEvent: event }, null, 4)
-            );
-            // KEEPALIVE events will resetIdleShutdownTimer
-            this.resetIdleShutdownTimer();
-
-            // The NpmrdsDownloadService.READY event payload is the available date extent.
-            if (event.type === "NpmrdsDownloadService:READY") {
+        this._downloadServiceCP = new Promise<ChildProcess>(
+          (resolve, reject) => {
+            const cp = fork(npmrdsDownloadServiceMainPath)
               // @ts-ignore
-              const extent: { year: number; month: number; date: number }[] =
-                event.payload;
+              .on("spawn", () => {
+                console.log(
+                  "\nNpmrdsDownloadService spawned with PID:",
+                  cp.pid,
+                  "\n"
+                );
+              })
+              // @ts-ignore
+              .on("error", reject)
+              .on("exit", (code, signal) => {
+                if (code) {
+                  console.warn(
+                    `The NpmrdsDownloadService exited with code ${code}`
+                  );
+                }
 
-              const [
-                { year: minYear, month: minM, date: minD },
-                { year: maxYear, month: maxM, date: maxD },
-              ] = extent;
+                if (signal) {
+                  console.warn(
+                    `The NpmrdsDownloadService terminated due to signal ${signal}`
+                  );
+                }
+              })
+              .on("message", (event: FSA) => {
+                console.log(
+                  JSON.stringify({ npmrdsDownloadServiceEvent: event }, null, 4)
+                );
 
-              const minMM = `0${minM}`.slice(-2);
-              const minDD = `0${minD}`.slice(-2);
+                // KEEPALIVE events will resetIdleShutdownTimer
+                this.resetIdleShutdownTimer();
 
-              const maxMM = `0${maxM}`.slice(-2);
-              const maxDD = `0${maxD}`.slice(-2);
+                // The NpmrdsDownloadService.READY event payload is the available date extent.
+                if (event.type === "NpmrdsDownloadService:READY") {
+                  // @ts-ignore
+                  const extent: {
+                    year: number;
+                    month: number;
+                    date: number;
+                  }[] = event.payload;
 
-              const minDate = `${minYear}-${minMM}-${minDD}`;
-              const maxDate = `${maxYear}-${maxMM}-${maxDD}`;
+                  const [
+                    { year: minYear, month: minM, date: minD },
+                    { year: maxYear, month: maxM, date: maxD },
+                  ] = extent;
 
-              this._npmrds_data_date_extent = [minDate, maxDate];
-              ready();
-              this.resetIdleShutdownTimer();
-            } else {
-              this.handleNpmrdsDownloadServiceEvent(event);
-            }
-          });
+                  const minMM = `0${minM}`.slice(-2);
+                  const minDD = `0${minD}`.slice(-2);
 
-        await done;
+                  const maxMM = `0${maxM}`.slice(-2);
+                  const maxDD = `0${maxD}`.slice(-2);
+
+                  const minDate = `${minYear}-${minMM}-${minDD}`;
+                  const maxDate = `${maxYear}-${maxMM}-${maxDD}`;
+
+                  this._npmrds_data_date_extent = [minDate, maxDate];
+
+                  resolve(cp);
+                  this.resetIdleShutdownTimer();
+                } else {
+                  this.handleNpmrdsDownloadServiceEvent(event);
+                }
+              });
+          }
+        );
       }
 
-      return this._downloadServiceCP;
+      return await this._downloadServiceCP;
     },
 
     async handleNpmrdsDownloadServiceEvent(event: FSA) {
-      console.log(
-        "@!".repeat(10),
-        "handleNpmrdsDownloadServiceEvent",
-        "!@".repeat(10)
-      );
-
-      console.log(
-        JSON.stringify({ npmrdsDownloadServiceEvent: event }, null, 4)
-      );
-
-      console.log("@!".repeat(40));
-
       // @ts-ignore
       const { type, payload, meta: { pgEnv, etl_context_id } = {} } = event;
 
@@ -171,7 +163,6 @@ export default {
         return;
       }
 
-      // TODO: FINAL events must trigger data_manager.views updates.
       if (type === "NpmrdsDownloadService:FINAL") {
         // @ts-ignore
         const { npmrdsDownloadName } = payload;
@@ -215,6 +206,7 @@ export default {
             npmrdsDownloadName
           );
 
+        // TODO: FINAL events must trigger data_manager.views updates.
         const finalEvent = {
           type: `${serviceName}:FINAL`,
           payload: {
@@ -281,14 +273,16 @@ export default {
         .on("exit", (code, signal) => {
           if (code) {
             failure(
-              new Error(`The NpmrdsDownloadService exited with code ${code}`)
+              new Error(
+                `The transformDownloadedNpmrdsExportIntoSqliteDb subprocess exited with code ${code}`
+              )
             );
           }
 
           if (signal) {
             failure(
               new Error(
-                `The NpmrdsDownloadService terminated due to signal ${signal}`
+                `The transformDownloadedNpmrdsExportIntoSqliteDb subprocess terminated due to signal ${signal}`
               )
             );
           }
@@ -354,6 +348,7 @@ export default {
         // @ts-ignore
         etl_context: { pgEnv, etl_context_id, dama_controller_host },
       });
+
       console.log(
         "=".repeat(5),
         "Sending NpmrdsDownloadRequest",
@@ -362,12 +357,12 @@ export default {
       console.log(req);
 
       // NpmrdsDownloadService.queueNpmrdsDownloadRequest(req);
+      // NOTE:
+      //        NpmrdsDownloadId is not known until QUEUED QUEUE_STATUS_UPDATE event received.
+      //        NpmrdsDownloadName is not known until PENDING QUEUE_STATUS_UPDATE event received.
       await this.queueNpmrdsExportRequest(req);
 
-      return {
-        etl_context_id,
-        npmrds_download_name: req.name,
-      };
+      return req;
     },
 
     async getNpmrdsDataDateExtent() {
@@ -397,23 +392,73 @@ export default {
         }
       );
 
+      console.log(JSON.stringify({ openRequestStatuses }, null, 4));
+
       openRequestStatuses.sort((a: any, b: any) => {
         const {
-          payload: { queuePriority: aPri = 1, npmrdsDownloadName: aName },
+          payload: {
+            queuePriority: aPri = 1,
+            insertedAt: aInsertedAt,
+            npmrdsDownloadName: aName,
+          },
         } = a;
 
         const {
-          payload: { queuePriority: bPri = 1, npmrdsDownloadName: bName },
+          payload: {
+            queuePriority: bPri = 1,
+            insertedAt: bInsertedAt,
+            npmrdsDownloadName: bName,
+          },
         } = b;
 
+        // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+        //    Newly added NpmrdsDownloadRequests seem to immediately jump to the head
+        //      of the openRequestStatuses then fall back to the end. Not sure why.
+
+        //  NOTE: Queued NpmrdsDownloadRequests are handled serially, then concurrently.
+        //
+        //        We only make one NpmrdsDownloadRequests from RITIS at a time.
+        //          The queue holds back the next export request until
+        //          RITIS notifies us that current export request is read to download.
+        //
+        //        Downloads happen serially, but concurrently with export request.
+        //
+        //        Transforms happen concurrently with export requests, downloads,
+        //          and other transforms.
+        //
+        //        The sorted order of the openRequestStatuses concerns itself
+        //          ONLY with the serial ordering up to sending export requests to RITIS.
+        //          Once things get concurrent, there is insufficient information in the event_store
+        //            to predict the order in which the downloads and transforms will finish.
+        //
+        const aNameTs = aName?.replace(/.*_v/, "");
+        const bNameTs = bName?.replace(/.*_v/, "");
+
+        //  npmrdsDownloadName (with its timestamp) is created when the export request is sent to RITIS.
+        //    It accurately represents when the data was requested.
+        //
+        //  Example name: npmrds_vt_from_20211201_to_20211201_v20221230T115229
+        if (aNameTs && bNameTs) {
+          // chronologically by npmrdsDownloadName's timestamp
+          return aNameTs.localeCompare(bNameTs);
+        } else if (aNameTs) {
+          // a has been requested, b still queued: a preceeds b in the queue
+          return -1;
+        } else if (bNameTs) {
+          // b has been requested, a still queued: b preceeds a in the queue
+          return 1;
+        }
+
+        // Neither have been assigned a npmrdsDownloadName.
+        // They are both awaiting form submission in the NpmrdsDownloadService priority queue.
+
+        // Do their priorities differ? If so, sort descending by priority
         if (aPri !== bPri) {
           return bPri - aPri;
         }
 
-        const aTs = aName.replace(/.*_v/, "");
-        const bTs = bName.replace(/.*_v/, "");
-
-        return aTs.localeCompare(bTs);
+        // sort in ascending order by inserted at timestamp
+        return aInsertedAt.localeCompare(bInsertedAt);
       });
 
       console.log(JSON.stringify({ openRequestStatuses }, null, 4));
