@@ -6,8 +6,8 @@ import ApiGateway from "moleculer-web";
 import _ from "lodash";
 
 import pgEnvs from "../../var/pgEnvs";
-import enhanceNCEI from "../dama_integration/actions/ncei_storm_events/postUploadProcessData";
-import openFemaDataLoader from "../dama_integration/actions/openFemaData/openFemaDataLoader";
+// import enhanceNCEI from "../dama_integration/actions/ncei_storm_events/postUploadProcessData";
+// import openFemaDataLoader from "../dama_integration/actions/openFemaData/openFemaDataLoader";
 
 // https://github.com/moleculerjs/moleculer-web/blob/master/index.d.ts
 type IncomingRequest = typeof ApiGateway.IncomingRequest;
@@ -308,10 +308,20 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/pbSWDLoader":
                 "dama/data_source_integrator.pbSWDLoader",
+
+              "/data-sources/npmrds/travel-times-export/downloader/getNpmrdsDataDateExtent":
+                "dama/data_sources/npmrds/travel_times_export/downloader.getNpmrdsDataDateExtent",
+
+              "/data-sources/npmrds/travel-times-export/downloader/queueNpmrdsExportRequest":
+                "dama/data_sources/npmrds/travel_times_export/downloader.queueNpmrdsExportRequest",
+
+              "/data-sources/npmrds/travel-times-export/downloader/getOpenRequestsStatuses":
+                "dama/data_sources/npmrds/travel_times_export/downloader.getOpenRequestsStatuses",
             },
           },
 
           {
+            // Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
             callingOptions: {
               timeout: 0,
             },
@@ -371,9 +381,6 @@ export default class ApiService extends Service {
 					return doSomething(ctx, res, data);
 				},
 					 */
-
-            // Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
-            callingOptions: {},
 
             bodyParsers: {
               json: {
