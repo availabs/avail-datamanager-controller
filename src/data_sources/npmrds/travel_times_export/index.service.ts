@@ -2,6 +2,11 @@ import { ChildProcess, fork } from "child_process";
 import { hostname } from "os";
 import { existsSync } from "fs";
 import { join } from "path";
+import { inspect } from "util";
+
+import { Graph, alg as GraphAlgorithms } from "graphlib";
+
+import dedent from "dedent";
 
 import { Context } from "moleculer";
 
@@ -20,6 +25,11 @@ const npmrdsDownloadServiceMainPath = join(
 const loadDownloadedExportsIntoSqlitePath = join(
   __dirname,
   "../../../../tasks/avail-datasources-watcher/tasks/downloadedExportsIntoSqlite/run"
+);
+
+const initDamaSourceSqlPath = join(
+  __dirname,
+  "./sql/initialize_npmrds_export_dama_sources.sql"
 );
 
 export const serviceName =
@@ -157,70 +167,14 @@ export default {
 
     async handleNpmrdsDownloadServiceEvent(event: FSA) {
       // @ts-ignore
-      const { type, payload, meta: { pgEnv, etl_context_id } = {} } = event;
+      const { type, meta: { pgEnv, etl_context_id } = {} } = event;
 
       if (!(pgEnv && etl_context_id)) {
         return;
       }
 
       if (type === "NpmrdsDownloadService:FINAL") {
-        // @ts-ignore
-        const { npmrdsDownloadName } = payload;
-
-        const opts = {
-          meta: {
-            pgEnv,
-          },
-        };
-
-        // FIXME: Need to emit the DamaView info into the event_store
-        const downloadedEvent = {
-          ...event,
-          type: `${serviceName}:NPMRDS_TRAVEL_TIMES_EXPORT_DOWNLOADED`,
-        };
-
-        await this.broker.call(
-          "dama_dispatcher.dispatch",
-          downloadedEvent,
-          opts
-        );
-
-        const transformEvent = {
-          type: `${serviceName}:STATUS_UPDATE`,
-          payload: {
-            status: "TRANSFORMING",
-            // @ts-ignore
-            npmrdsDownloadName: event.payload.npmrdsDownloadName,
-          },
-          meta: event.meta,
-        };
-
-        await this.broker.call(
-          "dama_dispatcher.dispatch",
-          transformEvent,
-          opts
-        );
-
-        const transformDoneData =
-          await this.transformDownloadedNpmrdsExportIntoSqliteDb(
-            npmrdsDownloadName
-          );
-
-        // TODO: FINAL events must trigger data_manager.views updates.
-        const finalEvent = {
-          type: `${serviceName}:FINAL`,
-          payload: {
-            ...(event.payload || {}),
-            ...transformDoneData,
-          },
-          meta: event.meta,
-        };
-
-        console.log(
-          JSON.stringify({ [`${serviceName}:FINAL`]: finalEvent }, null, 4)
-        );
-
-        await this.broker.call("dama_dispatcher.dispatch", finalEvent, opts);
+        return await this.handleNpmrdsTravelTimesExportDownloaded(event);
       }
 
       //  We just prefixing the type with this serviceName and
@@ -246,61 +200,297 @@ export default {
       }
     },
 
-    async transformDownloadedNpmrdsExportIntoSqliteDb(
-      npmrdsDownloadName: string
-    ) {
-      let success: (...args: any) => void;
-      let failure: (err: Error) => void;
+    async handleNpmrdsTravelTimesExportDownloaded(event: FSA) {
+      // @ts-ignore
+      const { payload, meta: { pgEnv, etl_context_id } = {} } = event;
 
-      const done = new Promise((resolve, reject) => {
-        success = resolve;
-        failure = reject;
-      });
+      if (!(pgEnv && etl_context_id)) {
+        return;
+      }
 
-      fork(
-        loadDownloadedExportsIntoSqlitePath,
-        ["--npmrdsDownloadName", npmrdsDownloadName],
-        { stdio: "inherit" }
-      )
-        .on("spawn", () => {
-          console.log(
-            "spawned a transformDownloadedNpmrdsExportIntoSqliteDb for",
-            npmrdsDownloadName
-          );
-        })
+      // @ts-ignore
+      const { npmrdsDownloadName } = payload;
+
+      const opts = {
+        meta: {
+          pgEnv,
+        },
+      };
+
+      // FIXME: Need to emit the DamaView info into the event_store
+      const downloadedEvent = {
+        ...event,
+        type: `${serviceName}:NPMRDS_TRAVEL_TIMES_EXPORT_DOWNLOADED`,
+      };
+
+      await this.broker.call("dama_dispatcher.dispatch", downloadedEvent, opts);
+
+      const transformEvent = {
+        type: `${serviceName}:STATUS_UPDATE`,
+        payload: {
+          status: "TRANSFORMING",
+          // @ts-ignore
+          npmrdsDownloadName: event.payload.npmrdsDownloadName,
+        },
+        meta: event.meta,
+      };
+
+      await this.broker.call("dama_dispatcher.dispatch", transformEvent, opts);
+
+      const transformDoneData = await this.transformNpmrdsExportDownload(
+        npmrdsDownloadName
+      );
+
+      // TODO: FINAL events must trigger data_manager.views updates.
+      const transformDoneEvent = {
+        type: `${serviceName}:STATUS_UPDATE`,
+        payload: {
+          status: "TRANSFORM_DONE",
+          ...(event.payload || {}),
+          transformDoneData,
+        },
+        meta: event.meta,
+      };
+
+      console.log(JSON.stringify({ transformDoneEvent }, null, 4));
+
+      await this.broker.call(
+        "dama_dispatcher.dispatch",
+        transformDoneEvent,
+        opts
+      );
+
+      const integrationDoneData =
+        await this.integrateNpmrdsExportDownloadIntoDataManager(
+          transformDoneEvent
+        );
+    },
+
+    async integrateNpmrdsExportDownloadIntoDataManager(event: FSA) {
+      const { payload, meta } = event;
+      const {
         // @ts-ignore
-        .on("error", failure)
-        .on("exit", (code, signal) => {
-          if (code) {
-            failure(
-              new Error(
-                `The transformDownloadedNpmrdsExportIntoSqliteDb subprocess exited with code ${code}`
-              )
-            );
-          }
+        npmrdsDownloadName,
+        transformDoneData: {
+          npmrdsTravelTimesExport,
+          npmrdsAllVehicleTravelTimesCsv,
+          npmrdsPassVehicleTravelTimesCsv,
+          npmrdsFreightTruckTravelTimesCsv,
+          npmrdsTmcIdentificationCsv,
+          npmrdsTravelTimesSqlite,
+          npmrdsTravelTimesCsv,
+        },
+      } = payload;
 
-          if (signal) {
-            failure(
-              new Error(
-                `The transformDownloadedNpmrdsExportIntoSqliteDb subprocess terminated due to signal ${signal}`
-              )
-            );
-          }
-        })
-        .on("message", (event: FSA) => {
-          const { type, payload } = event;
-          if (type === "downloadedExportsIntoSqlite:FINAL") {
-            success(payload);
-          }
+      // @ts-ignore
+      const { etl_context_id, dama_controller_host } = meta;
+
+      const startDate = npmrdsDownloadName
+        .replace(/.*_from_/, "")
+        .replace(/_to.*/, "");
+
+      const endDate = npmrdsDownloadName
+        .replace(/.*_to_/, "")
+        .replace(/_.*/, "");
+
+      const toposortedSourceInfo = await this.broker.call(
+        `${serviceName}.initializeNpmrdsExportDamaSources`,
+        {}, // FIXME: Why is this needed? Was getting error about trying to deref { etl_context_id }
+        { meta }
+      );
+
+      console.log("$$$$ %%%% ".repeat(30));
+
+      console.log();
+      console.log();
+      console.log("===== integrateNpmrdsExportDownloadIntoDataManager =====");
+      console.log(JSON.stringify({ event, toposortedSourceInfo }, null, 4));
+      console.log();
+      console.log();
+
+      const sql = dedent(`
+        WITH cte_deps AS (
+          SELECT
+              array_agg(view_id ORDER BY view_id) AS deps
+            FROM data_manager.views
+            WHERE (
+              ( etl_context_id = $1 )
+              AND
+              ( source_id = ANY( $2 ) )
+            )
+        )
+        INSERT INTO data_manager.views (
+          source_id,
+          version,
+          start_date,
+          end_date,
+          etl_context_id,
+          dependencies
+        ) VALUES (
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          ( SELECT deps FROM cte_deps )
+        ) ;
+      `);
+
+      console.log(sql);
+
+      const stmts: any[] = ["BEGIN;"];
+
+      for (const { source_id, dependencies } of toposortedSourceInfo) {
+        /*
+        this.broker.call(
+          "dama_db.query",
+          {
+            text: sql,
+            values: [
+              // cte_deps
+              etl_context_id,
+              dependencies,
+              // insert
+              source_id,
+              npmrdsDownloadName,
+              startDate,
+              endDate,
+              etl_context_id,
+            ],
+          },
+          { meta }
+        );
+        */
+
+        stmts.push({
+          text: sql,
+          values: [
+            // cte_deps
+            etl_context_id,
+            dependencies,
+            // insert
+            source_id,
+            npmrdsDownloadName,
+            startDate,
+            endDate,
+            etl_context_id,
+          ],
         });
+      }
 
-      const sqliteDbPath = await done;
+      stmts.push("COMMIT");
 
-      return sqliteDbPath;
+      const result = await this.broker.call("dama_db.query", stmts, { meta });
+
+      return result;
+    },
+
+    async transformNpmrdsExportDownload(npmrdsDownloadName: string) {
+      const transformDoneData = await new Promise((resolve, reject) =>
+        fork(
+          loadDownloadedExportsIntoSqlitePath,
+          ["--npmrdsDownloadName", npmrdsDownloadName],
+          { stdio: "inherit" }
+        )
+          .on("spawn", () => {
+            console.log(
+              "spawned a transformNpmrdsExportDownload for",
+              npmrdsDownloadName
+            );
+          })
+          // @ts-ignore
+          .on("error", reject)
+          .on("exit", (code, signal) => {
+            if (code) {
+              reject(
+                new Error(
+                  `The transformNpmrdsExportDownload subprocess exited with code ${code}`
+                )
+              );
+            }
+
+            if (signal) {
+              reject(
+                new Error(
+                  `The transformNpmrdsExportDownload subprocess terminated due to signal ${signal}`
+                )
+              );
+            }
+          })
+          .on("message", (event: FSA) => {
+            const { type, payload } = event;
+            if (type === "downloadedExportsIntoSqlite:FINAL") {
+              resolve(payload);
+            }
+          })
+      );
+
+      return transformDoneData;
     },
   },
 
   actions: {
+    async initializeNpmrdsExportDamaSources(ctx: Context) {
+      console.log(inspect(ctx));
+
+      await ctx.call("dama_db.executeSqlFile", {
+        sqlFilePath: initDamaSourceSqlPath,
+      });
+
+      const sql = dedent(`
+        SELECT
+            source_id,
+            name,
+            dependencies
+          FROM data_manager.sources
+          WHERE (
+            name IN (
+              'NpmrdsTravelTimesExport',
+              'NpmrdsAllVehicleTravelTimesCsv',
+              'NpmrdsPassVehicleTravelTimesCsv',
+              'NpmrdsFreightTruckTravelTimesCsv',
+              'NpmrdsTmcIdentificationCsv',
+              'NpmrdsTravelTimesSqlite',
+              'NpmrdsTravelTimesCsv'
+            )
+          )
+      `);
+
+      const {
+        rows,
+      }: {
+        rows: {
+          source_id: number;
+          name: string;
+          dependencies: null | string[];
+        }[];
+      } = await ctx.call("dama_db.query", sql);
+
+      const sourcesById = rows.reduce((acc, row) => {
+        acc[row.source_id] = row;
+        return acc;
+      }, {});
+
+      const g = new Graph({
+        directed: true,
+        multigraph: false,
+        compound: false,
+      });
+      for (const { source_id, dependencies } of rows) {
+        for (const id of dependencies || []) {
+          g.setEdge(`${id}`, `${source_id}`);
+        }
+      }
+
+      const toposortedSourceIds = GraphAlgorithms.topsort(g);
+
+      const toposortedSourceInfo = toposortedSourceIds.map(
+        (id) => sourcesById[id]
+      );
+
+      return toposortedSourceInfo;
+    },
+
     // x. get an EtlContextId and add to req etl_context
     // x. emit to db.event_store
     // x. submit download req
@@ -318,8 +508,7 @@ export default {
       } = ctx;
 
       const etl_context_id = await ctx.call("dama_dispatcher.spawnDamaContext");
-
-      const dama_controller_host = hostname();
+      const { dama_controller_host } = this;
 
       const initialEvent = {
         type: `${serviceName}:INITIAL`,
@@ -376,7 +565,7 @@ export default {
       visibility: "protected",
 
       async handler(ctx: Context) {
-        return await this.transformDownloadedNpmrdsExportIntoSqliteDb(
+        return await this.transformNpmrdsExportDownload(
           // @ts-ignore
           ctx.params.npmrdsDownloadName
         );
@@ -394,6 +583,32 @@ export default {
 
       console.log(JSON.stringify({ openRequestStatuses }, null, 4));
 
+      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+      //    Newly added NpmrdsDownloadRequests seem to immediately jump to the head
+      //      of the openRequestStatuses then fall back to the end. Not sure why.
+
+      //  NOTE: The sorted order of the openRequestStatuses is a best-effort representation
+      //          of the state of the NpmrdsDownloadRequests Queue.
+      //
+      //        However, it cannot accurately show the order that requests will complete
+      //          for the following reasons:
+      //
+      //          1.  Queued NpmrdsDownloadRequests are handled serially, then concurrently.
+      //
+      //          2.  We only make one NpmrdsDownloadRequests from RITIS at a time.
+      //                The queue holds back the next export request until
+      //                RITIS notifies us that current export request is read to download.
+      //
+      //          3.  Downloads happen serially, but concurrently with export request.
+      //
+      //          4.  Transforms happen concurrently with export requests, downloads,
+      //                and other transforms.
+      //
+      //        The sorted order of the openRequestStatuses concerns itself
+      //          ONLY with the serial ordering up to sending export requests to RITIS.
+      //          Once things get concurrent, there is insufficient information in the event_store
+      //            to predict the order in which the downloads and transforms will finish.
+      //
       openRequestStatuses.sort((a: any, b: any) => {
         const {
           payload: {
@@ -411,26 +626,6 @@ export default {
           },
         } = b;
 
-        // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-        //    Newly added NpmrdsDownloadRequests seem to immediately jump to the head
-        //      of the openRequestStatuses then fall back to the end. Not sure why.
-
-        //  NOTE: Queued NpmrdsDownloadRequests are handled serially, then concurrently.
-        //
-        //        We only make one NpmrdsDownloadRequests from RITIS at a time.
-        //          The queue holds back the next export request until
-        //          RITIS notifies us that current export request is read to download.
-        //
-        //        Downloads happen serially, but concurrently with export request.
-        //
-        //        Transforms happen concurrently with export requests, downloads,
-        //          and other transforms.
-        //
-        //        The sorted order of the openRequestStatuses concerns itself
-        //          ONLY with the serial ordering up to sending export requests to RITIS.
-        //          Once things get concurrent, there is insufficient information in the event_store
-        //            to predict the order in which the downloads and transforms will finish.
-        //
         const aNameTs = aName?.replace(/.*_v/, "");
         const bNameTs = bName?.replace(/.*_v/, "");
 
@@ -464,6 +659,10 @@ export default {
       console.log(JSON.stringify({ openRequestStatuses }, null, 4));
       return openRequestStatuses;
     },
+  },
+
+  async created() {
+    this.dama_controller_host = hostname();
   },
 
   async stopped() {

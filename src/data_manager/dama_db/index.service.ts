@@ -529,6 +529,21 @@ export default {
 
       return rows;
     },
+
+    async executeSqlFile(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { sqlFilePath },
+      } = ctx;
+
+      const sql = await readFileAsync(sqlFilePath, { encoding: "utf8" });
+
+      // @ts-ignore
+      const { rows } = await ctx.call("dama_db.query", sql);
+      console.log("### ".repeat(30));
+
+      return rows;
+    },
   },
 
   created() {

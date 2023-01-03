@@ -30,7 +30,7 @@ CREATE INDEX IF NOT EXISTS dama_event_store_etl_ctx_idx
 --      SELECT DISTINCT
 --          etl_context_id
 --        FROM dama_event_store
---        WHERE ( right(type, 6) = 'FINAL' )
+--        WHERE ( right(type, 6) = ':FINAL' )
 --
 -- For querying the FINAL event for an ETL Task to get the DoneData
 --
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS dama_event_store_etl_ctx_idx
 --        WHERE (
 --          ( type LIKE 'FOO/%' )
 --          AND
---          ( right(type, 6) = 'FINAL' )
+--          ( right(type, 6) = ':FINAL' )
 --        )
 
 CREATE INDEX IF NOT EXISTS dama_event_store_search_open_idx
@@ -49,4 +49,21 @@ CREATE INDEX IF NOT EXISTS dama_event_store_search_open_idx
     right(type, 6),
     etl_context_id
   )
+;
+
+-- For querying the FINAL event for an ETL Context to get the DoneData
+--
+--      SELECT
+--          *
+--        FROM dama_event_store
+--        WHERE (
+--          ( etl_context = ? )
+--          AND
+--          ( right(type, 6) = ':FINAL' )
+--        )
+CREATE INDEX IF NOT EXISTS dama_event_store_search_done_data_idx
+  ON _data_manager_admin.dama_event_store (
+    etl_context_id
+  )
+  WHERE ( right(type, 6) = ':FINAL' )
 ;
