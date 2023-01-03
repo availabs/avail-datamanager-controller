@@ -301,6 +301,10 @@ export default class ApiService extends Service {
 
               "/data-sources/npmrds/travel-times-export/downloader/getOpenRequestsStatuses":
                 "dama/data_sources/npmrds/travel_times_export/downloader.getOpenRequestsStatuses",
+
+              // Requires an etlContextId query parameter: ?etlContextId=n
+              "/data-sources/npmrds/travel-times-export/downloader/getEtlProcessFinalEvent":
+                "dama_db.queryEtlContextFinalEvent",
             },
           },
 

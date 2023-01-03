@@ -65,5 +65,9 @@ CREATE INDEX IF NOT EXISTS dama_event_store_search_done_data_idx
   ON _data_manager_admin.dama_event_store (
     etl_context_id
   )
-  WHERE ( right(type, 6) = ':FINAL' )
+  WHERE (
+    ( right(type, 6) = ':FINAL' )
+    OR
+    ( right(type, 6) = ':ERROR' )
+  )
 ;

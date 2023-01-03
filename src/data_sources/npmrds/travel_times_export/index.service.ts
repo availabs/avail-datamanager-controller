@@ -294,7 +294,7 @@ export default {
       } = payload;
 
       // @ts-ignore
-      const { etl_context_id, dama_controller_host } = meta;
+      const { etl_context_id } = meta;
 
       const startDate = npmrdsDownloadName
         .replace(/.*_from_/, "")
@@ -319,6 +319,12 @@ export default {
       console.log();
       console.log();
 
+      const rootEtlContextId = await this.broker.call(
+        "dama_dispatcher.queryRootContextId",
+        { etl_context_id },
+        { meta }
+      );
+
       const sql = dedent(`
         WITH cte_deps AS (
           SELECT
@@ -335,6 +341,7 @@ export default {
           version,
           start_date,
           end_date,
+          root_etl_context_id,
           etl_context_id,
           view_dependencies
         ) VALUES (
@@ -343,8 +350,9 @@ export default {
           $5,
           $6,
           $7,
+          $8,
           ( SELECT deps FROM cte_deps )
-        ) RETURNING source_id, view_id, view_dependencies
+        ) RETURNING source_id, view_id, root_etl_context_id, view_dependencies
         ;
       `);
 
@@ -364,6 +372,7 @@ export default {
             npmrdsDownloadName,
             startDate,
             endDate,
+            rootEtlContextId,
             etl_context_id,
           ],
         });
@@ -378,19 +387,22 @@ export default {
           rows: [row],
         } = res;
         if (row) {
-          const { source_id, view_id, view_dependencies } = row;
-          acc[source_id] = { view_id, view_dependencies };
+          const { source_id, view_id, root_etl_context_id, view_dependencies } =
+            row;
+          acc[source_id] = { view_id, root_etl_context_id, view_dependencies };
         }
         return acc;
       }, {});
 
       const viewInfoBySourceName = toposortedSourceInfo.reduce((acc, d) => {
         const { name, source_id, source_dependencies } = d;
-        const { view_id, view_dependencies } = viewInfoBySourceId[d.source_id];
+        const { view_id, root_etl_context_id, view_dependencies } =
+          viewInfoBySourceId[d.source_id];
 
         acc[name] = {
           source_id,
           source_dependencies,
+          root_etl_context_id,
           view_id,
           view_dependencies,
         };
@@ -598,10 +610,6 @@ export default {
 
       console.log(JSON.stringify({ openRequestStatuses }, null, 4));
 
-      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-      //    Newly added NpmrdsDownloadRequests seem to immediately jump to the head
-      //      of the openRequestStatuses then fall back to the end. Not sure why.
-
       //  NOTE: The sorted order of the openRequestStatuses is a best-effort representation
       //          of the state of the NpmrdsDownloadRequests Queue.
       //
@@ -623,6 +631,10 @@ export default {
       //          ONLY with the serial ordering up to sending export requests to RITIS.
       //          Once things get concurrent, there is insufficient information in the event_store
       //            to predict the order in which the downloads and transforms will finish.
+      //
+      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+      //    Newly added NpmrdsDownloadRequests seem to immediately jump to the head
+      //      of the openRequestStatuses then fall back to the end. Not sure why.
       //
       openRequestStatuses.sort((a: any, b: any) => {
         const {
