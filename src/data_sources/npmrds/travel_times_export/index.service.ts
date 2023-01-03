@@ -260,10 +260,21 @@ export default {
         opts
       );
 
-      const integrationDoneData =
+      const viewInfoBySourceName =
         await this.integrateNpmrdsExportDownloadIntoDataManager(
           transformDoneEvent
         );
+
+      const finalEvent = {
+        type: `${serviceName}:FINAL`,
+        payload: {
+          ...(event.payload || {}),
+          viewInfoBySourceName,
+        },
+        meta: event.meta,
+      };
+
+      await this.broker.call("dama_dispatcher.dispatch", finalEvent, opts);
     },
 
     async integrateNpmrdsExportDownloadIntoDataManager(event: FSA) {
@@ -325,7 +336,7 @@ export default {
           start_date,
           end_date,
           etl_context_id,
-          dependencies
+          view_dependencies
         ) VALUES (
           $3,
           $4,
@@ -333,41 +344,21 @@ export default {
           $6,
           $7,
           ( SELECT deps FROM cte_deps )
-        ) ;
+        ) RETURNING source_id, view_id, view_dependencies
+        ;
       `);
 
       console.log(sql);
 
       const stmts: any[] = ["BEGIN;"];
 
-      for (const { source_id, dependencies } of toposortedSourceInfo) {
-        /*
-        this.broker.call(
-          "dama_db.query",
-          {
-            text: sql,
-            values: [
-              // cte_deps
-              etl_context_id,
-              dependencies,
-              // insert
-              source_id,
-              npmrdsDownloadName,
-              startDate,
-              endDate,
-              etl_context_id,
-            ],
-          },
-          { meta }
-        );
-        */
-
+      for (const { source_id, source_dependencies } of toposortedSourceInfo) {
         stmts.push({
           text: sql,
           values: [
             // cte_deps
             etl_context_id,
-            dependencies,
+            source_dependencies,
             // insert
             source_id,
             npmrdsDownloadName,
@@ -382,7 +373,33 @@ export default {
 
       const result = await this.broker.call("dama_db.query", stmts, { meta });
 
-      return result;
+      const viewInfoBySourceId = result.reduce((acc, res) => {
+        const {
+          rows: [row],
+        } = res;
+        if (row) {
+          const { source_id, view_id, view_dependencies } = row;
+          acc[source_id] = { view_id, view_dependencies };
+        }
+        return acc;
+      }, {});
+
+      const viewInfoBySourceName = toposortedSourceInfo.reduce((acc, d) => {
+        const { name, source_id, source_dependencies } = d;
+        const { view_id, view_dependencies } = viewInfoBySourceId[d.source_id];
+
+        acc[name] = {
+          source_id,
+          source_dependencies,
+          view_id,
+          view_dependencies,
+        };
+        return acc;
+      }, {});
+
+      console.log(JSON.stringify(viewInfoBySourceName, null, 4));
+
+      return viewInfoBySourceName;
     },
 
     async transformNpmrdsExportDownload(npmrdsDownloadName: string) {
@@ -431,8 +448,6 @@ export default {
 
   actions: {
     async initializeNpmrdsExportDamaSources(ctx: Context) {
-      console.log(inspect(ctx));
-
       await ctx.call("dama_db.executeSqlFile", {
         sqlFilePath: initDamaSourceSqlPath,
       });
@@ -441,7 +456,7 @@ export default {
         SELECT
             source_id,
             name,
-            dependencies
+            source_dependencies
           FROM data_manager.sources
           WHERE (
             name IN (
@@ -462,7 +477,7 @@ export default {
         rows: {
           source_id: number;
           name: string;
-          dependencies: null | string[];
+          source_dependencies: null | string[];
         }[];
       } = await ctx.call("dama_db.query", sql);
 
@@ -476,8 +491,8 @@ export default {
         multigraph: false,
         compound: false,
       });
-      for (const { source_id, dependencies } of rows) {
-        for (const id of dependencies || []) {
+      for (const { source_id, source_dependencies } of rows) {
+        for (const id of source_dependencies || []) {
           g.setEdge(`${id}`, `${source_id}`);
         }
       }

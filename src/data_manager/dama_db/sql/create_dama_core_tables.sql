@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
   type                  TEXT,
   display_name          TEXT,
 
-  dependencies          INTEGER[],
+  source_dependencies   INTEGER[],
 
   user_id               INTEGER,
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
 -- START data_manager.sources Migrations
 
 ALTER TABLE data_manager.sources
-  ADD COLUMN IF NOT EXISTS dependencies INTEGER[]
+  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[]
 ;
 
 -- END data_manager.sources Migrations
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   root_etl_context_id     INTEGER,
   etl_context_id          INTEGER,
 
-  dependencies            INTEGER[],
+  view_dependencies       INTEGER[],
 
   _created_timestamp      TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp     TIMESTAMP NOT NULL DEFAULT NOW()
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
 -- START data_manager.views Migrations
 
 ALTER TABLE data_manager.views
-  ADD COLUMN IF NOT EXISTS dependencies INTEGER[]
+  ADD COLUMN IF NOT EXISTS view_dependencies INTEGER[]
 ;
 
 -- END data_manager.views Migrations
