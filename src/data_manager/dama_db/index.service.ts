@@ -580,7 +580,6 @@ export default {
 
       // @ts-ignore
       const { rows } = await ctx.call("dama_db.query", sql);
-      console.log("### ".repeat(30));
 
       return rows;
     },

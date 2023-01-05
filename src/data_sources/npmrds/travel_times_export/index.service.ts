@@ -2,7 +2,6 @@ import { ChildProcess, fork } from "child_process";
 import { hostname } from "os";
 import { existsSync } from "fs";
 import { join } from "path";
-import { inspect } from "util";
 
 import { Graph, alg as GraphAlgorithms } from "graphlib";
 

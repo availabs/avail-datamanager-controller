@@ -8,7 +8,7 @@ DO
     BEGIN
 
       SELECT
-          array_agg(name)
+          COALESCE(array_agg(name), ARRAY[]::TEXT[])
         FROM data_manager.sources
         WHERE ( name IN (
             'NpmrdsTravelTimesExport',
