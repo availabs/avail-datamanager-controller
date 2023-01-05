@@ -12,12 +12,12 @@ DO
         FROM data_manager.sources
         WHERE ( name IN (
             'NpmrdsTravelTimesExport',
-            'NpmrdsAllVehicleTravelTimesCsv',
-            'NpmrdsPassVehicleTravelTimesCsv',
+            'NpmrdsAllVehTravelTimesExport',
+            'NpmrdsPassVehTravelTimesExport',
+            'NpmrdsFrgtTrkTravelTimesExport',
             'NpmrdsTmcIdentificationCsv',
-            'NpmrdsFreightTruckTravelTimesCsv',
             'NpmrdsTravelTimesCsv',
-            'NpmrdsTravelTimesSqlite'
+            'NpmrdsTravelTimesExportSqlite'
           )
         )
       INTO existing_sources ;
@@ -32,14 +32,14 @@ DO
               display_name
           ) VALUES (
             'NpmrdsTravelTimesExport',
-            'Raw NPMRDS Travel Times Export ZIP archives as downloaded from RITIS',
+            'Raw RITIS NPMRDS Travel Times Export ZIP archives as downloaded from RITIS. Comprised of the all vehicle, passenger vehicle, and freight truck exports.',
             'npmrds_travel_times_export',
             'NPMRDS Travel Times Export'
           ) ON CONFLICT DO NOTHING ;
 
       END IF ;
 
-      IF NOT ( 'NpmrdsAllVehicleTravelTimesCsv' = ANY(existing_sources) )
+      IF NOT ( 'NpmrdsAllVehTravelTimesExport' = ANY(existing_sources) )
         THEN
 
           WITH cte_deps AS (
@@ -55,17 +55,17 @@ DO
                 display_name,
                 source_dependencies
             ) VALUES (
-              'NpmrdsAllVehicleTravelTimesCsv',
-              'Raw NPMRDS all vehicles travel times CSV included in a RITIS NPMRDS Travel Times Export.',
-              'csv',
-              'Raw NPMRDS All Vehicles Travel Times CSV',
+              'NpmrdsAllVehTravelTimesExport',
+              'Raw RITIS NPMRDS all vehicles travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the all vehicle travel times CSV and a TMC_Identification CSV that provides road segment metadata.',
+              'npmrds_data_source_travel_times_export',
+              'Raw NPMRDS All Vehicles Travel Times Export',
               (SELECT deps FROM cte_deps)
             ) ON CONFLICT DO NOTHING
           ;
 
       END IF ;
 
-      IF NOT ( 'NpmrdsPassVehicleTravelTimesCsv' = ANY(existing_sources) )
+      IF NOT ( 'NpmrdsPassVehTravelTimesExport' = ANY(existing_sources) )
         THEN
 
           WITH cte_deps AS (
@@ -81,17 +81,17 @@ DO
                 display_name,
                 source_dependencies
             ) VALUES (
-              'NpmrdsPassVehicleTravelTimesCsv',
-              'Raw NPMRDS passenger vehicle travel times CSV included in a RITIS NPMRDS Travel Times Export.',
-              'csv',
-              'Raw NPMRDS Passenger Vehicles Travel Times CSV',
+              'NpmrdsPassVehTravelTimesExport',
+              'Raw RITIS NPMRDS passenger vehicles travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the passenger vehicle travel times CSV and a TMC_Identification CSV that provides road segment metadata.',
+              'npmrds_data_source_travel_times_export',
+              'Raw NPMRDS Passenger Vehicles Travel Times Export',
               (SELECT deps FROM cte_deps)
             ) ON CONFLICT DO NOTHING
           ;
 
       END IF ;
 
-      IF NOT ( 'NpmrdsFreightTruckTravelTimesCsv' = ANY(existing_sources) )
+      IF NOT ( 'NpmrdsFrgtTrkTravelTimesExport' = ANY(existing_sources) )
         THEN
 
           WITH cte_deps AS (
@@ -107,10 +107,10 @@ DO
                 display_name,
                 source_dependencies
             ) VALUES (
-              'NpmrdsFreightTruckTravelTimesCsv',
-              'Raw NPMRDS freight truck travel times CSV included in a RITIS NPMRDS Travel Times Export.',
-              'csv',
-              'Raw NPMRDS Freight Truck Travel Times CSV',
+              'NpmrdsFrgtTrkTravelTimesExport',
+              'Raw RITIS NPMRDS freight truck travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the freight trucks travel times CSV and a TMC_Identification CSV that provides road segment metadata.',
+              'npmrds_data_source_travel_times_export',
+              'Raw NPMRDS Passenger Vehicles Travel Times Export',
               (SELECT deps FROM cte_deps)
             ) ON CONFLICT DO NOTHING
           ;
@@ -124,7 +124,7 @@ DO
             SELECT
                 array_agg(source_id ORDER BY source_id) AS deps
               FROM data_manager.sources
-              WHERE ( name = 'NpmrdsTravelTimesExport' )
+              WHERE ( name = 'NpmrdsAllVehTravelTimesExport' )
           )
             INSERT INTO data_manager.sources(
                 name,
@@ -134,7 +134,7 @@ DO
                 source_dependencies
             ) VALUES (
               'NpmrdsTmcIdentificationCsv',
-              'Raw NPMRDS TMC Identification CSV included in a RITIS NPMRDS Travel Times Export. This CSV contains metadata describing the TMC segments included in the export.',
+              'Raw NPMRDS TMC Identification CSV included in the Raw NPMRDS All Vehicles Travel Times Export. This CSV contains metadata describing the TMC segments included in the export.',
               'csv',
               'NPMRDS TMC Identification CSV',
               (SELECT deps FROM cte_deps)
@@ -151,9 +151,9 @@ DO
                 array_agg(source_id ORDER BY source_id) AS deps
               FROM data_manager.sources
               WHERE ( name IN (
-                  'NpmrdsAllVehicleTravelTimesCsv',
-                  'NpmrdsPassVehicleTravelTimesCsv',
-                  'NpmrdsFreightTruckTravelTimesCsv'
+                  'NpmrdsAllVehTravelTimesExport',
+                  'NpmrdsPassVehTravelTimesExport',
+                  'NpmrdsFrgtTrkTravelTimesExport'
                 )
               )
           )
@@ -166,7 +166,7 @@ DO
             ) VALUES (
               'NpmrdsTravelTimesCsv',
               'NPMRDS Travel Times CSV that joins the all vehicle, passenger vehicle, and freight truck travel times CSVs on (TMC, date, epoch).',
-              'csv',
+              'npmrds_travel_times_csv',
               'NPMRDS Travel Times CSV',
               (SELECT deps from cte_deps)
             ) ON CONFLICT DO NOTHING
@@ -174,7 +174,7 @@ DO
 
       END IF ;
 
-      IF NOT ( 'NpmrdsTravelTimesSqlite' = ANY(existing_sources) )
+      IF NOT ( 'NpmrdsTravelTimesExportSqlite' = ANY(existing_sources) )
         THEN
 
           WITH cte_deps AS (
@@ -182,9 +182,9 @@ DO
                 array_agg(source_id ORDER BY source_id) AS deps
               FROM data_manager.sources
               WHERE ( name IN (
-                  'NpmrdsAllVehicleTravelTimesCsv',
-                  'NpmrdsPassVehicleTravelTimesCsv',
-                  'NpmrdsFreightTruckTravelTimesCsv',
+                  'NpmrdsAllVehTravelTimesExport',
+                  'NpmrdsPassVehTravelTimesExport',
+                  'NpmrdsFrgtTrkTravelTimesExport',
                   'NpmrdsTmcIdentificationCsv'
                 )
               )
@@ -195,10 +195,10 @@ DO
                 display_name,
                 source_dependencies
             ) VALUES (
-              'NpmrdsTravelTimesSqlite',
-              'NPMRDS Travel Times SQLite DB that contains a table joining the all vehicle, passenger vehicle, and freight truck travel times CSVs, and a table containing the TMC identification CSV.',
-              'sqlite',
-              'NPMRDS Travel Times SQLite',
+              'NpmrdsTravelTimesExportSqlite',
+              'NPMRDS Travel Times SQLite DB that contains two tables. The "npmrds" table joins the NPMRDS Travel Times Export all vehicle, passenger vehicle, and freight truck travel times CSVs. The "tmc_idenification" table contains the TMC identification CSV included in the export. This file is an intermediary product of the ETL process and is preserved for analysis purposes.',
+              'npmrds_travel_times_export_sqlite',
+              'NPMRDS Travel Times Export SQLite',
               (SELECT deps from cte_deps)
             ) ON CONFLICT DO NOTHING
           ;

@@ -18,8 +18,8 @@ import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-da
 
 const npmrdsDownloadServiceMainPath = join(
   __dirname,
-  // "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/main"
-  "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/mock"
+  "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/",
+  process.env.NODE_ENV?.toLowerCase() === "production" ? "main" : "mock"
 );
 
 const loadDownloadedExportsIntoSqlitePath = join(
@@ -32,8 +32,7 @@ const initDamaSourceSqlPath = join(
   "./sql/initialize_npmrds_export_dama_sources.sql"
 );
 
-export const serviceName =
-  "dama/data_sources/npmrds/travel_times_export/downloader";
+export const serviceName = "dama/data_sources/npmrds/travel_times_export/etl";
 
 const IDLE_TIMEOUT = 1000 * 60 * 60; // One Hour
 
@@ -260,7 +259,7 @@ export default {
         opts
       );
 
-      const viewInfoBySourceName =
+      const toposortedDamaViewInfo =
         await this.integrateNpmrdsExportDownloadIntoDataManager(
           transformDoneEvent
         );
@@ -269,10 +268,12 @@ export default {
         type: `${serviceName}:FINAL`,
         payload: {
           ...(event.payload || {}),
-          viewInfoBySourceName,
+          toposortedDamaViewInfo,
         },
         meta: event.meta,
       };
+
+      console.log(JSON.stringify({ finalEvent }, null, 4));
 
       await this.broker.call("dama_dispatcher.dispatch", finalEvent, opts);
     },
@@ -310,20 +311,13 @@ export default {
         { meta }
       );
 
-      console.log("$$$$ %%%% ".repeat(30));
-
-      console.log();
-      console.log();
-      console.log("===== integrateNpmrdsExportDownloadIntoDataManager =====");
-      console.log(JSON.stringify({ event, toposortedSourceInfo }, null, 4));
-      console.log();
-      console.log();
-
-      const rootEtlContextId = await this.broker.call(
-        "dama_dispatcher.queryRootContextId",
-        { etl_context_id },
-        { meta }
-      );
+      // console.log("$$$$ %%%% ".repeat(30));
+      // console.log();
+      // console.log();
+      // console.log("===== integrateNpmrdsExportDownloadIntoDataManager =====");
+      // console.log(JSON.stringify({ event, toposortedSourceInfo }, null, 4));
+      // console.log();
+      // console.log();
 
       const sql = dedent(`
         WITH cte_deps AS (
@@ -341,7 +335,6 @@ export default {
           version,
           start_date,
           end_date,
-          root_etl_context_id,
           etl_context_id,
           view_dependencies
         ) VALUES (
@@ -350,9 +343,8 @@ export default {
           $5,
           $6,
           $7,
-          $8,
           ( SELECT deps FROM cte_deps )
-        ) RETURNING source_id, view_id, root_etl_context_id, view_dependencies
+        ) RETURNING source_id, view_id, view_dependencies
         ;
       `);
 
@@ -372,7 +364,6 @@ export default {
             npmrdsDownloadName,
             startDate,
             endDate,
-            rootEtlContextId,
             etl_context_id,
           ],
         });
@@ -387,31 +378,26 @@ export default {
           rows: [row],
         } = res;
         if (row) {
-          const { source_id, view_id, root_etl_context_id, view_dependencies } =
-            row;
-          acc[source_id] = { view_id, root_etl_context_id, view_dependencies };
+          const { source_id, view_id, view_dependencies } = row;
+          acc[source_id] = { view_id, view_dependencies };
         }
         return acc;
       }, {});
 
-      const viewInfoBySourceName = toposortedSourceInfo.reduce((acc, d) => {
+      const toposortedDamaViewInfo = toposortedSourceInfo.map((d) => {
         const { name, source_id, source_dependencies } = d;
-        const { view_id, root_etl_context_id, view_dependencies } =
-          viewInfoBySourceId[d.source_id];
+        const { view_id, view_dependencies } = viewInfoBySourceId[d.source_id];
 
-        acc[name] = {
+        return {
+          name,
           source_id,
           source_dependencies,
-          root_etl_context_id,
           view_id,
           view_dependencies,
         };
-        return acc;
-      }, {});
+      });
 
-      console.log(JSON.stringify(viewInfoBySourceName, null, 4));
-
-      return viewInfoBySourceName;
+      return toposortedDamaViewInfo;
     },
 
     async transformNpmrdsExportDownload(npmrdsDownloadName: string) {
@@ -473,12 +459,12 @@ export default {
           WHERE (
             name IN (
               'NpmrdsTravelTimesExport',
-              'NpmrdsAllVehicleTravelTimesCsv',
-              'NpmrdsPassVehicleTravelTimesCsv',
-              'NpmrdsFreightTruckTravelTimesCsv',
+              'NpmrdsAllVehTravelTimesExport',
+              'NpmrdsPassVehTravelTimesExport',
+              'NpmrdsFrgtTrkTravelTimesExport',
               'NpmrdsTmcIdentificationCsv',
-              'NpmrdsTravelTimesSqlite',
-              'NpmrdsTravelTimesCsv'
+              'NpmrdsTravelTimesCsv',
+              'NpmrdsTravelTimesExportSqlite'
             )
           )
       `);
