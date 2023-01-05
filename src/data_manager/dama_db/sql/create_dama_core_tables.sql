@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS data_manager.database_id
       ) AS t
 ;
 
+-- https://til.cybertec-postgresql.com/post/2019-09-02-Postgres-Constraint-Naming-Convention/
 CREATE TABLE IF NOT EXISTS data_manager.sources (
   source_id             SERIAL PRIMARY KEY,
+  -- The next line creates the "sources_name_key" UNIQUE CONSTRAINT using the naming conventions.
   name                  TEXT NOT NULL CHECK (char_length(name) <= 32) UNIQUE,
   update_interval       TEXT,
   category              TEXT[],
@@ -25,11 +27,21 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
   type                  TEXT,
   display_name          TEXT,
 
+  source_dependencies   INTEGER[],
+
   user_id               INTEGER,
 
   _created_timestamp    TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp   TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
+
+-- START data_manager.sources Migrations
+
+ALTER TABLE data_manager.sources
+  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[]
+;
+
+-- END data_manager.sources Migrations
 
 CREATE TABLE IF NOT EXISTS data_manager.views (
   view_id                 SERIAL PRIMARY KEY,
@@ -58,9 +70,21 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   root_etl_context_id     INTEGER,
   etl_context_id          INTEGER,
 
+  view_dependencies       INTEGER[],
+
   _created_timestamp      TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp     TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
+
+-- START data_manager.views Migrations
+
+ALTER TABLE data_manager.views
+  ADD COLUMN IF NOT EXISTS view_dependencies INTEGER[]
+;
+
+-- END data_manager.views Migrations
+
+
 
 
 /*

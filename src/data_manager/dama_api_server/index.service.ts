@@ -115,6 +115,9 @@ export default class ApiService extends Service {
               // res.end();
               // },
 
+              // NOTE: Requires an etlContextId query parameter: ?etlContextId=n
+              "/getEtlProcessFinalEvent": "dama_db.queryEtlContextFinalEvent",
+
               async "GET table-json-schema"(
                 req: IncomingRequest,
                 res: GatewayResponse
@@ -309,14 +312,14 @@ export default class ApiService extends Service {
               "/staged-geospatial-dataset/pbSWDLoader":
                 "dama/data_source_integrator.pbSWDLoader",
 
-              "/data-sources/npmrds/travel-times-export/downloader/getNpmrdsDataDateExtent":
-                "dama/data_sources/npmrds/travel_times_export/downloader.getNpmrdsDataDateExtent",
+              "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
+                "dama/data_sources/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
 
-              "/data-sources/npmrds/travel-times-export/downloader/queueNpmrdsExportRequest":
-                "dama/data_sources/npmrds/travel_times_export/downloader.queueNpmrdsExportRequest",
+              "/data-sources/npmrds/travel-times-export/etl/queueNpmrdsExportRequest":
+                "dama/data_sources/npmrds/travel_times_export/etl.queueNpmrdsExportRequest",
 
-              "/data-sources/npmrds/travel-times-export/downloader/getOpenRequestsStatuses":
-                "dama/data_sources/npmrds/travel_times_export/downloader.getOpenRequestsStatuses",
+              "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
+                "dama/data_sources/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
             },
           },
 

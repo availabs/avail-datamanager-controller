@@ -472,7 +472,7 @@ export default {
       },
     },
 
-    // ASSUMES the following CONVENTIONs:
+    // ASSUMES the following CONVENTION/INVARIANTs:
     //    1. Event type prefixed by serviceName. E.G:  `${serviceName}/foo/bar:BAZ`
     //    2. All ETL processes for the service end with a ":FINAL" or ":ERROR" event
     //    3. All status update types end with "UPDATE"
@@ -526,6 +526,61 @@ export default {
 
       // @ts-ignore
       const { rows } = await ctx.call("dama_db.query", q);
+
+      return rows;
+    },
+
+    // ASSUMES the following CONVENTION/INVARIANT:
+    //    1. All ETL processes for the service end with a single ":FINAL" or ":ERROR" event
+    async queryEtlContextFinalEvent(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { etlContextId },
+      } = ctx;
+
+      const q = dedent(
+        `
+          SELECT
+              *
+            FROM _data_manager_admin.dama_event_store
+            WHERE (
+              ( etl_context_id = $1 )
+              AND
+              (
+                ( right(type, 6) = ':FINAL' )
+                OR
+                ( right(type, 6) = ':ERROR' )
+              )
+            )
+        `
+      );
+
+      // @ts-ignore
+      const { rows } = await ctx.call("dama_db.query", {
+        text: q,
+        values: [etlContextId],
+      });
+
+      if (rows.length > 1) {
+        throw new Error(
+          "INVARIANT VIOLATION: There MUST be a single :FINAL or :ERROR event for an EtlContext."
+        );
+      }
+
+      return rows[0];
+    },
+
+    async executeSqlFile(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { sqlFilePath },
+      } = ctx;
+
+      const sql = await readFileAsync(sqlFilePath, { encoding: "utf8" });
+
+      // @ts-ignore
+      const { rows } = await ctx.call("dama_db.query", sql);
+      console.log("### ".repeat(30));
 
       return rows;
     },
