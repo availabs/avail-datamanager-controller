@@ -1,7 +1,12 @@
 import { Readable } from "stream";
+import { join } from "path";
 
 import { Context, Service, ServiceBroker } from "moleculer";
 import ApiGateway from "moleculer-web";
+
+// Express middlewares
+import compression from "compression";
+import serveStatic from "serve-static";
 
 import _ from "lodash";
 
@@ -30,6 +35,11 @@ export default class ApiService extends Service {
         port: process.env.PORT,
 
         routes: [
+          // Serve the files in data/
+          {
+            path: "/data/",
+            use: [compression(), serveStatic(join(__dirname, "../../../data"))],
+          },
           {
             path: "/dama-info/",
 

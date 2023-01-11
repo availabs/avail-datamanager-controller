@@ -21,6 +21,7 @@ import {
   NodePgQueryConfig,
   NodePgQueryResult,
   getConnectedNodePgPool,
+  getPsqlCredentials,
 } from "./postgres/PostgreSQL";
 
 export type ServiceContext = Context & {
@@ -170,6 +171,17 @@ export default {
   },
 
   actions: {
+    getPostgresEnvironmentVariables: {
+      visibility: "protected",
+
+      async handler(ctx: Context) {
+        const pgEnv = getPgEnvFromCtx(ctx);
+        const env = getPsqlCredentials(pgEnv);
+
+        return env;
+      },
+    },
+
     getDb: {
       visibility: "protected", // can be called only from local services
 

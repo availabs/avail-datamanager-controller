@@ -27,7 +27,35 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
   type                  TEXT,
   display_name          TEXT,
 
-  source_dependencies   INTEGER[],
+  --  DamaSourceDependencies are represented as a two-dimensional array to allow UNION types.
+  --    Each INT[] within the INT[][] represents an "OR" for a set of depencencies.
+  --
+  --  For example, the NpmrdsTravelTimesDb DamaSource is a tree.
+  --    For internal nodes in the tree, the source_dependencies would be other NpmrdsTravelTimesDbs.
+  --    For leaf nodes, the source_dependencies is an NpmrdsTravelTimesCsv.
+  --    The NpmrdsTravelTimesDb DamaSourceDependencies would thus be [[db_src_id], [csv_src_id]]
+  --
+  --  NOTE: Postgres does not enforce array dimensions.
+  --        See https://www.postgresql.org/docs/current/arrays.html#ARRAYS-DECLARATION
+  --
+  --          The current implementation does not enforce the declared number
+  --          of dimensions either. Arrays of a particular element type are all
+  --          considered to be of the same type, regardless of size or number
+  --          of dimensions. So, declaring the array size or number of
+  --          dimensions in CREATE TABLE is simply documentation; it does not
+  --          affect run-time behavior.
+  --
+  --  CONSIDER:
+  --
+  --        1. Do we want to enforce 2 dimensions or allow 1-2 dimensions?
+  --           We could add a CHECK constraint to enforce 2-D arrays.
+  --           We could alternatively use _.flattenDeep in the code where we don't care.
+  --
+  --        2. How would allowing an OR on dependencies affect toposorting dependencies
+  --           and consequently automation?
+
+
+  source_dependencies   INTEGER[][],
 
   user_id               INTEGER,
 
@@ -38,7 +66,7 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
 -- START data_manager.sources Migrations
 
 ALTER TABLE data_manager.sources
-  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[]
+  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[][]
 ;
 
 -- END data_manager.sources Migrations
@@ -49,9 +77,12 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   source_id               INTEGER NOT NULL REFERENCES data_manager.sources (source_id),
 
   data_type               TEXT,
+
   interval_version        TEXT, -- could be year, or year-month
   geography_version       TEXT, -- mostly 2 digit state codes, sometimes null
+
   version                 TEXT, -- default 1
+
   source_url              TEXT, -- external source url
   publisher               TEXT,
   table_schema            TEXT,
@@ -59,9 +90,12 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   data_table              TEXT,
   download_url            TEXT, -- url for client download
   tiles_url               TEXT, -- tiles
+
   start_date              DATE,
   end_date                DATE,
+
   last_updated            TIMESTAMP,
+
   statistics              JSONB,
   metadata                JSONB,
 
@@ -71,6 +105,9 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   etl_context_id          INTEGER,
 
   view_dependencies       INTEGER[],
+
+  active_start_timestamp  TIMESTAMP,
+  active_end_timestamp    TIMESTAMP,
 
   _created_timestamp      TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp     TIMESTAMP NOT NULL DEFAULT NOW()

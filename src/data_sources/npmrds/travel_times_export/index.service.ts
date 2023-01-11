@@ -1,7 +1,8 @@
 import { ChildProcess, fork } from "child_process";
 import { hostname } from "os";
 import { existsSync } from "fs";
-import { join } from "path";
+import { rename as renameAsync, rm as rmAsync } from "fs/promises";
+import { join, basename } from "path";
 
 import { Graph, alg as GraphAlgorithms } from "graphlib";
 
@@ -14,6 +15,9 @@ import _ from "lodash";
 import { FSA } from "flux-standard-action";
 
 import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
+
+import controllerRootDir from "../../../constants/rootDir";
+import npmrdsTravelTimesExportDataDir from "./constants/dataDir";
 
 const npmrdsDownloadServiceMainPath = join(
   __dirname,
@@ -198,6 +202,46 @@ export default {
       }
     },
 
+    async moveTransformedDataToCanonicalDirectory(transformDoneData: any) {
+      const { npmrdsTravelTimesExport: oldNpmrdsTravelTimesExport } =
+        transformDoneData;
+
+      const npmrdsTravelTimesExportBase = basename(oldNpmrdsTravelTimesExport);
+
+      const newNpmrdsTravelTimesExport = join(
+        npmrdsTravelTimesExportDataDir,
+        npmrdsTravelTimesExportBase
+      );
+
+      if (existsSync(newNpmrdsTravelTimesExport)) {
+        if (process.env?.NODE_ENV?.toLowerCase() === "development") {
+          console.warn(
+            "\nBecause NODE_ENV === development, removing existing NpmrdsTravelTimesExport directory.\n"
+          );
+          await rmAsync(newNpmrdsTravelTimesExport, {
+            recursive: true,
+            force: true,
+          });
+        } else {
+          throw Error(
+            `NpmrdsTravelTimesExport directory already exists: ${newNpmrdsTravelTimesExport}`
+          );
+        }
+      }
+
+      await renameAsync(oldNpmrdsTravelTimesExport, newNpmrdsTravelTimesExport);
+
+      const exportRootRelativePath = newNpmrdsTravelTimesExport
+        .replace(controllerRootDir, "")
+        .replace(/^\//, "");
+
+      const finalDoneData = _.mapValues(transformDoneData, (v) =>
+        v.replace(oldNpmrdsTravelTimesExport, exportRootRelativePath)
+      );
+
+      return finalDoneData;
+    },
+
     async handleNpmrdsTravelTimesExportDownloaded(event: FSA) {
       // @ts-ignore
       const { payload, meta: { pgEnv, etl_context_id } = {} } = event;
@@ -239,13 +283,25 @@ export default {
         npmrdsDownloadName
       );
 
-      // TODO: FINAL events must trigger data_manager.views updates.
+      const finalDoneData = await this.moveTransformedDataToCanonicalDirectory(
+        transformDoneData
+      );
+
+      console.log(JSON.stringify({ transformDoneData }, null, 4));
+
+      // TODO:
+      //        1. Move the npmrdsTravelTimesExport dir to the DamaCntlrDataDir
+      //        2. Alter all the paths
+      //          1. basename of the npmrdsExportsDir
+      //          2. move to NpmrdsTravelTimesExport's damaCntrlrDataDir
+      //          3. all other paths, simple string replace old npmrdsExportsDir with new npmrdsExportsDir
+
       const transformDoneEvent = {
         type: `${serviceName}:STATUS_UPDATE`,
         payload: {
           status: "TRANSFORM_DONE",
           ...(event.payload || {}),
-          transformDoneData,
+          doneData: finalDoneData,
         },
         meta: event.meta,
       };
@@ -282,15 +338,8 @@ export default {
       const {
         // @ts-ignore
         npmrdsDownloadName,
-        transformDoneData: {
-          npmrdsTravelTimesExport,
-          npmrdsAllVehicleTravelTimesCsv,
-          npmrdsPassVehicleTravelTimesCsv,
-          npmrdsFreightTruckTravelTimesCsv,
-          npmrdsTmcIdentificationCsv,
-          npmrdsTravelTimesSqlite,
-          npmrdsTravelTimesCsv,
-        },
+        // @ts-ignore
+        doneData: dataSourceFilePaths,
       } = payload;
 
       // @ts-ignore
@@ -335,6 +384,7 @@ export default {
           start_date,
           end_date,
           etl_context_id,
+          metadata,
           view_dependencies
         ) VALUES (
           $3,
@@ -342,6 +392,7 @@ export default {
           $5,
           $6,
           $7,
+          $8,
           ( SELECT deps FROM cte_deps )
         ) RETURNING source_id, view_id, view_dependencies
         ;
@@ -351,7 +402,21 @@ export default {
 
       const stmts: any[] = ["BEGIN;"];
 
-      for (const { source_id, source_dependencies } of toposortedSourceInfo) {
+      for (const {
+        name,
+        source_id,
+        source_dependencies,
+      } of toposortedSourceInfo) {
+        const k = name.charAt(0).toLowerCase() + name.slice(1);
+        const data_file_path =
+          name === "NpmrdsTravelTimesExport" ? null : dataSourceFilePaths[k];
+
+        const metadata = {
+          data_source_name: name,
+          dama_controller_host: this.dama_controller_host,
+          data_file_path,
+        };
+
         stmts.push({
           text: sql,
           values: [
@@ -364,6 +429,7 @@ export default {
             startDate,
             endDate,
             etl_context_id,
+            metadata,
           ],
         });
       }
@@ -371,6 +437,8 @@ export default {
       stmts.push("COMMIT");
 
       const result = await this.broker.call("dama_db.query", stmts, { meta });
+
+      // console.log(JSON.stringify(result, null, 4));
 
       const viewInfoBySourceId = result.reduce((acc, res) => {
         const {
@@ -488,9 +556,22 @@ export default {
         multigraph: false,
         compound: false,
       });
+
       for (const { source_id, source_dependencies } of rows) {
-        for (const id of source_dependencies || []) {
+        if (source_dependencies === null) {
+          continue;
+        }
+
+        if (!source_dependencies.every((depsArr) => Array.isArray(depsArr))) {
+          console.warn(
+            "WARNING: The source_dependencies MUST be a two-dimensional INTEGER ARRAY."
+          );
+        }
+
+        for (const id of _.flattenDeep(source_dependencies) || []) {
+          // if (+id !== +source_id) {
           g.setEdge(`${id}`, `${source_id}`);
+          // }
         }
       }
 
@@ -499,6 +580,14 @@ export default {
       const toposortedSourceInfo = toposortedSourceIds.map(
         (id) => sourcesById[id]
       );
+
+      console.log();
+      console.log();
+      console.log("=== initializeNpmrdsExportDamaSources ===");
+      console.log(JSON.stringify({ toposortedSourceInfo }, null, 4));
+      console.log();
+      console.log();
+      console.log();
 
       return toposortedSourceInfo;
     },
