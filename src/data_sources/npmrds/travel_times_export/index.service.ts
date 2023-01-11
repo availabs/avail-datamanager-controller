@@ -16,6 +16,7 @@ import { FSA } from "flux-standard-action";
 
 import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
+import damaHost from "../../../constants/damaHost";
 import controllerRootDir from "../../../constants/rootDir";
 import npmrdsTravelTimesExportDataDir from "./constants/dataDir";
 
@@ -412,9 +413,10 @@ export default {
           name === "NpmrdsTravelTimesExport" ? null : dataSourceFilePaths[k];
 
         const metadata = {
-          data_source_name: name,
-          dama_controller_host: this.dama_controller_host,
-          data_file_path,
+          data_file: {
+            host: damaHost,
+            path: data_file_path,
+          },
         };
 
         stmts.push({
@@ -609,7 +611,7 @@ export default {
       } = ctx;
 
       const etl_context_id = await ctx.call("dama_dispatcher.spawnDamaContext");
-      const { dama_controller_host } = this;
+      const dama_controller_host = damaHost;
 
       const initialEvent = {
         type: `${serviceName}:INITIAL`,
@@ -760,10 +762,6 @@ export default {
       console.log(JSON.stringify({ openRequestStatuses }, null, 4));
       return openRequestStatuses;
     },
-  },
-
-  async created() {
-    this.dama_controller_host = hostname();
   },
 
   async stopped() {
