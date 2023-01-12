@@ -11,6 +11,8 @@ import serveStatic from "serve-static";
 import _ from "lodash";
 
 import pgEnvs from "../../var/pgEnvs";
+import dataDir from "../../constants/dataDir";
+
 // import enhanceNCEI from "../dama_integration/actions/ncei_storm_events/postUploadProcessData";
 // import openFemaDataLoader from "../dama_integration/actions/openFemaData/openFemaDataLoader";
 
@@ -37,8 +39,8 @@ export default class ApiService extends Service {
         routes: [
           // Serve the files in data/
           {
-            path: "/data/",
-            use: [compression(), serveStatic(join(__dirname, "../../../data"))],
+            path: "/files/",
+            use: [compression(), serveStatic(dataDir)],
           },
           {
             path: "/dama-info/",

@@ -27,7 +27,9 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
   type                  TEXT,
   display_name          TEXT,
 
-  --  DamaSourceDependencies are represented as a two-dimensional array to allow UNION types.
+  --  source_dependencies are represented as a one-dimensional array.
+  --  However, Postgres will allow a two-dimensional array to be inserted into this column.
+  --    Two-dimensional source_dependencies allow UNION types.
   --    Each INT[] within the INT[][] represents an "OR" for a set of depencencies.
   --
   --  For example, the NpmrdsTravelTimesDb DamaSource is a tree.
@@ -55,7 +57,7 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
   --           and consequently automation?
 
 
-  source_dependencies   INTEGER[][],
+  source_dependencies   INTEGER[],
 
   user_id               INTEGER,
 
@@ -66,7 +68,7 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
 -- START data_manager.sources Migrations
 
 ALTER TABLE data_manager.sources
-  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[][]
+  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[]
 ;
 
 -- END data_manager.sources Migrations

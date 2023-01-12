@@ -1,7 +1,9 @@
 import { mkdirSync } from "fs";
 import { join } from "path";
 
-const dir = join(__dirname, "../../data");
+const dir =
+  process.env.DAMA_SERVER_FILESTORAGE_PATH ||
+  join(__dirname, "../../../dama-files/");
 
 mkdirSync(dir, { recursive: true });
 

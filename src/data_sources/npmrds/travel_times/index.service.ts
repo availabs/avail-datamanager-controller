@@ -10,20 +10,12 @@ import damaHost from "../../../constants/damaHost";
 
 import loadNpmrdsTravelTimesTable from "./tasks/loadNpmrdsTravelTimesCsv/main";
 
-const initDamaSourceSqlPath = join(__dirname, "./sql/initialize.sql");
-
 export const serviceName = "dama/data_sources/npmrds/travel_times/db_loader";
 
 export default {
   name: serviceName,
 
   actions: {
-    async initializeNpmrdsTravelTimesDamaSources(ctx: Context) {
-      await ctx.call("dama_db.executeSqlFile", {
-        sqlFilePath: initDamaSourceSqlPath,
-      });
-    },
-
     loadNpmrdsTravelTimes: {
       visibility: "protected",
       async handler(ctx: Context) {

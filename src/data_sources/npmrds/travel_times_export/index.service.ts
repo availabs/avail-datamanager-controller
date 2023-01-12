@@ -1,5 +1,4 @@
 import { ChildProcess, fork } from "child_process";
-import { hostname } from "os";
 import { existsSync } from "fs";
 import { rename as renameAsync, rm as rmAsync } from "fs/promises";
 import { join, basename } from "path";
@@ -16,8 +15,13 @@ import { FSA } from "flux-standard-action";
 
 import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
+import { stateAbbr2FipsCode } from "../../../data_utils/constants/stateFipsCodes";
+
 import damaHost from "../../../constants/damaHost";
-import controllerRootDir from "../../../constants/rootDir";
+import controllerDataDir from "../../../constants/dataDir";
+
+import { NpmrdsDataSources } from "../domain";
+
 import npmrdsTravelTimesExportDataDir from "./constants/dataDir";
 
 const npmrdsDownloadServiceMainPath = join(
@@ -232,15 +236,34 @@ export default {
 
       await renameAsync(oldNpmrdsTravelTimesExport, newNpmrdsTravelTimesExport);
 
-      const exportRootRelativePath = newNpmrdsTravelTimesExport
-        .replace(controllerRootDir, "")
-        .replace(/^\//, "");
-
-      const finalDoneData = _.mapValues(transformDoneData, (v) =>
-        v.replace(oldNpmrdsTravelTimesExport, exportRootRelativePath)
+      const exportRootRelativePath = newNpmrdsTravelTimesExport.replace(
+        controllerDataDir,
+        ""
       );
 
-      return finalDoneData;
+      const doneData = _(transformDoneData)
+        .mapKeys((_v, k: string) => k.charAt(0).toUpperCase() + k.slice(1))
+        .mapValues((v, k) => {
+          // Can't download the directory, only files.
+          // TODO:  use fs.stat to determine if the path points to a file or directory.
+          //        SEE: https://nodejs.org/api/fs.html#fsstatpath-options-callback
+          const path =
+            k === NpmrdsDataSources.NpmrdsTravelTimesExport
+              ? null
+              : v.replace(oldNpmrdsTravelTimesExport, exportRootRelativePath);
+
+          return {
+            metadata: {
+              filelocation: {
+                host: damaHost,
+                path,
+              },
+            },
+          };
+        })
+        .value();
+
+      return doneData;
     },
 
     async handleNpmrdsTravelTimesExportDownloaded(event: FSA) {
@@ -284,7 +307,7 @@ export default {
         npmrdsDownloadName
       );
 
-      const finalDoneData = await this.moveTransformedDataToCanonicalDirectory(
+      const moveDoneData = await this.moveTransformedDataToCanonicalDirectory(
         transformDoneData
       );
 
@@ -301,30 +324,74 @@ export default {
         type: `${serviceName}:STATUS_UPDATE`,
         payload: {
           status: "TRANSFORM_DONE",
-          ...(event.payload || {}),
-          doneData: finalDoneData,
+          doneData: moveDoneData,
         },
         meta: event.meta,
       };
 
       console.log(JSON.stringify({ transformDoneEvent }, null, 4));
-
       await this.broker.call(
         "dama_dispatcher.dispatch",
         transformDoneEvent,
         opts
       );
 
+      // LOAD
+      //
+      const {
+        [NpmrdsDataSources.NpmrdsTravelTimesExportSqlite]: {
+          metadata: {
+            filelocation: { path: npmrdsTravelTimesSqliteDbPath },
+          },
+        },
+      } = moveDoneData;
+
+      const npmrdsExportSqliteDbPath = join(
+        controllerDataDir,
+        npmrdsTravelTimesSqliteDbPath
+      );
+
+      const loadDoneData = await this.broker.call(
+        "dama/data_sources/npmrds/travel_times/db_loader.loadNpmrdsTravelTimes",
+        { npmrdsExportSqliteDbPath },
+        opts
+      );
+
+      const loadDoneEvent = {
+        type: `${serviceName}:STATUS_UPDATE`,
+        payload: {
+          status: "LOAD_DONE",
+          doneData: loadDoneData,
+        },
+        meta: event.meta,
+      };
+
+      console.log(JSON.stringify({ loadDoneEvent }, null, 4));
+      await this.broker.call("dama_dispatcher.dispatch", loadDoneEvent, opts);
+
+      const doneData = {
+        ...moveDoneData,
+        [NpmrdsDataSources.NpmrdsTravelTimesExportDb]: { ...loadDoneData },
+      };
+
+      const integrateEvent = {
+        type: "INTEGRATE_INTO_VIEWS",
+        payload: {
+          npmrdsDownloadName,
+          doneData,
+        },
+        meta: event.meta,
+      };
+
       const toposortedDamaViewInfo =
-        await this.integrateNpmrdsExportDownloadIntoDataManager(
-          transformDoneEvent
-        );
+        await this.integrateNpmrdsTravelTimesEtlIntoDataManager(integrateEvent);
 
       const finalEvent = {
         type: `${serviceName}:FINAL`,
         payload: {
-          ...(event.payload || {}),
-          toposortedDamaViewInfo,
+          initialData: event.payload || null,
+          etlDoneData: doneData,
+          damaIntegrationDoneData: toposortedDamaViewInfo,
         },
         meta: event.meta,
       };
@@ -334,17 +401,23 @@ export default {
       await this.broker.call("dama_dispatcher.dispatch", finalEvent, opts);
     },
 
-    async integrateNpmrdsExportDownloadIntoDataManager(event: FSA) {
+    async integrateNpmrdsTravelTimesEtlIntoDataManager(event: FSA) {
       const { payload, meta } = event;
       const {
         // @ts-ignore
         npmrdsDownloadName,
         // @ts-ignore
-        doneData: dataSourceFilePaths,
+        doneData: etlDoneData,
       } = payload;
 
       // @ts-ignore
-      const { etl_context_id } = meta;
+      const { etl_context_id, user_id } = meta;
+
+      const rootEtlContextId = await this.broker.call(
+        "dama_dispatcher.queryRootContextId",
+        { etl_context_id },
+        { meta }
+      );
 
       const startDate = npmrdsDownloadName
         .replace(/.*_from_/, "")
@@ -354,19 +427,22 @@ export default {
         .replace(/.*_to_/, "")
         .replace(/_.*/, "");
 
-      const toposortedSourceInfo = await this.broker.call(
-        `${serviceName}.initializeNpmrdsExportDamaSources`,
-        {}, // FIXME: Why is this needed? Was getting error about trying to deref { etl_context_id }
-        { meta }
-      );
+      const {
+        state = null,
+        year = null,
+        data_start_date = null,
+        // data_end_date = null,
+        is_expanded = null,
+        is_complete_month = null,
+        download_timestamp = null,
+      } = etlDoneData[NpmrdsDataSources.NpmrdsTravelTimesExportDb]?.metadata ||
+      {};
 
-      // console.log("$$$$ %%%% ".repeat(30));
-      // console.log();
-      // console.log();
-      // console.log("===== integrateNpmrdsExportDownloadIntoDataManager =====");
-      // console.log(JSON.stringify({ event, toposortedSourceInfo }, null, 4));
-      // console.log();
-      // console.log();
+      const stateFips = is_expanded ? stateAbbr2FipsCode[state] : null;
+      const intervalVersion =
+        (is_complete_month &&
+          data_start_date?.replace(/[^0-9]/g, "").slice(0, 6)) ||
+        null;
 
       const sql = dedent(`
         WITH cte_deps AS (
@@ -374,32 +450,61 @@ export default {
               array_agg(view_id ORDER BY view_id) AS deps
             FROM data_manager.views
             WHERE (
-              ( etl_context_id = $1 )
+              ( etl_context_id = $1 )         -- $1
               AND
-              ( source_id = ANY( $2 ) )
+              ( source_id = ANY( $2 ) )       -- $2
             )
         )
-        INSERT INTO data_manager.views (
-          source_id,
-          version,
-          start_date,
-          end_date,
-          etl_context_id,
-          metadata,
-          view_dependencies
-        ) VALUES (
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          ( SELECT deps FROM cte_deps )
-        ) RETURNING source_id, view_id, view_dependencies
+          INSERT INTO data_manager.views (
+                                              -- columnValues from function variables
+            etl_context_id,                   -- $1
+            source_id,                        -- $3
+            version,                          -- $4
+            start_date,                       -- $5
+            end_date,                         -- $6
+            last_updated,                     -- $7
+            interval_version,                 -- $8
+            geography_version,                -- $9
+            user_id,                          -- $10
+            root_etl_context_id,              -- $11
+                                              -- column values from EtlDoneData
+            table_schema,                     -- $12
+            table_name,                       -- $13
+            metadata,                         -- $14
+            statistics,                       -- $15
+            view_dependencies                 -- from cte_deps
+          ) VALUES (
+            $1,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            ( SELECT deps FROM cte_deps )
+          ) RETURNING *
         ;
       `);
 
-      console.log(sql);
+      const columnValuesFromEtlDoneData = [
+        "table_schema",
+        "table_name",
+        "metadata",
+        "statistics",
+      ];
+
+      const toposortedSourceInfo = await this.broker.call(
+        `${serviceName}.initializeNpmrdsExportDamaSources`,
+        {}, // FIXME: Why is this needed? Was getting error about trying to deref { etl_context_id }
+        { meta }
+      );
 
       const stmts: any[] = ["BEGIN;"];
 
@@ -408,63 +513,67 @@ export default {
         source_id,
         source_dependencies,
       } of toposortedSourceInfo) {
-        const k = name.charAt(0).toLowerCase() + name.slice(1);
-        const data_file_path =
-          name === "NpmrdsTravelTimesExport" ? null : dataSourceFilePaths[k];
+        console.log("==>", name);
+        const damaSrcDoneData = etlDoneData[name];
 
-        const metadata = {
-          data_file: {
-            host: damaHost,
-            path: data_file_path,
-          },
-        };
+        if (!damaSrcDoneData) {
+          continue;
+        }
 
-        stmts.push({
-          text: sql,
-          values: [
-            // cte_deps
-            etl_context_id,
-            source_dependencies,
-            // insert
-            source_id,
-            npmrdsDownloadName,
-            startDate,
-            endDate,
-            etl_context_id,
-            metadata,
-          ],
+        const [_startDate, _endDate] =
+          name === NpmrdsDataSources.NpmrdsTmcIdentificationCsv
+            ? [`${year}-01-01`, `${year}-12-31`]
+            : [startDate, endDate];
+
+        const values = [
+          etl_context_id,
+          source_dependencies,
+          source_id,
+          npmrdsDownloadName,
+          _startDate,
+          _endDate,
+          download_timestamp,
+          intervalVersion, // TODO : yrmo: Null if not complete month. Check for making authoritative.
+          stateFips,
+          user_id,
+          rootEtlContextId,
+        ];
+
+        columnValuesFromEtlDoneData.forEach((col) => {
+          const v = damaSrcDoneData[col];
+
+          values.push(v === undefined ? null : v);
         });
+
+        stmts.push({ text: sql, values });
       }
 
       stmts.push("COMMIT");
 
       const result = await this.broker.call("dama_db.query", stmts, { meta });
 
-      // console.log(JSON.stringify(result, null, 4));
-
       const viewInfoBySourceId = result.reduce((acc, res) => {
         const {
           rows: [row],
         } = res;
         if (row) {
-          const { source_id, view_id, view_dependencies } = row;
-          acc[source_id] = { view_id, view_dependencies };
+          const { source_id } = row;
+          acc[source_id] = row;
         }
         return acc;
       }, {});
 
-      const toposortedDamaViewInfo = toposortedSourceInfo.map((d) => {
-        const { name, source_id, source_dependencies } = d;
-        const { view_id, view_dependencies } = viewInfoBySourceId[d.source_id];
+      const toposortedDamaViewInfo = toposortedSourceInfo
+        .map((d: any) => {
+          const viewInfo = viewInfoBySourceId[d.source_id];
 
-        return {
-          name,
-          source_id,
-          source_dependencies,
-          view_id,
-          view_dependencies,
-        };
-      });
+          if (!viewInfo) {
+            return null;
+          }
+
+          return { ...d, ...viewInfo };
+        })
+        .filter(Boolean);
 
       return toposortedDamaViewInfo;
     },
@@ -520,22 +629,25 @@ export default {
       });
 
       const sql = dedent(`
-        SELECT
-            source_id,
-            name,
-            source_dependencies
-          FROM data_manager.sources
-          WHERE (
-            name IN (
-              'NpmrdsTravelTimesExport',
-              'NpmrdsAllVehTravelTimesExport',
-              'NpmrdsPassVehTravelTimesExport',
-              'NpmrdsFrgtTrkTravelTimesExport',
-              'NpmrdsTmcIdentificationCsv',
-              'NpmrdsTravelTimesCsv',
-              'NpmrdsTravelTimesExportSqlite'
-            )
-          )
+        WITH RECURSIVE cte_deps_tree(source_id) AS (
+          SELECT
+              source_id
+            FROM data_manager.sources
+            WHERE ( name = $1 )
+          UNION    
+          SELECT
+              a.source_id
+            FROM data_manager.sources AS a
+              INNER JOIN cte_deps_tree AS b
+                ON ( b.source_id = ANY(a.source_dependencies) )
+        )
+          SELECT
+              source_id,
+              name,
+              source_dependencies
+            FROM data_manager.sources
+              INNER JOIN cte_deps_tree
+                USING (source_id)
       `);
 
       const {
@@ -546,7 +658,10 @@ export default {
           name: string;
           source_dependencies: null | string[];
         }[];
-      } = await ctx.call("dama_db.query", sql);
+      } = await ctx.call("dama_db.query", {
+        text: sql,
+        values: [NpmrdsDataSources.NpmrdsTravelTimesExport],
+      });
 
       const sourcesById = rows.reduce((acc, row) => {
         acc[row.source_id] = row;
@@ -564,16 +679,11 @@ export default {
           continue;
         }
 
-        if (!source_dependencies.every((depsArr) => Array.isArray(depsArr))) {
-          console.warn(
-            "WARNING: The source_dependencies MUST be a two-dimensional INTEGER ARRAY."
-          );
-        }
-
+        // We flatten the depencencies because NpmrdsAuthoritativeTravelTimesDb's is 2-dimensional.
         for (const id of _.flattenDeep(source_dependencies) || []) {
-          // if (+id !== +source_id) {
-          g.setEdge(`${id}`, `${source_id}`);
-          // }
+          if (+id !== +source_id) {
+            g.setEdge(`${id}`, `${source_id}`);
+          }
         }
       }
 
@@ -683,8 +793,6 @@ export default {
           serviceName,
         }
       );
-
-      console.log(JSON.stringify({ openRequestStatuses }, null, 4));
 
       //  NOTE: The sorted order of the openRequestStatuses is a best-effort representation
       //          of the state of the NpmrdsDownloadRequests Queue.
