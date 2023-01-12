@@ -794,6 +794,8 @@ export default {
         }
       );
 
+      console.log(JSON.stringify({ openRequestStatuses }, null, 4));
+
       //  NOTE: The sorted order of the openRequestStatuses is a best-effort representation
       //          of the state of the NpmrdsDownloadRequests Queue.
       //
@@ -822,6 +824,7 @@ export default {
       //
       openRequestStatuses.sort((a: any, b: any) => {
         const {
+          etl_context_id: aEtlCtxId,
           payload: {
             queuePriority: aPri = 1,
             insertedAt: aInsertedAt,
@@ -830,6 +833,7 @@ export default {
         } = a;
 
         const {
+          etl_context_id: bEtlCtxId,
           payload: {
             queuePriority: bPri = 1,
             insertedAt: bInsertedAt,
@@ -864,7 +868,16 @@ export default {
         }
 
         // sort in ascending order by inserted at timestamp
-        return aInsertedAt.localeCompare(bInsertedAt);
+        const insrtComp =
+          aInsertedAt && bInsertedAt
+            ? aInsertedAt.localeCompare(bInsertedAt)
+            : null;
+
+        if (insrtComp !== null) {
+          return insrtComp;
+        }
+
+        return aEtlCtxId - bEtlCtxId;
       });
 
       console.log(JSON.stringify({ openRequestStatuses }, null, 4));
