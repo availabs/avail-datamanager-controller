@@ -92,7 +92,7 @@ DO
               'NpmrdsFrgtTrkTravelTimesExport',
               'Raw RITIS NPMRDS freight truck travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the freight trucks travel times CSV and a TMC_Identification CSV that provides road segment metadata.',
               'npmrds_data_source_travel_times_export',
-              'Raw NPMRDS Passenger Vehicles Travel Times Export',
+              'Raw NPMRDS Freight Truck Travel Times Export',
               (SELECT deps FROM cte_deps)
             ) ON CONFLICT DO NOTHING
           ;
@@ -117,7 +117,7 @@ DO
             ) VALUES (
               'NpmrdsTmcIdentificationCsv',
               'Raw NPMRDS TMC Identification CSV included in the Raw NPMRDS All Vehicles Travel Times Export. This CSV contains metadata describing the TMC segments included in the export.',
-              'csv',
+              'npmrds_tmc_identification_csv',
               'NPMRDS TMC Identification CSV',
               (SELECT deps FROM cte_deps)
             ) ON CONFLICT DO NOTHING

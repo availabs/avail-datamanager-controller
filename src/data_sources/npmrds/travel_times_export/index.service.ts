@@ -676,6 +676,7 @@ export default {
 
       for (const { source_id, source_dependencies } of rows) {
         if (source_dependencies === null) {
+          g.setNode(`${source_id}`);
           continue;
         }
 
