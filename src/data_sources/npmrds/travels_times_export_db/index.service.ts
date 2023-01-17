@@ -8,15 +8,15 @@ import { Context } from "moleculer";
 
 import damaHost from "../../../constants/damaHost";
 
-import loadNpmrdsTravelTimesTable from "./tasks/loadNpmrdsTravelTimesCsv/main";
+import loadNpmrdsTravelTimesTable from "./tasks/loadNpmrdsTravelTimesTable/main";
 
-export const serviceName = "dama/data_sources/npmrds/travel_times/db_loader";
+export const serviceName = "dama/data_sources/npmrds/travel_times_export_db";
 
 export default {
   name: serviceName,
 
   actions: {
-    loadNpmrdsTravelTimes: {
+    load: {
       visibility: "protected",
       async handler(ctx: Context) {
         const {
@@ -58,8 +58,6 @@ export default {
         if (!unzippedExists) {
           await rmAsync(npmrds_export_sqlite_db_path);
         }
-
-        console.log(JSON.stringify({ doneData }, null, 4));
 
         return doneData;
       },

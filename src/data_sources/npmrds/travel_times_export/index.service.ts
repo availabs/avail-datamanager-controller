@@ -3,8 +3,6 @@ import { existsSync } from "fs";
 import { rename as renameAsync, rm as rmAsync } from "fs/promises";
 import { join, basename } from "path";
 
-import { Graph, alg as GraphAlgorithms } from "graphlib";
-
 import dedent from "dedent";
 
 import { Context } from "moleculer";
@@ -33,11 +31,6 @@ const npmrdsDownloadServiceMainPath = join(
 const loadDownloadedExportsIntoSqlitePath = join(
   __dirname,
   "../../../../tasks/avail-datasources-watcher/tasks/downloadedExportsIntoSqlite/run"
-);
-
-const initDamaSourceSqlPath = join(
-  __dirname,
-  "./sql/initialize_npmrds_export_dama_sources.sql"
 );
 
 export const serviceName = "dama/data_sources/npmrds/travel_times_export/etl";
@@ -352,7 +345,7 @@ export default {
       );
 
       const loadDoneData = await this.broker.call(
-        "dama/data_sources/npmrds/travel_times/db_loader.loadNpmrdsTravelTimes",
+        "dama/data_sources/npmrds/travel_times_export_db.load",
         { npmrdsExportSqliteDbPath },
         opts
       );
@@ -366,7 +359,7 @@ export default {
         meta: event.meta,
       };
 
-      console.log(JSON.stringify({ loadDoneEvent }, null, 4));
+      // console.log(JSON.stringify({ loadDoneEvent }, null, 4));
       await this.broker.call("dama_dispatcher.dispatch", loadDoneEvent, opts);
 
       const doneData = {
@@ -501,8 +494,8 @@ export default {
       ];
 
       const toposortedSourceInfo = await this.broker.call(
-        `${serviceName}.initializeNpmrdsExportDamaSources`,
-        {}, // FIXME: Why is this needed? Was getting error about trying to deref { etl_context_id }
+        "dama/data_sources/npmrds.initializeDamaSources",
+        null,
         { meta }
       );
 
@@ -623,96 +616,6 @@ export default {
   },
 
   actions: {
-    async initializeNpmrdsExportDamaSources(ctx: Context) {
-      await ctx.call("dama_db.executeSqlFile", {
-        sqlFilePath: initDamaSourceSqlPath,
-      });
-
-      const sql = dedent(`
-        WITH RECURSIVE cte_deps_tree(source_id) AS (
-          SELECT
-              source_id
-            FROM data_manager.sources
-            WHERE ( name = $1 )
-          UNION    
-          SELECT
-              a.source_id
-            FROM data_manager.sources AS a
-              INNER JOIN cte_deps_tree AS b
-                ON ( b.source_id = ANY(a.source_dependencies) )
-        )
-          SELECT
-              source_id,
-              name,
-              source_dependencies
-            FROM data_manager.sources
-              INNER JOIN cte_deps_tree
-                USING (source_id)
-      `);
-
-      const {
-        rows,
-      }: {
-        rows: {
-          source_id: number;
-          name: string;
-          source_dependencies: null | string[];
-        }[];
-      } = await ctx.call("dama_db.query", {
-        text: sql,
-        values: [NpmrdsDataSources.NpmrdsTravelTimesExport],
-      });
-
-      const sourcesById = rows.reduce((acc, row) => {
-        acc[row.source_id] = row;
-        return acc;
-      }, {});
-
-      const g = new Graph({
-        directed: true,
-        multigraph: false,
-        compound: false,
-      });
-
-      for (const { source_id, source_dependencies } of rows) {
-        if (source_dependencies === null) {
-          g.setNode(`${source_id}`);
-          continue;
-        }
-
-        // We flatten the depencencies because NpmrdsAuthoritativeTravelTimesDb's is 2-dimensional.
-        for (const id of _.flattenDeep(source_dependencies) || []) {
-          if (+id !== +source_id) {
-            g.setEdge(`${id}`, `${source_id}`);
-          }
-        }
-      }
-
-      const toposortedSourceIds = GraphAlgorithms.topsort(g);
-
-      const toposortedSourceInfo = toposortedSourceIds.map(
-        (id) => sourcesById[id]
-      );
-
-      console.log();
-      console.log();
-      console.log("=== initializeNpmrdsExportDamaSources ===");
-      console.log(JSON.stringify({ toposortedSourceInfo }, null, 4));
-      console.log();
-      console.log();
-      console.log();
-
-      return toposortedSourceInfo;
-    },
-
-    // x. get an EtlContextId and add to req etl_context
-    // x. emit to db.event_store
-    // x. submit download req
-    // x. service update listener should emit queued and send to event_store
-    // 5. after downloaded
-    //    1. publish raw RITIS schema CSVs in data_manager.views
-    //    2. transform to SQLite should kick off
-    // 6. after transformed, publish HERE schema CSV in data_manager.views
     async queueNpmrdsExportRequest(ctx: Context) {
       const {
         // @ts-ignore
