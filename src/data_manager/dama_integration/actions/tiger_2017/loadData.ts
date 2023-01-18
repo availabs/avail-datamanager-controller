@@ -136,7 +136,38 @@ const mergeTables = async (ctx, fileNames, view_id, table) => {
   });
 };
 
+const createIndices = async (ctx, view_id, table) => {
+  let query = `
+      BEGIN;
+      CREATE INDEX IF NOT EXISTS geom_idx_tl_2017_${table}_${view_id}
+      ON geo.tl_2017_${table}_${view_id} USING gist
+      (geom)
+      TABLESPACE pg_default;
 
+    COMMIT;
+    `
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
+
+const correctGeoid = async (ctx, view_id, table) => {
+  let query = `
+      BEGIN;
+
+      ALTER TABLE geo.tl_2017_${table}_${view_id}
+      ALTER COLUMN geoid TYPE text;
+
+      UPDATE geo.tl_2017_${table}_${view_id} dst
+      set geoid = lpad(geoid::text, ${table === "tract" ? 11 : 10}, '0')
+      where length(geoid::text) = ${table === "tract" ? 10 : 9};
+
+      COMMIT;
+    `
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
 
@@ -167,6 +198,10 @@ export default async function publish(ctx: Context) {
 
 
     await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table);
+
+    await createIndices(ctx, view_id, table);
+
+    await correctGeoid(ctx, view_id, table.toLowerCase());
 
     await update_view(view_id, ctx, table.toLowerCase());
 
