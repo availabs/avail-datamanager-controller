@@ -43,11 +43,11 @@ const fetchFileList = async (fileName, url, table) => {
   execSync(`rm -rf data/tl_2017_${table}/tmp_dir`);
 };
 
-const uploadFiles = (fileName, pgEnv="dama_dev_1", url, table) => {
+const uploadFiles = (fileName, pgEnv="dama_dev_1", url, table, view_id) => {
   console.log("uploading...", url + fileName)
 
   const pg = getPostgresConnectionString(pgEnv);
-  execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite`,
+  execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${["state", "county"].includes(table.toLowerCase()) ? `-nln geo.tl_2017_${table}_${view_id}` : ``}`,
     {cwd: `./data/tl_2017_${table}/`}
   ) // -nln tl_2017_${table}
 
@@ -193,11 +193,13 @@ export default async function publish(ctx: Context) {
 
     await files.reduce(async (acc, curr) => {
               await acc;
-              return fetchFileList(curr, url, table).then(() => uploadFiles(curr, pgEnv, url, table));
+              return fetchFileList(curr, url, table).then(() => uploadFiles(curr, pgEnv, url, table, view_id));
             }, Promise.resolve());
 
 
-    await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table);
+    if (files.length > 1){
+      await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table);
+    }
 
     await createIndices(ctx, view_id, table);
 

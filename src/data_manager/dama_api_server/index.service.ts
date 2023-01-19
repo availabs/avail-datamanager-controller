@@ -308,6 +308,9 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/pbSWDLoader":
                 "dama/data_source_integrator.pbSWDLoader",
+
+              "/staged-geospatial-dataset/hlrLoader":
+                "dama/data_source_integrator.hlrLoader",
             },
           },
 

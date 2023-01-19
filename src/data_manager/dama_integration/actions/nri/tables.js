@@ -29,7 +29,7 @@ const booleanColumns = [];
 
 const tables = {
     nri: (view_id) => ({
-        name: `nri_counties_november_2021_${view_id}`,
+        name: `nri_${view_id}`,
         schema: "national_risk_index",
         columns: [
             // "OID_",
