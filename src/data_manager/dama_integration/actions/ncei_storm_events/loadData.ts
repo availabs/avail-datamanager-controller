@@ -147,7 +147,7 @@ export default async function publish(ctx: Context) {
       }, Promise.resolve())
 
     // download step 2
-    const dc_op = execSync(`python ${data_cleaning_file_path}/dataCleaning.py ${table_name}`, { encoding: 'utf-8' });
+    const dc_op = execSync(`python ${data_cleaning_file_path}dataCleaning.py ${table_name}`, { encoding: 'utf-8' });
 
     console.log('dc op', dc_op);
 
