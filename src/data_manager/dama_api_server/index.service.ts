@@ -1,13 +1,20 @@
 import { Readable } from "stream";
+import { join } from "path";
 
 import { Context, Service, ServiceBroker } from "moleculer";
 import ApiGateway from "moleculer-web";
 
+// Express middlewares
+import compression from "compression";
+import serveStatic from "serve-static";
+
 import _ from "lodash";
 
 import pgEnvs from "../../var/pgEnvs";
-import enhanceNCEI from "../dama_integration/actions/ncei_storm_events/postUploadProcessData";
-import openFemaDataLoader from "../dama_integration/actions/openFemaData/openFemaDataLoader";
+import dataDir from "../../constants/dataDir";
+
+// import enhanceNCEI from "../dama_integration/actions/ncei_storm_events/postUploadProcessData";
+// import openFemaDataLoader from "../dama_integration/actions/openFemaData/openFemaDataLoader";
 
 // https://github.com/moleculerjs/moleculer-web/blob/master/index.d.ts
 type IncomingRequest = typeof ApiGateway.IncomingRequest;
@@ -30,6 +37,11 @@ export default class ApiService extends Service {
         port: process.env.PORT,
 
         routes: [
+          // Serve the files in data/
+          {
+            path: "/files/",
+            use: [compression(), serveStatic(dataDir)],
+          },
           {
             path: "/dama-info/",
 
@@ -114,6 +126,9 @@ export default class ApiService extends Service {
               // ) {
               // res.end();
               // },
+
+              // NOTE: Requires an etlContextId query parameter: ?etlContextId=n
+              "/getEtlProcessFinalEvent": "dama_db.queryEtlContextFinalEvent",
 
               async "GET table-json-schema"(
                 req: IncomingRequest,
@@ -309,12 +324,22 @@ export default class ApiService extends Service {
               "/staged-geospatial-dataset/pbSWDLoader":
                 "dama/data_source_integrator.pbSWDLoader",
 
+              "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
+                "dama/data_sources/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
+
+              "/data-sources/npmrds/travel-times-export/etl/queueNpmrdsExportRequest":
+                "dama/data_sources/npmrds/travel_times_export/etl.queueNpmrdsExportRequest",
+
+              "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
+                "dama/data_sources/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
+
               "/staged-geospatial-dataset/hlrLoader":
                 "dama/data_source_integrator.hlrLoader",
             },
           },
 
           {
+            // Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
             callingOptions: {
               timeout: 0,
             },
@@ -374,9 +399,6 @@ export default class ApiService extends Service {
 					return doSomething(ctx, res, data);
 				},
 					 */
-
-            // Calling options. More info: https://moleculer.services/docs/0.14/moleculer-web.html#Calling-options
-            callingOptions: {},
 
             bodyParsers: {
               json: {

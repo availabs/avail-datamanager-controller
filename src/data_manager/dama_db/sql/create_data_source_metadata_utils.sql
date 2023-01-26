@@ -360,6 +360,8 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_int_ids
       ) AS t
 ;
 
+DROP VIEW IF EXISTS _data_manager_admin.dama_sources_comprehensive CASCADE;
+
 CREATE OR REPLACE VIEW _data_manager_admin.dama_sources_comprehensive
   AS
     SELECT
@@ -369,6 +371,8 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_sources_comprehensive
       FROM data_manager.sources
         NATURAL LEFT JOIN _data_manager_admin.dama_source_distinct_view_table_schemas
 ;
+
+DROP VIEW IF EXISTS _data_manager_admin.dama_views_comprehensive CASCADE;
 
 CREATE OR REPLACE VIEW _data_manager_admin.dama_views_comprehensive
   AS

@@ -1,3 +1,5 @@
+/* eslint-disable max-len */
+
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -23,6 +25,7 @@ export type NodePgQueryConfig = QueryConfig;
 export type NodePgQueryResult = QueryResult;
 export type PgEnv = string;
 
+// FIXME: Rename to PostgreEnvVariables
 export type PsqlConfig = {
   PGHOST?: string;
   PGHOSTADDR?: string;
@@ -136,7 +139,7 @@ export const postgresEnvVariables = {
     "sets the directory containing the locale files for message localization",
 };
 
-export const getPsqlCredentials = (pgEnv: PgEnv) => {
+export const getPsqlCredentials = (pgEnv: PgEnv): PsqlConfig => {
   const configPath = getPostgresConfigurationFilePath(pgEnv);
   const configContents = readFileSync(configPath);
 
@@ -145,6 +148,12 @@ export const getPsqlCredentials = (pgEnv: PgEnv) => {
   return _.pick(envVars, Object.keys(postgresEnvVariables));
 };
 
+export function postgresEnvVariablesToNodePgCreds(pgCreds: PsqlConfig) {
+  const nodePgCreds = _.mapKeys(pgCreds, (_v, k) => _.lowerCase(k).slice(2));
+
+  return nodePgCreds;
+}
+
 export const getNodePgCredentials = (pgEnv: PgEnv) => {
   const pgCreds = getPsqlCredentials(pgEnv);
 
@@ -152,9 +161,7 @@ export const getNodePgCredentials = (pgEnv: PgEnv) => {
     JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
   );
 
-  const nodePgCreds = _.mapKeys(pgCreds, (_v, k) => _.lowerCase(k).slice(2));
-
-  return nodePgCreds;
+  return postgresEnvVariablesToNodePgCreds(pgCreds);
 };
 
 export const getPostgresConnectionString = (pgEnv: PgEnv) => {

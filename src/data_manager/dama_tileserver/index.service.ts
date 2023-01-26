@@ -18,7 +18,6 @@ import mbtilesDir from "../../constants/mbtilesDir";
 import serviceName from "./constants/serviceName";
 
 type LocalVariables = {
-  // Promise because below we only want to getDb once and this.__local__.db is our "once" check.
   tileserverProcess: ChildProcess | null;
   tileserverConfig: {
     config: string;

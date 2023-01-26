@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS data_manager.database_id
       ) AS t
 ;
 
+-- https://til.cybertec-postgresql.com/post/2019-09-02-Postgres-Constraint-Naming-Convention/
 CREATE TABLE IF NOT EXISTS data_manager.sources (
   source_id             SERIAL PRIMARY KEY,
+  -- The next line creates the "sources_name_key" UNIQUE CONSTRAINT using the naming conventions.
   name                  TEXT NOT NULL CHECK (char_length(name) <= 32) UNIQUE,
   update_interval       TEXT,
   category              TEXT[],
@@ -25,11 +27,51 @@ CREATE TABLE IF NOT EXISTS data_manager.sources (
   type                  TEXT,
   display_name          TEXT,
 
+  --  source_dependencies are represented as a one-dimensional array.
+  --  However, Postgres will allow a two-dimensional array to be inserted into this column.
+  --    Two-dimensional source_dependencies allow UNION types.
+  --    Each INT[] within the INT[][] represents an "OR" for a set of depencencies.
+  --
+  --  For example, the NpmrdsTravelTimesDb DamaSource is a tree.
+  --    For internal nodes in the tree, the source_dependencies would be other NpmrdsTravelTimesDbs.
+  --    For leaf nodes, the source_dependencies is an NpmrdsTravelTimesCsv.
+  --    The NpmrdsTravelTimesDb DamaSourceDependencies would thus be [[db_src_id], [csv_src_id]]
+  --
+  --  NOTE: Postgres does not enforce array dimensions.
+  --        See https://www.postgresql.org/docs/current/arrays.html#ARRAYS-DECLARATION
+  --
+  --          The current implementation does not enforce the declared number
+  --          of dimensions either. Arrays of a particular element type are all
+  --          considered to be of the same type, regardless of size or number
+  --          of dimensions. So, declaring the array size or number of
+  --          dimensions in CREATE TABLE is simply documentation; it does not
+  --          affect run-time behavior.
+  --
+  --  CONSIDER:
+  --
+  --        1. Do we want to enforce 2 dimensions or allow 1-2 dimensions?
+  --           We could add a CHECK constraint to enforce 2-D arrays.
+  --           We could alternatively use _.flattenDeep in the code where we don't care.
+  --
+  --        2. How would allowing an OR on dependencies affect toposorting dependencies
+  --           and consequently automation?
+
+
+  source_dependencies   INTEGER[],
+
   user_id               INTEGER,
 
   _created_timestamp    TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp   TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
+
+-- START data_manager.sources Migrations
+
+ALTER TABLE data_manager.sources
+  ADD COLUMN IF NOT EXISTS source_dependencies INTEGER[]
+;
+
+-- END data_manager.sources Migrations
 
 CREATE TABLE IF NOT EXISTS data_manager.views (
   view_id                 SERIAL PRIMARY KEY,
@@ -37,9 +79,12 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   source_id               INTEGER NOT NULL REFERENCES data_manager.sources (source_id),
 
   data_type               TEXT,
+
   interval_version        TEXT, -- could be year, or year-month
   geography_version       TEXT, -- mostly 2 digit state codes, sometimes null
+
   version                 TEXT, -- default 1
+
   source_url              TEXT, -- external source url
   publisher               TEXT,
   table_schema            TEXT,
@@ -47,9 +92,12 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   data_table              TEXT,
   download_url            TEXT, -- url for client download
   tiles_url               TEXT, -- tiles
+
   start_date              DATE,
   end_date                DATE,
+
   last_updated            TIMESTAMP,
+
   statistics              JSONB,
   metadata                JSONB,
 
@@ -58,9 +106,56 @@ CREATE TABLE IF NOT EXISTS data_manager.views (
   root_etl_context_id     INTEGER,
   etl_context_id          INTEGER,
 
+  view_dependencies       INTEGER[],
+
+  active_start_timestamp  TIMESTAMP,
+  active_end_timestamp    TIMESTAMP,
+
   _created_timestamp      TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp     TIMESTAMP NOT NULL DEFAULT NOW()
 ) ;
+
+-- START data_manager.views Migrations
+
+ALTER TABLE data_manager.views
+  ADD COLUMN IF NOT EXISTS view_dependencies INTEGER[]
+;
+
+-- END data_manager.views Migrations
+
+
+
+
+/*
+-- NOTE: Have not tested this yet.
+CREATE OR REPLACE FUNCTION data_manager.table_single_row_enforcer_trigger_fn()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  AS
+  $$
+    DECLARE
+      table_is_empty  BOOLEAN ;
+
+    BEGIN
+
+      EXECUTE FORMAT ('
+          SELECT
+              COUNT(1)
+              FROM %I.%I
+        ',
+        TG_TABLE_SCHEMA,
+        TG_TABLE_NAME
+      ) INTO table_is_empty ;
+
+      IF NOT table_is_empty
+        THEN
+          RAISE EXCEPTION 'Table %.% MUST contain ONLY single row.', TG_TABLE_SCHEMA, TG_TABLE_NAME ;
+      END IF ;
+
+    END ;
+  $$
+;
+*/
 
 CREATE OR REPLACE FUNCTION data_manager.dama_update_modified_timestamp_fn()
   RETURNS TRIGGER
