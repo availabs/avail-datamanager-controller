@@ -332,6 +332,9 @@ export default class ApiService extends Service {
 
               "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
                 "dama/data_sources/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
+
+              "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
+                "dama/data_sources/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
             },
           },
 

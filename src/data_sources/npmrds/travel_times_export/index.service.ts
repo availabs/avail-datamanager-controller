@@ -412,30 +412,18 @@ export default {
         { meta }
       );
 
-      const startDate = npmrdsDownloadName
-        .replace(/.*_from_/, "")
-        .replace(/_to.*/, "");
+      const [, state, , startDate, , endDate, ts] =
+        npmrdsDownloadName.split(/_/);
 
-      const endDate = npmrdsDownloadName
-        .replace(/.*_to_/, "")
-        .replace(/_.*/, "");
+      const year = startDate.slice(0, 4);
+      const download_timestamp = ts.slice(1);
 
-      const {
-        state = null,
-        year = null,
-        data_start_date = null,
-        // data_end_date = null,
-        is_expanded = null,
-        is_complete_month = null,
-        download_timestamp = null,
-      } = etlDoneData[NpmrdsDataSources.NpmrdsTravelTimesExportDb]?.metadata ||
-      {};
+      const stateFips = stateAbbr2FipsCode[state];
 
-      const stateFips = is_expanded ? stateAbbr2FipsCode[state] : null;
-      const intervalVersion =
-        (is_complete_month &&
-          data_start_date?.replace(/[^0-9]/g, "").slice(0, 6)) ||
-        null;
+      const startDateNumeric = startDate.replace(/[^0-9]/g, "");
+      const endDateNumeric = endDate.replace(/[^0-9]/g, "");
+
+      const intervalVersion = `${startDateNumeric}-${endDateNumeric}`;
 
       const sql = dedent(`
         WITH cte_deps AS (

@@ -15,6 +15,11 @@ export enum NpmrdsDataSources {
   NpmrdsAuthoritativeTravelTimesDb = "NpmrdsAuthoritativeTravelTimesDb",
 }
 
+export enum NpmrdsDatabaseSchemas {
+  NpmrdsTravelTimesExportDb = "npmrds_travel_times_exports",
+  NpmrdsAuthoritativeTravelTimesDb = "npmrds_authoritative_travel_times_partitions",
+}
+
 // NOTE:  These the DataSourceMeta property values could become stale
 //          if they are later updated.
 //        Therefore, these values are for initialization.
