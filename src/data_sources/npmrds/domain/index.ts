@@ -8,16 +8,23 @@ export enum NpmrdsDataSources {
   NpmrdsAllVehTravelTimesExport = "NpmrdsAllVehTravelTimesExport",
   NpmrdsPassVehTravelTimesExport = "NpmrdsPassVehTravelTimesExport",
   NpmrdsFrgtTrkTravelTimesExport = "NpmrdsFrgtTrkTravelTimesExport",
-  NpmrdsTmcIdentificationCsv = "NpmrdsTmcIdentificationCsv",
-  NpmrdsTravelTimesCsv = "NpmrdsTravelTimesCsv",
+
   NpmrdsTravelTimesExportSqlite = "NpmrdsTravelTimesExportSqlite",
+
+  NpmrdsTravelTimesCsv = "NpmrdsTravelTimesCsv",
   NpmrdsTravelTimesExportDb = "NpmrdsTravelTimesExportDb",
   NpmrdsAuthoritativeTravelTimesDb = "NpmrdsAuthoritativeTravelTimesDb",
+
+  NpmrdsTmcIdentificationCsv = "NpmrdsTmcIdentificationCsv",
+  NpmrdsTmcIdentificationImp = "NpmrdsTmcIdentificationImp",
+  NpmrdsTmcIdentificationAds = "NpmrdsTmcIdentificationAds",
 }
 
 export enum NpmrdsDatabaseSchemas {
   NpmrdsTravelTimesExportDb = "npmrds_travel_times_exports",
   NpmrdsAuthoritativeTravelTimesDb = "npmrds_authoritative_travel_times_partitions",
+
+  NpmrdsTmcIdentificationImp = "npmrds_tmc_identification_imp",
 }
 
 // NOTE:  These the DataSourceMeta property values could become stale
@@ -55,16 +62,6 @@ export const npmrdsDataSourcesInitialMetadataByName = {
     type: "npmrds_data_source_travel_times_export",
     display_name: "Raw NPMRDS Freight Truck Travel Times Export",
     source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExport],
-  },
-
-  [NpmrdsDataSources.NpmrdsTmcIdentificationCsv]: {
-    description:
-      "Raw NPMRDS TMC Identification CSV included in the Raw NPMRDS All Vehicles Travel Times Export. This CSV contains metadata describing the TMC segments included in the export.",
-    type: "npmrds_tmc_identification_csv",
-    display_name: "NPMRDS TMC Identification CSV",
-    source_dependencies_names: [
-      NpmrdsDataSources.NpmrdsAllVehTravelTimesExport,
-    ],
   },
 
   [NpmrdsDataSources.NpmrdsTravelTimesCsv]: {
@@ -107,14 +104,34 @@ export const npmrdsDataSourcesInitialMetadataByName = {
       "Database table containing the authoritative NPMRDS Travel Times. The NPMRDS Authoritative Travel Times Database Table combines many NPMRDS Travel Times Export Database Tables.",
     type: "npmrds_authoritative_travel_times_db",
     display_name: "NPMRDS Authoritative Travel Times Database Table",
-    // NOTE:  The source_dependencies_names is a 2-dimensional array for NpmrdsAuthoritativeTravelTimesDb.
-    //        This is because NpmrdsAuthoritativeTravelTimesDb data sources is a tree.
-    //          * At the leaves, the source_dependencies are NpmrdsTravelTimesCsv
-    //          * At the internal nodes, the source_dependencies are NpmrdsTravelTimesExportDb
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExportDb],
+  },
+
+  [NpmrdsDataSources.NpmrdsTmcIdentificationCsv]: {
+    description:
+      "Raw NPMRDS TMC Identification CSV included in the Raw NPMRDS All Vehicles Travel Times Export. This CSV contains metadata describing the TMC segments included in the export.",
+    type: "npmrds_tmc_identification_csv",
+    display_name: "NPMRDS TMC Identification CSV",
     source_dependencies_names: [
-      [NpmrdsDataSources.NpmrdsTravelTimesExportDb],
-      [NpmrdsDataSources.NpmrdsAuthoritativeTravelTimesDb],
+      NpmrdsDataSources.NpmrdsAllVehTravelTimesExport,
     ],
+  },
+
+  [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: {
+    description:
+      "Database table containing the imported raw NPMRDS TMC Identification CSV. This table contains metadata describing the TMC segments included in the export.",
+    type: "npmrds_tmc_identification_imp",
+    display_name: "NPMRDS TMC Identification Import Table",
+    source_dependencies_names: [
+      NpmrdsDataSources.NpmrdsTravelTimesExportSqlite,
+    ],
+  },
+
+  [NpmrdsDataSources.NpmrdsTmcIdentificationAds]: {
+    description: "NPMRDS TMC Identification Authoritative Data Source.",
+    type: "npmrds_tmc_identification_ads",
+    display_name: "NPMRDS TMC Identification Authoritative Data Source",
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTmcIdentificationImp],
   },
 };
 

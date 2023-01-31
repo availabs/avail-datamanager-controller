@@ -59,7 +59,7 @@ const getMetadataFromSqliteDb = memoize((sqliteDB: SQLiteDB) => {
   return metadata;
 });
 
-function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
+async function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
   const { table_name, state, data_start_date, data_end_date } =
     getMetadataFromSqliteDb(sqliteDB);
 
@@ -120,7 +120,7 @@ function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
     )
   );
 
-  pgDB.query(sql);
+  await pgDB.query(sql);
 
   return { table_schema: schemaName, table_name };
 }
@@ -197,7 +197,10 @@ export default async function main({
   await pgDB.query("BEGIN ;");
   console.log("begin");
 
-  const { table_schema, table_name } = createPostgesDbTable(sqliteDB, pgDB);
+  const { table_schema, table_name } = await createPostgesDbTable(
+    sqliteDB,
+    pgDB
+  );
   console.log("created table");
 
   console.log("loading table");

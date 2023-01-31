@@ -344,17 +344,30 @@ export default {
         npmrdsTravelTimesSqliteDbPath
       );
 
-      const loadDoneData = await this.broker.call(
-        "dama/data_sources/npmrds/travel_times_export_db.load",
-        { npmrdsExportSqliteDbPath },
-        opts
-      );
+      const [loadNpmrdsTravelTimesDoneData, loadTmcIdentDoneData] =
+        await Promise.all([
+          this.broker.call(
+            "dama/data_sources/npmrds/travel_times_export_db.load",
+            { npmrdsExportSqliteDbPath },
+            opts
+          ),
+          this.broker.call(
+            "dama/data_sources/npmrds/tmc_identification_imp.load",
+            { npmrdsExportSqliteDbPath },
+            opts
+          ),
+        ]);
 
       const loadDoneEvent = {
         type: `${serviceName}:STATUS_UPDATE`,
         payload: {
           status: "LOAD_DONE",
-          doneData: loadDoneData,
+          doneData: {
+            [NpmrdsDataSources.NpmrdsTravelTimesExportDb]:
+              loadNpmrdsTravelTimesDoneData,
+            [NpmrdsDataSources.NpmrdsTmcIdentificationImp]:
+              loadTmcIdentDoneData,
+          },
         },
         meta: event.meta,
       };
@@ -364,7 +377,9 @@ export default {
 
       const doneData = {
         ...moveDoneData,
-        [NpmrdsDataSources.NpmrdsTravelTimesExportDb]: { ...loadDoneData },
+        [NpmrdsDataSources.NpmrdsTravelTimesExportDb]:
+          loadNpmrdsTravelTimesDoneData,
+        [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
       };
 
       const integrateEvent = {
@@ -419,11 +434,6 @@ export default {
       const download_timestamp = ts.slice(1);
 
       const stateFips = stateAbbr2FipsCode[state];
-
-      const startDateNumeric = startDate.replace(/[^0-9]/g, "");
-      const endDateNumeric = endDate.replace(/[^0-9]/g, "");
-
-      const intervalVersion = `${startDateNumeric}-${endDateNumeric}`;
 
       const sql = dedent(`
         WITH cte_deps AS (
@@ -502,9 +512,15 @@ export default {
         }
 
         const [_startDate, _endDate] =
-          name === NpmrdsDataSources.NpmrdsTmcIdentificationCsv
+          name === NpmrdsDataSources.NpmrdsTmcIdentificationCsv ||
+          name === NpmrdsDataSources.NpmrdsTmcIdentificationImp
             ? [`${year}-01-01`, `${year}-12-31`]
             : [startDate, endDate];
+
+        const startDateNumeric = _startDate.replace(/[^0-9]/g, "");
+        const endDateNumeric = _endDate.replace(/[^0-9]/g, "");
+
+        const intervalVersion = `${startDateNumeric}-${endDateNumeric}`;
 
         const values = [
           etl_context_id,
