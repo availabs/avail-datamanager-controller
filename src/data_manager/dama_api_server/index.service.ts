@@ -244,6 +244,10 @@ export default class ApiService extends Service {
 
               createNewDamaView: "dama/metadata.createNewDamaView",
 
+              deleteDamaView: "dama/metadata.deleteDamaView",
+
+              deleteDamaSource: "dama/metadata.deleteDamaSource",
+
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
 

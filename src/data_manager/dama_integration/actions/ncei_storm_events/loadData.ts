@@ -17,6 +17,11 @@ import {getFiles} from "./utils/scrapper";
 const fetchFileList = (fileName, currTable) => {
   const url = "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
   console.log("fetching...", url + fileName)
+
+  if(!fs.existsSync("data")){
+    fs.mkdirSync("data")
+  }
+
   if(!fs.existsSync("data/" + currTable)){
     fs.mkdirSync("data/" + currTable)
   }

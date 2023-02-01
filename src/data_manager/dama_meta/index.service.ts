@@ -495,6 +495,38 @@ export default {
       },
     },
 
+    deleteDamaView: {
+      // remove a view entry. ideally should keep track of deletes with userids, and etl ids.
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const q = `DELETE FROM data_manager.views where view_id = ${ctx.params.view_id}`;
+
+        const res = await ctx.call("dama_db.query", q);
+
+        console.log('res', res);
+
+        return q;
+      },
+    },
+
+    deleteDamaSource: {
+      // remove a view entry. ideally should keep track of deletes with userids, and etl ids.
+      visibility: "published",
+
+      async handler(ctx: Context) {
+        const deleteViews = `DELETE FROM data_manager.views where source_id = ${ctx.params.source_id}`;
+        const deleteSource = `DELETE FROM data_manager.sources where source_id = ${ctx.params.source_id}`;
+
+        await ctx.call("dama_db.query", deleteViews);
+        const res = await ctx.call("dama_db.query", deleteSource);
+
+        console.log('res', res);
+
+        return res;
+      },
+    },
+
     async queueEtlCreateDamaView(ctx: Context) {
       // @ts-ignore
       const { params }: { params: object } = ctx;
