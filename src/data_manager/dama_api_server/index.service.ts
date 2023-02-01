@@ -339,6 +339,9 @@ export default class ApiService extends Service {
 
               "/staged-geospatial-dataset/hlrLoader":
                 "dama/data_source_integrator.hlrLoader",
+
+              "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
+                "dama/data_sources/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
             },
           },
 

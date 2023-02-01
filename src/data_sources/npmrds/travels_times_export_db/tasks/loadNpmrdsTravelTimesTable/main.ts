@@ -21,7 +21,9 @@ import {
 
 const pipelineAsync = promisify(pipeline);
 
-const schemaName = "npmrds_travel_times_partitions";
+import { NpmrdsDatabaseSchemas } from "../../../domain";
+
+const schemaName = NpmrdsDatabaseSchemas.NpmrdsTravelTimesExportDb;
 
 const columns = [
   "tmc",
@@ -57,7 +59,7 @@ const getMetadataFromSqliteDb = memoize((sqliteDB: SQLiteDB) => {
   return metadata;
 });
 
-function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
+async function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
   const { table_name, state, data_start_date, data_end_date } =
     getMetadataFromSqliteDb(sqliteDB);
 
@@ -77,40 +79,48 @@ function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
         CREATE SCHEMA IF NOT EXISTS %I ;
 
         CREATE TABLE %I.%I (
-          tmc                               VARCHAR(9),
-          date                              DATE,
-          epoch                             SMALLINT,
-          travel_time_all_vehicles          REAL,
-          travel_time_passenger_vehicles    REAL,
-          travel_time_freight_trucks        REAL,
-          data_density_all_vehicles         CHAR,
-          data_density_passenger_vehicles   CHAR,
-          data_density_freight_trucks       CHAR,
-          state                             CHAR(2),
+            tmc                               VARCHAR(9),
+            date                              DATE,
+            epoch                             SMALLINT,
+            travel_time_all_vehicles          REAL,
+            travel_time_passenger_vehicles    REAL,
+            travel_time_freight_trucks        REAL,
+            data_density_all_vehicles         CHAR,
+            data_density_passenger_vehicles   CHAR,
+            data_density_freight_trucks       CHAR,
+            state                             CHAR(2) NOT NULL DEFAULT %L,
 
-          PRIMARY KEY ( tmc, date, epoch ),
+            PRIMARY KEY ( tmc, date, epoch ),
 
-          -- 
-          CONSTRAINT %I CHECK ( state = %L ),
-          CONSTRAINT %I CHECK(
-            (date >= DATE %L )
-            AND
-            (date < %L )
-          )
-        );
+            -- The following CHECK CONSTRAINTs allow the table to later be ATTACHed
+            --   to the NpmrdsAuthoritativeTravelTimesDb PARTITIONed TABLE hierarchy.
+
+            CONSTRAINT npmrds_state_chk CHECK ( state = %L ),
+            CONSTRAINT npmrds_date_chk CHECK(
+              (date >= DATE %L )
+              AND
+              (date < %L )
+            )
+          ) WITH ( fillfactor=100, autovacuum_enabled=false )
+        ;
+
+        ALTER INDEX %I.%I
+          SET (fillfactor=100)
+        ;
       `,
       schemaName,
       schemaName,
       table_name,
-      `${table_name}_state_chk`,
       state,
-      `${table_name}_date_chk`,
+      state,
       data_start_date,
-      endDateExclusive
+      endDateExclusive,
+      schemaName,
+      `${table_name}_pkey`
     )
   );
 
-  pgDB.query(sql);
+  await pgDB.query(sql);
 
   return { table_schema: schemaName, table_name };
 }
@@ -155,6 +165,14 @@ async function clusterPostgresTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
   await pgDB.query(sql);
 }
 
+async function analyzePostgresTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
+  const { table_name } = getMetadataFromSqliteDb(sqliteDB);
+
+  const sql = pgFormat("ANALYZE %I.%I ;", schemaName, table_name);
+
+  await pgDB.query(sql);
+}
+
 export default async function main({
   npmrds_export_sqlite_db_path,
   pgEnv,
@@ -179,7 +197,10 @@ export default async function main({
   await pgDB.query("BEGIN ;");
   console.log("begin");
 
-  const { table_schema, table_name } = createPostgesDbTable(sqliteDB, pgDB);
+  const { table_schema, table_name } = await createPostgesDbTable(
+    sqliteDB,
+    pgDB
+  );
   console.log("created table");
 
   console.log("loading table");
@@ -190,6 +211,9 @@ export default async function main({
 
   await pgDB.query("COMMIT ;");
   console.log("commited");
+
+  await analyzePostgresTable(sqliteDB, pgDB);
+  console.log("analyzed table");
 
   await pgDB.end();
   sqliteDB.close();
