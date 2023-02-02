@@ -25,7 +25,9 @@ import npmrdsTravelTimesExportDataDir from "./constants/dataDir";
 const npmrdsDownloadServiceMainPath = join(
   __dirname,
   "../../../../tasks/avail-datasources-watcher/src/dataSources/RITIS/services/NpmrdsDownloadService/",
-  process.env.NODE_ENV?.toLowerCase() === "production" ? "main" : "mock"
+  process.env.MOCK_NPMRDS_DOWNLOAD_SERVICE_MAIN?.toLowerCase() === "true"
+    ? "mock"
+    : "main"
 );
 
 const loadDownloadedExportsIntoSqlitePath = join(

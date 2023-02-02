@@ -311,7 +311,7 @@ export function validateNoAttGaps(
       const oldInterval = oldAttIntervalUnionsByState[state];
       const newInterval = newAttIntervalUnionsByState[state];
 
-      if (!newInterval.engulfs(oldInterval)) {
+      if (oldInterval && !newInterval.engulfs(oldInterval)) {
         const oldStr = oldInterval.toISODate();
         const newStr = newInterval.toISODate();
 
