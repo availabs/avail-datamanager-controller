@@ -73,6 +73,7 @@ export async function createAuthoritativeStateTable(
   const tableName = `npmrds_${state}`;
 
   await createAuthoritativePartitionsSchema(dbConn);
+  await createAuthoritativeRootTable(dbConn);
 
   const sql = dedent(
     pgFormat(
