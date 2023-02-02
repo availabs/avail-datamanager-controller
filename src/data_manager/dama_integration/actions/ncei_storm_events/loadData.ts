@@ -17,6 +17,11 @@ import {getFiles} from "./utils/scrapper";
 const fetchFileList = (fileName, currTable) => {
   const url = "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
   console.log("fetching...", url + fileName)
+
+  if(!fs.existsSync("data")){
+    fs.mkdirSync("data")
+  }
+
   if(!fs.existsSync("data/" + currTable)){
     fs.mkdirSync("data/" + currTable)
   }
@@ -147,7 +152,7 @@ export default async function publish(ctx: Context) {
       }, Promise.resolve())
 
     // download step 2
-    const dc_op = execSync(`python ${data_cleaning_file_path}/dataCleaning.py ${table_name}`, { encoding: 'utf-8' });
+    const dc_op = execSync(`python ${data_cleaning_file_path}dataCleaning.py ${table_name}`, { encoding: 'utf-8' });
 
     console.log('dc op', dc_op);
 

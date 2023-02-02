@@ -29,6 +29,7 @@ import usdaLoader from "./actions/usda/loadData";
 import sbaLoader from "./actions/sba/loadData";
 import nriLoader from "./actions/nri/loadData";
 import pbSWDLoader from "./actions/per_basis_swd/loadData";
+import hlrLoader from "./actions/hlr/loadData";
 
 export default {
   name: serviceName,
@@ -171,6 +172,8 @@ export default {
 
     nriLoader,
 
-    pbSWDLoader
+    pbSWDLoader,
+
+    hlrLoader
   },
 };

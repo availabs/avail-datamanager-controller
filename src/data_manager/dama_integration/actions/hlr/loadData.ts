@@ -3,33 +3,9 @@ import {PoolClient, QueryConfig, QueryResult} from "pg";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 import EventTypes from "../../constants/EventTypes";
-import {tables} from "./tables";
-import fs from "fs";
-import https from "https";
-import {execSync} from "child_process";
-import {loadFiles} from "./upload";
+import {hlr} from "./sqls";
 
-
-// mol $ call 'dama/data_source_integrator.testUploadAction' --table_name details --#pgEnv dama_dev_1
-
-const fetchFileList = async (currTable) => {
-  console.log("fetching...");
-
-  if (!fs.existsSync("data/" + currTable)) {
-    fs.mkdirSync("data/" + currTable);
-  }
-
-  const url = `https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload//NRI_Table_Counties/NRI_Table_Counties.zip`;
-  const file_path = "data/" + currTable + "/NRI_Table_Counties.zip";
-
-  // execSync(`rm -rf ${"data/" + currTable}`);
-  execSync(`curl -o ${file_path} '${url}'`);
-  execSync(`unzip -o ${file_path} -d ${"data/" + currTable}`, {encoding: "utf-8"});
-  // execSync(`rm -rf ${"data/" + currTable}`);
-  console.log("unzipped");
-};
-
-const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
+const update_view = async (ncei_schema, table_name, view_id, dbConnection, sqlLog, resLog) => {
   const updateViewMetaSql = dedent(
     `
       UPDATE data_manager.views
@@ -40,11 +16,11 @@ const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) =>
     `
   );
 
-  const data_table = pgFormat("%I.%I", tables[table_name](view_id).schema, `${table_name}_${view_id}`);
+  const data_table = pgFormat("%I.%I", ncei_schema, `${table_name}_${view_id}`);
 
   const q = {
     text: updateViewMetaSql,
-    values: [tables[table_name](view_id).schema, `${table_name}_${view_id}`, data_table, view_id],
+    values: [ncei_schema, `${table_name}_${view_id}`, data_table, view_id],
   };
 
   sqlLog.push(q);
@@ -57,7 +33,12 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: {etl_context_id, table_name, view_id},
+    params: {etl_context_id, table_name, src_id, view_id,
+      pb_table, pb_schema,
+      nri_schema, nri_table,
+      state_schema, state_table,
+      county_schema, county_table,
+      ncei_schema, ncei_table,},
   } = ctx;
   //
   if (!(etl_context_id)) {
@@ -68,7 +49,7 @@ export default async function publish(ctx: Context) {
     etl_context_id = etlcontextid;
     throw new Error("The etl_context_id parameter is required.");
   }
-
+  console.log('???', JSON.stringify(ctx.params, null, 4));
   const dbConnection: PoolClient = await ctx.call("dama_db.getDbConnection");
   const sqlLog: any[] = [];
   const resLog: QueryResult[] = [];
@@ -80,32 +61,48 @@ export default async function publish(ctx: Context) {
     sqlLog.push("BEGIN ;");
     res = await dbConnection.query("BEGIN ;");
     resLog.push(res);
-    //
+
     // create schema
-    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name](view_id).schema};`;
+    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${pb_schema};`;
     sqlLog.push(createSchema);
     res = await ctx.call("dama_db.query", {
-      text: createSchema,
+      text: createSchema
+    });
+    resLog.push(res);
+    console.log("see this:", res.rows);
+    console.log(hlr(table_name, view_id,
+      state_schema, state_table,
+      county_schema, county_table,
+      ncei_schema, ncei_table,
+      pb_schema, pb_table,
+      nri_schema, nri_table))
+    // create table
+    sqlLog.push(hlr(table_name, view_id,
+      state_schema, state_table,
+      county_schema, county_table,
+      ncei_schema, ncei_table,
+      pb_schema, pb_table,
+      nri_schema, nri_table));
+    res = await ctx.call("dama_db.query", {
+      text: hlr(table_name, view_id,
+        state_schema, state_table,
+        county_schema, county_table,
+        ncei_schema, ncei_table,
+        pb_schema, pb_table,
+        nri_schema, nri_table)
     });
     resLog.push(res);
     console.log("see this:", res.rows);
 
-    console.log("downloading", table_name);
-    await fetchFileList(table_name);
-    await loadFiles(ctx, view_id);
+    await dbConnection.query("COMMIT;");
+
+
+    // update view meta
+    await update_view(ncei_schema, table_name, view_id, dbConnection, sqlLog, resLog);
 
     await dbConnection.query("COMMIT;");
-    //
-    //
-    // // update view meta
-    await update_view(table_name, view_id, dbConnection, sqlLog, resLog);
-    //
-    // await dbConnection.query("COMMIT;");
-    //
-    //
-    // await loadFiles(table_name, view_id, ctx);
-    //
-    // console.log("uploaded!");
+
+    console.log("uploaded!");
 
     // We need the data_manager.views id
     await dbConnection.query("COMMIT;");

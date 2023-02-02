@@ -43,11 +43,11 @@ const fetchFileList = async (fileName, url, table) => {
   execSync(`rm -rf data/tl_2017_${table}/tmp_dir`);
 };
 
-const uploadFiles = (fileName, pgEnv="dama_dev_1", url, table) => {
+const uploadFiles = (fileName, pgEnv="dama_dev_1", url, table, view_id) => {
   console.log("uploading...", url + fileName)
 
   const pg = getPostgresConnectionString(pgEnv);
-  execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite`,
+  execSync(`ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(".zip", ".json")} -lco GEOMETRY_NAME=geom -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${["state", "county"].includes(table.toLowerCase()) ? `-nln geo.tl_2017_${table}_${view_id}` : ``}`,
     {cwd: `./data/tl_2017_${table}/`}
   ) // -nln tl_2017_${table}
 
@@ -136,7 +136,38 @@ const mergeTables = async (ctx, fileNames, view_id, table) => {
   });
 };
 
+const createIndices = async (ctx, view_id, table) => {
+  let query = `
+      BEGIN;
+      CREATE INDEX IF NOT EXISTS geom_idx_tl_2017_${table}_${view_id}
+      ON geo.tl_2017_${table}_${view_id} USING gist
+      (geom)
+      TABLESPACE pg_default;
 
+    COMMIT;
+    `
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
+
+const correctGeoid = async (ctx, view_id, table) => {
+  let query = `
+      BEGIN;
+
+      ALTER TABLE geo.tl_2017_${table}_${view_id}
+      ALTER COLUMN geoid TYPE text;
+
+      UPDATE geo.tl_2017_${table}_${view_id} dst
+      set geoid = lpad(geoid::text, ${table === "tract" ? 11 : 10}, '0')
+      where length(geoid::text) = ${table === "tract" ? 10 : 9};
+
+      COMMIT;
+    `
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
 
@@ -162,11 +193,17 @@ export default async function publish(ctx: Context) {
 
     await files.reduce(async (acc, curr) => {
               await acc;
-              return fetchFileList(curr, url, table).then(() => uploadFiles(curr, pgEnv, url, table));
+              return fetchFileList(curr, url, table).then(() => uploadFiles(curr, pgEnv, url, table, view_id));
             }, Promise.resolve());
 
 
-    await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table);
+    if (files.length > 1){
+      await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table);
+    }
+
+    await createIndices(ctx, view_id, table);
+
+    await correctGeoid(ctx, view_id, table.toLowerCase());
 
     await update_view(view_id, ctx, table.toLowerCase());
 

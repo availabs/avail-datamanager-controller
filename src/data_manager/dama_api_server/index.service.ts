@@ -244,6 +244,10 @@ export default class ApiService extends Service {
 
               createNewDamaView: "dama/metadata.createNewDamaView",
 
+              deleteDamaView: "dama/metadata.deleteDamaView",
+
+              deleteDamaSource: "dama/metadata.deleteDamaSource",
+
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
 
@@ -332,6 +336,9 @@ export default class ApiService extends Service {
 
               "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
                 "dama/data_sources/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
+
+              "/staged-geospatial-dataset/hlrLoader":
+                "dama/data_source_integrator.hlrLoader",
 
               "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
                 "dama/data_sources/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",

@@ -173,11 +173,8 @@ const updateDamage = async (ctx, details_table_name) => {
 const updateGeoTracts = async (ctx, details_table_name, tract_schema, tract_table) => { // geo.tl_2017_tract
     // some of the geoids from geo.tl_2017_tract mismatch severe_weather_new.details. priority given to geo.tl_2017_tract
     let query = `
-        with t as (
-            select b.geoid, geom
-            from ${tract_schema}.${tract_table} b
-        ),
-             s as (
+        with
+            s as (
                  select event_id, begin_coords_geom
                  from severe_weather_new.${details_table_name}
                  where geoid is null
@@ -186,7 +183,7 @@ const updateGeoTracts = async (ctx, details_table_name, tract_schema, tract_tabl
              a as (
                  select s.event_id, t.geoid geoid
                  from s
-                          join t
+                          join ${tract_schema}.${tract_table} t
                                on st_contains(t.geom, begin_coords_geom)
              )
 
@@ -221,7 +218,7 @@ const updateGeoCousubs = async (ctx, details_table_name, cousub_schema, cousub_t
                             on st_contains(a.geom, t.begin_coords_geom)
                                    and t.cousub_geoid is null
                                    and t.begin_coords_geom is not null
-                                   and substring(a.geoid::text, 1, 2) = substring(t.geoid::text, 1, 2)
+                                   -- and substring(a.geoid::text, 1, 2) = substring(t.geoid::text, 1, 2)
                     )
 
         update severe_weather_new.${details_table_name} dst
@@ -432,19 +429,40 @@ const createIndices = async (ctx, details_table_name) => {
 }
 
 export const postProcess = async (ctx, details_table_name, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table) => {
-  console.log("Welcome to post upload processing...");
-  // await createIndices(ctx, details_table_name);
-  // await updateCoords(ctx, details_table_name);
-  // await updateDamage(ctx, details_table_name);
+  console.log("Welcome to post upload processing...", details_table_name);
+  await createIndices(ctx, details_table_name);
+  console.log('1');
+  await updateCoords(ctx, details_table_name);
+  console.log('2');
+
+  await updateDamage(ctx, details_table_name);
+  console.log('3');
+
   await updateEventTypeFormatted(ctx, details_table_name);
+  console.log('4');
+
   await updateGeoTracts(ctx, details_table_name, tract_schema, tract_table);
+  console.log('5');
+
   await updateGeoCounties(ctx, details_table_name);
+  console.log('6');
+
   await updateGeoCousubs(ctx, details_table_name, cousub_schema, cousub_table); // uses geoid
+  console.log('7');
+
   await removeGeoidZzone(ctx, details_table_name);
+  console.log('8');
+
   await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table);
+  console.log('9');
+
   // await updateGeoZzoneV2(ctx);
   await updateGeoMzone(ctx, details_table_name);
+  console.log('10');
+
   await updateDateTime(ctx, details_table_name);
+  console.log('11');
+
 
   return Promise.resolve();
 }
