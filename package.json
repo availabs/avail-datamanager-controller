@@ -2,6 +2,9 @@
   "name": "avail-datamanager-controller",
   "version": "0.0.2",
   "description": "AVAIL Data Manager Controller",
+  "engines": {
+    "node": ">= 14.x.x"
+  },
   "scripts": {
     "build": "tsc",
     "debug": "node --inspect --require ts-node/register ./node_modules/moleculer/bin/moleculer-runner.js --env --hot --repl --config moleculer.config.ts 'src/\\*\\*/\\*.service.ts'",
@@ -64,7 +67,7 @@
     "fast-csv": "^4.3.6",
     "flux-standard-action": "^2.1.2",
     "form-data": "^4.0.0",
-    "gdal-async": "^3.5.3",
+    "gdal-async": "3.5.1",
     "graphlib": "^2.1.8",
     "gunzip-maybe": "^1.4.2",
     "jest": "^29.3.1",
@@ -94,9 +97,6 @@
     "unzipper": "^0.10.11",
     "uuid": "^9.0.0",
     "wellknown": "^0.5.0"
-  },
-  "engines": {
-    "node": ">= 14.x.x"
   },
   "jest": {
     "coverageDirectory": "<rootDir>/coverage",

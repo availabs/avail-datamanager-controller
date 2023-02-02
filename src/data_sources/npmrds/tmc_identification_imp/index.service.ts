@@ -7,7 +7,8 @@ import { Context } from "moleculer";
 
 import damaHost from "../../../constants/damaHost";
 
-import loadTable from "./tasks/loadNpmrdsTmcIdentificationImp/main";
+import load from "./tasks/loadNpmrdsTmcIdentificationImp/main";
+import computeStatistics from "./tasks/computeStatistics/main";
 
 export const serviceName = "dama/data_sources/npmrds/tmc_identification_imp";
 
@@ -49,12 +50,31 @@ export default {
           await decompress(npmrdsExportSqliteDbPath, dir);
         }
 
-        const doneData = await loadTable({
+        const doneData = await load({
           npmrds_export_sqlite_db_path,
           pgEnv,
         });
 
         return doneData;
+      },
+    },
+
+    computeStatistics: {
+      visibility: "protected",
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { loadDoneData },
+          // @ts-ignore
+          meta: { pgEnv },
+        } = ctx;
+
+        const statistics = await computeStatistics({
+          loadDoneData,
+          pgEnv,
+        });
+
+        return statistics;
       },
     },
   },

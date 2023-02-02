@@ -95,6 +95,12 @@ const getMetadataFromSqliteDb = memoize((sqliteDB: SQLiteDB) => {
 async function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
   const { state, table_schema, table_name } = getMetadataFromSqliteDb(sqliteDB);
 
+  if (process.env.NODE_ENV?.toLowerCase() === "development") {
+    await pgDB.query(
+      pgFormat("DROP TABLE IF EXISTS %I.%I;", table_schema, table_name)
+    );
+  }
+
   const sql = dedent(
     pgFormat(
       `

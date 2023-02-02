@@ -68,7 +68,9 @@ async function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
   const endDateExclusive = endDate.toISOString().replace(/T.*/, "");
 
   if (process.env.NODE_ENV?.toLowerCase() === "development") {
-    pgDB.query(pgFormat("DROP TABLE IF EXISTS %I.%I;", schemaName, table_name));
+    await pgDB.query(
+      pgFormat("DROP TABLE IF EXISTS %I.%I;", schemaName, table_name)
+    );
   }
 
   // NOTE:  The CHECK constraints allow us to later attach the table to the partitioned npmrds table.

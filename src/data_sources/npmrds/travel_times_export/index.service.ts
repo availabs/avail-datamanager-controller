@@ -358,6 +358,29 @@ export default {
           ),
         ]);
 
+      const loadDoneData = {
+        [NpmrdsDataSources.NpmrdsTravelTimesExportDb]:
+          loadNpmrdsTravelTimesDoneData,
+        [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
+      };
+
+      // const [npmrdsTravelTimesStats, tmcIdentStats] = await Promise.all([
+      const [tmcIdentStats] = await Promise.all([
+        // this.broker.call(
+        // "dama/data_sources/npmrds/travel_times_export_db.computeStatistics",
+        // { npmrdsExportSqliteDbPath },
+        // opts
+        // ),
+        this.broker.call(
+          "dama/data_sources/npmrds/tmc_identification_imp.computeStatistics",
+          { loadDoneData },
+          opts
+        ),
+      ]);
+
+      loadDoneData[NpmrdsDataSources.NpmrdsTmcIdentificationImp].statistics =
+        tmcIdentStats;
+
       const loadDoneEvent = {
         type: `${serviceName}:STATUS_UPDATE`,
         payload: {
@@ -371,6 +394,8 @@ export default {
         },
         meta: event.meta,
       };
+
+      console.log(JSON.stringify({ tmcIdentStats }, null, 4));
 
       // console.log(JSON.stringify({ loadDoneEvent }, null, 4));
       await this.broker.call("dama_dispatcher.dispatch", loadDoneEvent, opts);
@@ -702,7 +727,7 @@ export default {
         }
       );
 
-      console.log(JSON.stringify({ openRequestStatuses }, null, 4));
+      // console.log(JSON.stringify({ openRequestStatuses }, null, 4));
 
       //  NOTE: The sorted order of the openRequestStatuses is a best-effort representation
       //          of the state of the NpmrdsDownloadRequests Queue.
@@ -788,7 +813,7 @@ export default {
         return aEtlCtxId - bEtlCtxId;
       });
 
-      console.log(JSON.stringify({ openRequestStatuses }, null, 4));
+      // console.log(JSON.stringify({ openRequestStatuses }, null, 4));
       return openRequestStatuses;
     },
   },
