@@ -214,7 +214,7 @@ export default async function makeTravelTimesExportTablesAuthoritative(
     // @ts-ignore
     if (dbConn.release) {
       // @ts-ignore
-      dbConn.release();
+      await dbConn.release();
     }
   }
 }
