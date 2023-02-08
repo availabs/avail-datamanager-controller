@@ -1,0 +1,44 @@
+{
+    "layerName": "2020_freightpm3",
+    "tableSchema": "staged_gis_datasets",
+    "tableName": "etlctx_129_8aa4ca5cf7ed4083aa1fd40bff3d5a04",
+    "columnTypes": [
+        {
+            "key": "tmc",
+            "col": "tmc",
+            "db_type": "TEXT"
+        },
+        {
+            "key": "year",
+            "col": "year",
+            "db_type": "SMALLINT"
+        },
+        {
+            "key": "lottr",
+            "col": "lottr",
+            "db_type": "REAL"
+        },
+        {
+            "key": "tttr",
+            "col": "tttr",
+            "db_type": "REAL"
+        },
+        {
+            "key": "pti",
+            "col": "pti",
+            "db_type": "REAL"
+        },
+        {
+            "key": "ted_ris_pe",
+            "col": "ted_ris_pe",
+            "db_type": "DOUBLE PRECISION"
+        }
+    ],
+    "requiresPromoteToMulti": true,
+    "requiresForcedPostGisDimension": false,
+    "promoteToMulti": true,
+    "forcePostGisDimension": false,
+    "postGisGeometryType": "MultiLineString",
+    "pgEnv": "pan",
+    "id": "aeolus_785e9144-6dfb-462d-949a-3a1eb2437390"
+}
