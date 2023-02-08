@@ -667,6 +667,7 @@ export default {
           is_expanded,
         },
         meta: {
+          dama_source_name: NpmrdsDataSources.NpmrdsTravelTimesExport,
           dama_controller_host,
           etl_context_id,
           user_id,
