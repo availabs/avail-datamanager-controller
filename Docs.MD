@@ -34,16 +34,13 @@
 	  	- data_type folders should have index.service.(js/ts)
 	  	- every data type must have its own directory and service.
 	  	- data types should denote if they are single source, or multi source by putting that into source metadata in the create step.
+	  	- when data_type is creating a new view it should get a contextId and write at least an intital and final event into dama_event_store
 
-	/data_utils/
-
-
-
-
-
-  /tasks - to be gotten rid of
+	/data_utils/ - to be deleted
+   /tasks/ - to be deleted (slowls)
 
 4 - data-manager database structure
+
 
 3 - Standard Conventions for processes
 
@@ -55,6 +52,14 @@ Data Types
    - a create step with creates initial source at least
    - should create source metadata if applicable
    - ability to load new view for existing source
+
+
+ToDo:
+ - Work to move folders to match new datastructus
+ - paul - rename data_sources to data_types and unbreak things
+ - Alex - move gis_data_set parts into data_types
+ - shuan - move dat_integrations code to approproate data_types
+ - move dama_event_store and etl_context
    
 
 
