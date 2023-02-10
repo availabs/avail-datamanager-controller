@@ -1,5 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS data_manager ;
-CREATE SCHEMA IF NOT EXISTS _data_manager_admin;
+CREATE SCHEMA IF NOT EXISTS data_manager;
 
 CREATE TABLE IF NOT EXISTS data_manager.database_id
   AS
@@ -122,9 +122,6 @@ ALTER TABLE data_manager.views
 ;
 
 -- END data_manager.views Migrations
-
-
-
 
 /*
 -- NOTE: Have not tested this yet.
@@ -301,4 +298,95 @@ CREATE OR REPLACE FUNCTION data_manager.dama_db_short_id()
     SELECT short_id
       FROM data_manager.database_id
   $$
+;
+
+CREATE TABLE IF NOT EXISTS data_manager.etl_context (
+  context_id        SERIAL PRIMARY KEY,
+  parent_id         INTEGER,
+
+  FOREIGN KEY (parent_id) REFERENCES data_manager.etl_context(context_id)
+) ;
+
+
+CREATE TABLE IF NOT EXISTS data_manager.dama_event_store (
+  event_id          SERIAL PRIMARY KEY,
+  etl_context_id    INTEGER NOT NULL,
+
+  type              TEXT NOT NULL,
+  payload           JSONB,
+  meta              JSONB,
+  error             BOOLEAN,
+  timestamp         TIMESTAMP NOT NULL DEFAULT NOW(),
+
+  FOREIGN KEY (etl_context_id) REFERENCES data_manager.etl_context(context_id)
+) ;
+
+CREATE INDEX IF NOT EXISTS dama_event_store_etl_ctx_idx
+  ON data_manager.dama_event_store (etl_context_id)
+;
+
+-- For querying active etl_context_ids for an ETL Task
+--
+--      SELECT DISTINCT
+--          etl_context_id
+--        FROM dama_event_store
+--        WHERE ( type LIKE 'FOO/%' )
+--      EXCLUDE
+--      SELECT DISTINCT
+--          etl_context_id
+--        FROM dama_event_store
+--        WHERE ( right(type, 6) = ':FINAL' )
+--
+-- For querying the FINAL event for an ETL Task to get the DoneData
+--
+--      SELECT
+--          *
+--        FROM dama_event_store
+--        WHERE (
+--          ( type LIKE 'FOO/%' )
+--          AND
+--          ( right(type, 6) = ':FINAL' )
+--        )
+
+CREATE INDEX IF NOT EXISTS dama_event_store_search_idx
+  ON data_manager.dama_event_store (
+    type text_pattern_ops,
+    right(type, 6),
+    etl_context_id
+  )
+;
+
+CREATE INDEX IF NOT EXISTS dama_event_store_dama_srcname_idx
+  ON data_manager.dama_event_store (
+    type text_pattern_ops,
+    right(type, 8),
+    etl_context_id,
+    ( meta->>'dama_source_name' )
+  )
+  WHERE (
+    ( right(type, 8) = ':INITIAL' )
+    AND
+    ( meta->>'dama_source_name' IS NOT NULL )
+  )
+;
+
+-- For querying the FINAL event for an ETL Context to get the DoneData
+--
+--      SELECT
+--          *
+--        FROM dama_event_store
+--        WHERE (
+--          ( etl_context = ? )
+--          AND
+--          ( right(type, 6) = ':FINAL' )
+--        )
+CREATE INDEX IF NOT EXISTS dama_event_store_search_stopped_idx
+  ON data_manager.dama_event_store (
+    etl_context_id
+  )
+  WHERE (
+    ( right(type, 6) = ':FINAL' )
+    OR
+    ( right(type, 6) = ':ERROR' )
+  )
 ;

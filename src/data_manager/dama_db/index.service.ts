@@ -54,7 +54,6 @@ type LocalVariables = {
 const dbInitializationScripts = [
   "create_required_extensions.sql",
   "create_dama_core_tables.sql",
-  "create_dama_etl_tables.sql",
   "create_dama_admin_helper_functions.sql",
   "create_geojson_schema_table.sql",
   "create_dama_table_schema_utils.sql",
@@ -511,17 +510,17 @@ export default {
                     etl_context_id,
                     payload,
                     row_number() OVER (PARTITION BY etl_context_id ORDER BY event_id DESC) AS row_number
-                  FROM _data_manager_admin.dama_event_store
+                  FROM data_manager.dama_event_store
                     INNER JOIN (
 
                       SELECT
                           etl_context_id
-                        FROM _data_manager_admin.dama_event_store
+                        FROM data_manager.dama_event_store
                         WHERE ( type LIKE ( %L || '%' ) )
                       EXCEPT
                       SELECT
                           etl_context_id
-                        FROM _data_manager_admin.dama_event_store
+                        FROM data_manager.dama_event_store
                         WHERE (
                           ( type LIKE ( %L || '%' ) )
                           AND
@@ -560,14 +559,14 @@ export default {
         `
           SELECT
               *
-            FROM _data_manager_admin.dama_event_store
+            FROM data_manager.dama_event_store
             WHERE (
               ( etl_context_id = $1 )
               AND
               (
                 ( right(type, 6) = ':FINAL' )
                 OR
-                ( right(type, 6) = ':ERROR' )
+                ( right(type, 6) = ':ERROR' ) -- FIXME: Once RETRY is implemented, this no longer true.
               )
             )
         `

@@ -24,7 +24,7 @@ export default {
         } = ctx;
 
         const q = `
-          INSERT INTO _data_manager_admin.etl_context (
+          INSERT INTO data_manager.etl_context (
             parent_id
           ) VALUES ($1)
           RETURNING context_id
@@ -69,7 +69,7 @@ export default {
         const { type, payload, meta = null, error = null } = params;
 
         const q = `
-            INSERT INTO _data_manager_admin.dama_event_store (
+            INSERT INTO data_manager.dama_event_store (
               etl_context_id,
               type,
               payload,
@@ -121,13 +121,13 @@ export default {
             SELECT
                 context_id,
                 parent_id
-              FROM _data_manager_admin.etl_context
+              FROM data_manager.etl_context
               WHERE context_id = $1
             UNION    
             SELECT
                 a.context_id,
                 a.parent_id
-              FROM _data_manager_admin.etl_context AS a
+              FROM data_manager.etl_context AS a
                 INNER JOIN cte_ctx_tree
                   ON (
                     ( a.context_id = cte_ctx_tree.parent_id )
@@ -141,7 +141,7 @@ export default {
               payload,
               meta,
               error
-            FROM _data_manager_admin.dama_event_store AS a
+            FROM data_manager.dama_event_store AS a
               INNER JOIN cte_ctx_tree AS b
                 ON (
                   ( ( meta->>'etl_context_id' )::INTEGER = b.context_id )
@@ -183,13 +183,13 @@ export default {
             SELECT
                 context_id,
                 parent_id
-              FROM _data_manager_admin.etl_context
+              FROM data_manager.etl_context
               WHERE context_id = $1
             UNION    
             SELECT
                 a.context_id,
                 a.parent_id
-              FROM _data_manager_admin.etl_context AS a
+              FROM data_manager.etl_context AS a
                 INNER JOIN cte_ctx_tree
                   ON (
                     ( a.context_id = cte_ctx_tree.parent_id )
@@ -229,7 +229,7 @@ export default {
               payload,
               meta,
               error
-            FROM _data_manager_admin.dama_event_store
+            FROM data_manager.dama_event_store
             WHERE ( event_id = $1 )
         `;
 

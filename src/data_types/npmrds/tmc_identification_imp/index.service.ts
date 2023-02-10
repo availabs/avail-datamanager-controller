@@ -1,5 +1,4 @@
 import { existsSync } from "fs";
-import { rm as rmAsync } from "fs/promises";
 import { join, parse } from "path";
 
 import decompress from "decompress";
@@ -8,9 +7,10 @@ import { Context } from "moleculer";
 
 import damaHost from "../../../constants/damaHost";
 
-import loadNpmrdsTravelTimesTable from "./tasks/loadNpmrdsTravelTimesTable/main";
+import load from "./tasks/loadNpmrdsTmcIdentificationImp/main";
+import computeStatistics from "./tasks/computeStatistics/main";
 
-export const serviceName = "dama/data_sources/npmrds/travel_times_export_db";
+export const serviceName = "dama/data_types/npmrds/tmc_identification_imp";
 
 export default {
   name: serviceName,
@@ -50,16 +50,31 @@ export default {
           await decompress(npmrdsExportSqliteDbPath, dir);
         }
 
-        const doneData = await loadNpmrdsTravelTimesTable({
+        const doneData = await load({
           npmrds_export_sqlite_db_path,
           pgEnv,
         });
 
-        if (!unzippedExists) {
-          await rmAsync(npmrds_export_sqlite_db_path);
-        }
-
         return doneData;
+      },
+    },
+
+    computeStatistics: {
+      visibility: "protected",
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { loadDoneData },
+          // @ts-ignore
+          meta: { pgEnv },
+        } = ctx;
+
+        const statistics = await computeStatistics({
+          loadDoneData,
+          pgEnv,
+        });
+
+        return statistics;
       },
     },
   },

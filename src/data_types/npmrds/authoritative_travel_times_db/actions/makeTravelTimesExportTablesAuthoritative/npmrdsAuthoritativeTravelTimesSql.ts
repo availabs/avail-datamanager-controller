@@ -236,7 +236,8 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
   prevNpmrdsAuthTravTimesViewMeta: any,
   attViewsToDetach: ParsedNpmrdsTravelTimesExportTableMetadata[],
   attViewsMeta: EttViewsMetaSummary | null,
-  ettViewsMeta: EttViewsMetaSummary
+  ettViewsMeta: EttViewsMetaSummary,
+  dateExtentsByState: Record<string, [string, string]>
 ) {
   const {
     sortedByStateThenStartDate: ettViewIds,
@@ -294,6 +295,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
         next: null,
       },
     },
+    dateExtentsByState,
   };
 
   const insertSql = dedent(`
