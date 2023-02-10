@@ -166,7 +166,7 @@ export default {
   async started() {
     const tileserverBinPath = join(
       __dirname,
-      "../../../node_modules/.bin/tileserver-gl-light"
+      "../../../lib/tileserver-gl-light/src/main.js"
     );
 
     const tileserverArgs = Object.entries(
