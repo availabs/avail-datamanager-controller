@@ -1,8 +1,9 @@
-import {Context} from "moleculer";
-import {PoolClient, QueryConfig, QueryResult} from "pg";
+import { Context } from "moleculer";
+import { PoolClient, QueryConfig, QueryResult } from "pg";
+import {FSA} from "flux-standard-action";
 import dedent from "dedent";
 import pgFormat from "pg-format";
-import EventTypes from "../../constants/EventTypes";
+import EventTypes from "../constants/EventTypes";
 import {tables} from "./tables";
 import fs from "fs";
 import https from "https";
@@ -12,32 +13,85 @@ import {loadFiles} from "./upload";
 
 // mol $ call 'dama/data_source_integrator.testUploadAction' --table_name details --#pgEnv dama_dev_1
 
-const fetchFileList = async (currTable) => {
+const fetchFileList = async (currTable, from, to) => {
   console.log("fetching...");
 
-  if (!fs.existsSync("data/" + currTable)) {
+  if(!fs.existsSync("data/" + currTable)){
     fs.mkdirSync("data/" + currTable);
   }
 
-  const url = `https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload//NRI_Table_Counties/NRI_Table_Counties.zip`;
-  const file_path = "data/" + currTable + "/NRI_Table_Counties.zip";
+  let years  = [];
+  let promises = []
 
-  // execSync(`rm -rf ${"data/" + currTable}`);
-  execSync(`curl -o ${file_path} '${url}'`);
-  execSync(`unzip -o ${file_path} -d ${"data/" + currTable}`, {encoding: "utf-8"});
-  // execSync(`rm -rf ${"data/" + currTable}`);
-  console.log("unzipped");
-};
+  for ( let year = from; year <= to; year++){ years.push(year) }
+
+    years.forEach(async (year) => {
+      console.log('year', year)
+
+      const url = `https://www.rma.usda.gov/-/media/RMA/Cause-Of-Loss/Summary-of-Business-with-Month-of-Loss/colsom_${year}.ashx?la=en`;
+      const file_path = "data/" + currTable + "/" + `${year}.zip`;
+      const command = `zcat ${file_path} > ${file_path.replace('.zip', '.txt')}`
+      const file = fs.createWriteStream(file_path);
+
+      promises.push(
+        new Promise((resolve) => {
+          https.get(url, response => {
+            response.pipe(file);
+            console.log('got: ', url);
+            file.on('finish', f => {
+              file.close();
+
+              file.once('close', () => {
+                file.removeAllListeners();
+              });
+
+              resolve(execSync(command, {encoding: 'utf-8'}));
+            });
+
+          })
+        })
+      );
+    });
+
+  return Promise.all(promises).then(() => console.log('unzipped'))
+
+
+  // return years.reduce(async (acc, year) => {
+  //   console.log('unzipping', year)
+  //   await acc;
+  //   console.log('unzipping 1', year)
+  //   const file_path = "data/" + currTable + "/" + `${year}.zip`;
+  //   const command = `zcat ${file_path} > ${file_path.replace('.zip', '.txt')}`
+  //   execSync(command, {encoding: 'utf-8'});
+  //
+  // }, Promise.resolve());
+
+}
+
+async function getInsertViewMetadataSql(
+  ctx: Context,
+  viewMetadataSubmittedEvent: FSA
+) {
+  const insertViewMetaSql = <QueryConfig>(
+    await ctx.call(
+      "dama/metadata.getInsertDataManagerViewMetadataSql",
+      viewMetadataSubmittedEvent
+    )
+  );
+
+  return insertViewMetaSql;
+}
 
 const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
   const updateViewMetaSql = dedent(
     `
-      UPDATE data_manager.views
-      SET table_schema = $1,
-          table_name   = $2,
-          data_table   = $3
-      WHERE view_id = $4
-    `
+        UPDATE data_manager.views
+          SET
+            table_schema  = $1,
+            table_name    = $2,
+            data_table    = $3
+          WHERE view_id = $4
+      `
   );
 
   const data_table = pgFormat("%I.%I", tables[table_name](view_id).schema, `${table_name}_${view_id}`);
@@ -57,13 +111,13 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: {etl_context_id, table_name, view_id},
+    params: { etl_context_id, table_name, view_id },
   } = ctx;
   //
   if (!(etl_context_id)) {
     const etlcontextid = await ctx.call(
       "dama_dispatcher.spawnDamaContext",
-      {etl_context_id: null}
+      { etl_context_id: null }
     );
     etl_context_id = etlcontextid;
     throw new Error("The etl_context_id parameter is required.");
@@ -77,22 +131,22 @@ export default async function publish(ctx: Context) {
   try {
     let res: QueryResult;
 
-    sqlLog.push("BEGIN ;");
-    res = await dbConnection.query("BEGIN ;");
-    resLog.push(res);
+    // sqlLog.push("BEGIN ;");
+    // res = await dbConnection.query("BEGIN ;");
+    // resLog.push(res);
     //
     // create schema
-    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name](view_id).schema};`;
+    const createSchema = `CREATE SCHEMA IF NOT EXISTS open_fema_data;`;
     sqlLog.push(createSchema);
     res = await ctx.call("dama_db.query", {
-      text: createSchema,
+      text: createSchema
     });
     resLog.push(res);
     console.log("see this:", res.rows);
 
-    console.log("downloading", table_name);
-    await fetchFileList(table_name);
-    await loadFiles(ctx, view_id);
+    console.log("downloading",table_name);
+    await fetchFileList(table_name, 1989, 2022);
+    await loadFiles(ctx, view_id, dbConnection);
 
     await dbConnection.query("COMMIT;");
     //

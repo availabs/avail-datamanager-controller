@@ -2,11 +2,10 @@ import { Context } from "moleculer";
 
 import { PoolClient, QueryConfig, QueryResult } from "pg";
 
-import {loadFiles, createSqls} from "./ncei_storm_events/utils/upload";
-import {tables} from "./ncei_storm_events/utils/tables";
-import {postProcess} from "./postUploadProcessing";
+import {loadFiles, createSqls} from "./dt-ncei_storm_events/utils/upload";
+import {tables} from "./dt-ncei_storm_events/utils/tables";
 
-import EventTypes from "../constants/EventTypes";
+import EventTypes from "./constants/EventTypes";
 import {FSA} from "flux-standard-action";
 import dedent from "dedent";
 import pgFormat from "pg-format";

@@ -295,38 +295,38 @@ export default class ApiService extends Service {
               "/staged-geospatial-dataset/publishGisDatasetLayer":
                 "dama/data_source_integrator.publishGisDatasetLayer",
 
-              "/staged-geospatial-dataset/testAction":
-                "dama/data_source_integrator.testAction",
+              "/hazard_mitigation/hlrLoader":
+                "data_types/hazard_mitigation.hlrLoader.load",
 
-              "/staged-geospatial-dataset/loadNCEI":
-                "dama/data_source_integrator.loadNCEI",
+              "/hazard_mitigation/loadNCEI":
+                "data_types/hazard_mitigation.loadNCEI.load",
 
-              "/staged-geospatial-dataset/enhanceNCEI":
-                "dama/data_source_integrator.enhanceNCEI",
+              "/hazard_mitigation/enhanceNCEI":
+                "data_types/hazard_mitigation.enhanceNCEI.load",
 
-              "/staged-geospatial-dataset/csvUploadAction":
-                "dama/data_source_integrator.csvUploadAction",
+              "/hazard_mitigation/csvUploadAction":
+                "data_types/hazard_mitigation.csvUploadAction.load",
 
-              "/staged-geospatial-dataset/tigerDownloadAction":
-                "dama/data_source_integrator.tigerDownloadAction",
+              "/hazard_mitigation/tigerDownloadAction":
+                "data_types/hazard_mitigation.tigerDownloadAction.load",
 
-              "/staged-geospatial-dataset/versionSelectorUtils":
-                "dama/data_source_integrator.versionSelectorUtils",
+              "/hazard_mitigation/versionSelectorUtils":
+                "data_types/hazard_mitigation.versionSelectorUtils.load",
 
-              "/staged-geospatial-dataset/openFemaDataLoader":
-                "dama/data_source_integrator.openFemaDataLoader",
+              "/hazard_mitigation/openFemaDataLoader":
+                "data_types/hazard_mitigation.openFemaDataLoader.load",
 
-              "/staged-geospatial-dataset/usdaLoader":
-                "dama/data_source_integrator.usdaLoader",
+              "/hazard_mitigation/usdaLoader":
+                "data_types/hazard_mitigation.usdaLoader.load",
 
-              "/staged-geospatial-dataset/sbaLoader":
-                "dama/data_source_integrator.sbaLoader",
+              "/hazard_mitigation/sbaLoader":
+                "data_types/hazard_mitigation.sbaLoader.load",
 
-              "/staged-geospatial-dataset/nriLoader":
-                "dama/data_source_integrator.nriLoader",
+              "/hazard_mitigation/nriLoader":
+                "data_types/hazard_mitigation.nriLoader.load",
 
-              "/staged-geospatial-dataset/pbSWDLoader":
-                "dama/data_source_integrator.pbSWDLoader",
+              "/hazard_mitigation/pbSWDLoader":
+                "data_types/hazard_mitigation.pbSWDLoader.load",
 
               "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
                 "dama/data_sources/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
@@ -336,9 +336,6 @@ export default class ApiService extends Service {
 
               "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
                 "dama/data_sources/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
-
-              "/staged-geospatial-dataset/hlrLoader":
-                "dama/data_source_integrator.hlrLoader",
 
               "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
                 "dama/data_sources/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",

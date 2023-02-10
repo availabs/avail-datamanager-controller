@@ -3,14 +3,9 @@ import { PoolClient, QueryConfig, QueryResult } from "pg";
 import {FSA} from "flux-standard-action";
 import dedent from "dedent";
 import pgFormat from "pg-format";
-import EventTypes from "../../constants/EventTypes";
-import {postProcess} from "../postUploadProcessing";
-import {loadFiles, createSqls} from "./utils/upload";
-import {tables} from "./utils/tables";
-import fs from "fs";
-import https from "https";
-import {execSync} from "child_process";
-import {getFiles} from "./utils/scrapper";
+import EventTypes from "../constants/EventTypes";
+import {postProcess} from "./postUploadProcessing";
+import {tables} from "../dt-ncei_storm_events/utils/tables";
 
 // mol $ call 'dama/data_source_integrator.testUploadAction' --table_name details --#pgEnv dama_dev_1
 
