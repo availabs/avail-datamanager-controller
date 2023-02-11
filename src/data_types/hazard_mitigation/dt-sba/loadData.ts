@@ -5,7 +5,7 @@ import { Context } from "moleculer";
 import {FSA} from "flux-standard-action";
 import dedent from "dedent";
 import pgFormat from "pg-format";
-import EventTypes from "../../constants/EventTypes";
+import EventTypes from "../constants/EventTypes";
 import {getPostgresConnectionString} from "../../../../data_manager/dama_db/postgres/PostgreSQL"
 import {getFiles} from "./scrapper_fail";
 import {loadFiles} from "./upload";
