@@ -242,12 +242,6 @@ export function validateNoAttGaps(
 
     newAttIntervalUnionsByState[state] = union;
 
-    console.log("=".repeat(10), state, "=".repeat(10));
-    for (const interval of intervals) {
-      console.log(interval.toISO());
-    }
-    console.log("=".repeat(24));
-
     let [prevInterval] = intervals;
 
     for (const curInterval of intervals.slice(1)) {
@@ -270,15 +264,26 @@ export function validateNoAttGaps(
     const oldAttIntervalUnionsByState: Record<string, Interval> = Object.keys(
       attViewsMeta.byMonthByYearByState
     ).reduce((acc, state) => {
-      const firstAttViewId = <number>(
-        _.first(attViewsMeta.sortedByStateThenStartDate)
-      );
-      const lastAttViewId = <number>(
-        _.last(attViewsMeta.sortedByStateThenStartDate)
+      const byMonthByYear = attViewsMeta.byMonthByYearByState[state];
+      const years = Object.keys(byMonthByYear).map((yr) => +yr);
+
+      const minYear = <number>_.min(years);
+      const maxYear = <number>_.max(years);
+
+      const minMonth = <number>(
+        _.min(Object.keys(byMonthByYear[minYear]).map((mo) => +mo))
       );
 
-      const { data_start_date } = attViewsMeta.byViewId[firstAttViewId];
-      const { data_end_date } = attViewsMeta.byViewId[lastAttViewId];
+      const maxMonth = <number>(
+        _.max(Object.keys(byMonthByYear[maxYear]).map((mo) => +mo))
+      );
+
+      const minAttViewId = <number>_.first(byMonthByYear[minYear][minMonth]);
+      const maxAttViewId = <number>_.last(byMonthByYear[maxYear][maxMonth]);
+
+      const data_start_date =
+        attViewsMeta.byViewId[minAttViewId].data_start_date;
+      const data_end_date = attViewsMeta.byViewId[maxAttViewId].data_end_date;
 
       const startDateTime = DateTime.fromISO(data_start_date);
       const endDateTime = DateTime.fromISO(data_end_date)
@@ -311,6 +316,8 @@ export function validateNoAttGaps(
       const oldInterval = oldAttIntervalUnionsByState[state];
       const newInterval = newAttIntervalUnionsByState[state];
 
+      console.log(JSON.stringify({ state, oldInterval, newInterval }, null, 4));
+
       if (oldInterval && !newInterval.engulfs(oldInterval)) {
         const oldStr = oldInterval.toISODate();
         const newStr = newInterval.toISODate();
@@ -325,6 +332,22 @@ export function validateNoAttGaps(
   if (errorMessages.length) {
     throw new Error(`INVARIANT VIOLATIONS:\n\t*${errorMessages.join("\n\t*")}`);
   }
+
+  const dateExtentsByState = Object.keys(newAttIntervalUnionsByState).reduce(
+    (acc, state) => {
+      const interval = newAttIntervalUnionsByState[state];
+
+      const data_start_date = interval.start.toISODate();
+      const data_end_date = interval.end.minus({ days: 1 }).toISODate();
+
+      acc[state] = [data_start_date, data_end_date];
+
+      return acc;
+    },
+    {}
+  );
+
+  return dateExtentsByState;
 }
 
 export default function getAttViewsToDetach(
@@ -340,7 +363,14 @@ export default function getAttViewsToDetach(
 
   console.log(JSON.stringify({ attViewIdsToDetach }, null, 4));
 
-  validateNoAttGaps(attViewsMeta, sortedNewAttDateRangeIntervalsByState);
+  const dateExtentsByState = validateNoAttGaps(
+    attViewsMeta,
+    sortedNewAttDateRangeIntervalsByState
+  );
+
+  console.log("$#".repeat(20));
+  console.log(JSON.stringify({ dateExtentsByState }, null, 4));
+  console.log("$#".repeat(20));
 
   const attViewsToDetach = attViewsMeta
     ? attViewIdsToDetach.map((attViewId) => attViewsMeta.byViewId[attViewId])
@@ -349,5 +379,5 @@ export default function getAttViewsToDetach(
   // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
   // Need to guarantee that the new ATTs cover at least as much time as the old.
   //  EG: 20220101-20220131 cannot be replaced with 20220101-20220116
-  return attViewsToDetach;
+  return { attViewsToDetach, dateExtentsByState };
 }

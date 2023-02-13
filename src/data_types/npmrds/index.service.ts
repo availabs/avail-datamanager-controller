@@ -2,7 +2,7 @@ import { Context } from "moleculer";
 
 import { toposortedNpmrdsDataSourcesInitialMetadata } from "./domain";
 
-export const serviceName = "dama/data_sources/npmrds";
+export const serviceName = "dama/data_types/npmrds";
 
 export default {
   name: serviceName,

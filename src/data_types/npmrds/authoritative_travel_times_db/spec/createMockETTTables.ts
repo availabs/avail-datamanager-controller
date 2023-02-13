@@ -5,7 +5,6 @@ import dedent from "dedent";
 import pgFormat from "pg-format";
 import _ from "lodash";
 import memoize from "memoize-one";
-import fetch from "node-fetch";
 import { v4 as uuidv4 } from "uuid";
 import { DateTime } from "luxon";
 
@@ -18,10 +17,6 @@ import { NpmrdsDataSources } from "../../domain";
 
 import { stateAbbr2FipsCode } from "../../../../data_utils/constants/stateFipsCodes";
 
-const makeAuthoritativeUrl =
-  "http://localhost:3369/dama-admin/dama_dev_1/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTableAuthoritative";
-
-const ROUNDS = 1;
 const NUM_TMCS = 1;
 // const STATES = ["ct", "nj", "ny", "pa"];
 const STATES = ["nj", "ny"];

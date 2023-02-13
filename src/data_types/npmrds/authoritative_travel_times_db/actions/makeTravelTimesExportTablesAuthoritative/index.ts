@@ -147,7 +147,10 @@ export default async function makeTravelTimesExportTablesAuthoritative(
 
     validateNpmrdsTravelTimesExportEligibleForAuthoritative(ettViewsMeta);
 
-    const attViewsToDetach = getAttViewsToDetach(attViewsMeta, ettViewsMeta);
+    const { attViewsToDetach, dateExtentsByState } = getAttViewsToDetach(
+      attViewsMeta,
+      ettViewsMeta
+    );
 
     for (const attView of attViewsToDetach) {
       await detachAttView(dbConn, attView);
@@ -197,7 +200,8 @@ export default async function makeTravelTimesExportTablesAuthoritative(
         curNpmrdsAuthTravTimesViewMeta,
         attViewsToDetach,
         attViewsMeta,
-        ettViewsMeta
+        ettViewsMeta,
+        dateExtentsByState
       );
 
     dbConn.query("COMMIT ;");

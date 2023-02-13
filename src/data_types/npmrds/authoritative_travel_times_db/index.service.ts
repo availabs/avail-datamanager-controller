@@ -14,7 +14,7 @@ import makeTravelTimesExportTablesAuthoritative, {
 } from "./actions/makeTravelTimesExportTablesAuthoritative";
 
 export const serviceName =
-  "dama/data_sources/npmrds/authoritative_travel_times_db";
+  "dama/data_types/npmrds/authoritative_travel_times_db";
 
 const queryNpmrdsAuthoritativePartitionTreeSqlPath = join(
   __dirname,

@@ -329,16 +329,16 @@ export default class ApiService extends Service {
                 "data_types/hazard_mitigation.pbSWDLoader.load",
 
               "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
-                "dama/data_sources/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
+                "dama/data_types/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
 
               "/data-sources/npmrds/travel-times-export/etl/queueNpmrdsExportRequest":
-                "dama/data_sources/npmrds/travel_times_export/etl.queueNpmrdsExportRequest",
+                "dama/data_types/npmrds/travel_times_export/etl.queueNpmrdsExportRequest",
 
               "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
-                "dama/data_sources/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
+                "dama/data_types/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
 
               "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
-                "dama/data_sources/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
+                "dama/data_types/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
             },
           },
 
