@@ -134,7 +134,7 @@ export default async function publish(ctx: Context) {
   // let view_id = 13
   try {
     let res: QueryResult;
-    const data_cleaning_file_path = "src/data_manager/dama_integration/actions/ncei_storm_events/utils/";
+    const data_cleaning_file_path = "src/data_types/hazard_mitigation/dt-ncei_storm_events/utils/dataCleaning.py";
 
     // download step 1
     const files = await getFiles();
@@ -151,7 +151,7 @@ export default async function publish(ctx: Context) {
       }, Promise.resolve())
 
     // download step 2
-    const dc_op = execSync(`python ${data_cleaning_file_path}dataCleaning.py ${table_name}`, { encoding: 'utf-8' });
+    const dc_op = execSync(`python ${data_cleaning_file_path} ${table_name}`, { encoding: 'utf-8' });
 
     console.log('dc op', dc_op);
 

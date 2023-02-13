@@ -75,7 +75,7 @@ export default async function publish(ctx: Context) {
 
   try {
     // step 1
-    const data_cleaning_file_path = "src/data_manager/dama_integration/actions/sba/dataCleaning.py";
+    const data_cleaning_file_path = "src/data_types/hazard_mitigation/dt-sba/dataCleaning.py";
 
     const files = await getFiles();
 
