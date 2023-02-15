@@ -527,6 +527,28 @@ export default {
       },
     },
 
+    makeAuthoritativeDamaView: {
+      // update view meta, update other views of the source too.
+      async handler(ctx: Context) {
+        const makeViewAuthSql = `
+              UPDATE data_manager.views
+              set metadata = CASE WHEN metadata is null THEN '{"authoritative": "true"}' ELSE metadata::text::jsonb || '{"authoritative": "true"}'  END
+              where view_id = ${ctx.params.view_id};
+        `;
+
+        const invalidateOtherViewsSql = `
+              UPDATE data_manager.views
+              set metadata = metadata || '{"authoritative": "false"}'
+              where source_id IN (select source_id from data_manager.views where view_id = ${ctx.params.view_id})
+              and view_id != ${ctx.params.view_id};`;
+
+        await ctx.call("dama_db.query", makeViewAuthSql);
+        await ctx.call("dama_db.query", invalidateOtherViewsSql);
+
+        return 'success';
+      }
+    },
+
     async queueEtlCreateDamaView(ctx: Context) {
       // @ts-ignore
       const { params }: { params: object } = ctx;

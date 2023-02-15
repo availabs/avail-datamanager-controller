@@ -248,6 +248,8 @@ export default class ApiService extends Service {
 
               deleteDamaSource: "dama/metadata.deleteDamaSource",
 
+              makeAuthoritativeDamaView: "dama/metadata.makeAuthoritativeDamaView",
+
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
 
@@ -297,6 +299,9 @@ export default class ApiService extends Service {
 
               "/hazard_mitigation/hlrLoader":
                 "data_types/hazard_mitigation.hlrLoader.load",
+
+              "/hazard_mitigation/ealLoader":
+                "data_types/hazard_mitigation.ealLoader.load",
 
               "/hazard_mitigation/loadNCEI":
                 "data_types/hazard_mitigation.loadNCEI.load",
