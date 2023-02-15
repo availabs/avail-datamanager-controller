@@ -143,12 +143,6 @@ export default {
 
     publishGisDatasetLayer,
 
-    // testAction,
-    //
-    // loadNCEI,
-    //
-    // enhanceNCEI,
-
     async testDbIterator(ctx: Context) {
       const iter = await ctx.call("dama_db.makeIterator", ctx.params);
 
@@ -157,22 +151,5 @@ export default {
         console.log(row);
       }
     },
-    // csvUploadAction,
-    //
-    // tigerDownloadAction,
-    //
-    // versionSelectorUtils,
-    //
-    // openFemaDataLoader,
-    //
-    // usdaLoader,
-    //
-    // sbaLoader,
-    //
-    // nriLoader,
-    //
-    // pbSWDLoader,
-    //
-    // hlrLoader
   },
 };

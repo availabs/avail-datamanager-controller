@@ -24,7 +24,7 @@
 	  	/dama_integration/ - to be moved
 	  	/dama_meta/ service to get db info schema data
 	  	/dama_tileserver/ - code and config for tileserver
-	  	/dama_utils/ - universal utility functions
+	  	/dama_utils/ - to be deleted 
 
 	/data_types/ 
 	  	-A list of all data types that are available in the server

@@ -1,18 +1,14 @@
 import { ReadStream } from "fs";
-import { Context } from "moleculer";
 import _ from "lodash";
 
-import { FSA } from "flux-standard-action";
 
-export type ServiceContext = Context & {
-  params: FSA;
-};
-
+//import { receiveDataset } from './utils'
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import EventTypes from "../constants/EventTypes";
+import EventTypes from '../EventTypes'
 
-export default async function uploadGeospatialDataset(ctx: Context) {
+
+export default async function uploadGeospatialDataset(ctx) {
   const {
     params,
     meta: {

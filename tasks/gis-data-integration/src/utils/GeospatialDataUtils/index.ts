@@ -596,15 +596,19 @@ export async function loadTable(
     throw new Error(`loadTableSql file does not exist: ${loadTableSqlPath}`);
   }
 
+  console.time('load table create table sql')
   const createTableSql = createTableSqlPath
     ? await readFileAsync(createTableSqlPath)
     : generateCreateTableStatement(tableDescriptor);
+  
+
 
   const loadTableSql = loadTableSqlPath
     ? await readFileAsync(loadTableSqlPath)
     : generateLoadTableStatement(tableDescriptor);
 
   const connStr = getPostgresConnectionString(pgEnv);
+  console.timeEnd('load table create table sql')
 
   let success: Function;
   let fail: Function;
@@ -616,13 +620,17 @@ export async function loadTable(
 
   // The TEMPORY table uses the TEXT data type for all column besides ogc_fid and wkb_geometry.
   // This is so we can better control how the values are handled using the CLOSING_STATEMENTS.
+  console.time('loadTable generate tmp sql')
   const tempTableDescriptor = _.cloneDeep(tableDescriptor);
   const tstamp = new Date().toISOString().replace(/[^0-9a-z]/gi, "");
   tempTableDescriptor.tableName = `staging_${tstamp}`;
   const createTempTableSql = generateTempTableStatement(tempTableDescriptor);
 
   const loadTempTableSql = generateLoadTableStatement(tableDescriptor);
-
+  console.timeEnd('loadTable generate tmp sql')
+  
+  console.time('loadTable temptable')
+  
   // Because of quotations, it's easier to use a file for the load sql.
   const { loadTempTableSqlFilePath, rmLoadTempTableSqlFile } =
     await new Promise((resolve, reject) => {
@@ -637,8 +645,12 @@ export async function loadTable(
         });
       });
     });
+  console.timeEnd('loadTable temptable')
+
+  console.time('loadTable write table temptable')
 
   await writeFileAsync(loadTempTableSqlFilePath, loadTempTableSql);
+  console.timeEnd('loadTable write table temptable')
 
   try {
     const {
@@ -767,6 +779,7 @@ export async function loadTable(
       datasetPath,
     ];
 
+    console.time('loadTable ogr2ogrLoad')
     const ogr2ogrLoad = spawn(
       "ogr2ogr",
       ["-F", "PostgreSQL", `PG:${connStr}`, ...ogr2ogrArgs],
@@ -783,6 +796,7 @@ export async function loadTable(
 
     /* eslint-disable-next-line no-unused-expressions */
     ogr2ogrLoad.stdout?.on("data", (data) => {
+      console.log('ogr', data.toString())
       process.stdout.write(data);
       loadStdOut += data.toString();
     });
@@ -796,6 +810,8 @@ export async function loadTable(
     });
 
     await done;
+
+    console.timeEnd('loadTable ogr2ogrLoad')
 
     return {
       tableSchema,
