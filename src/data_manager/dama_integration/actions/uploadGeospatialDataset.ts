@@ -41,8 +41,8 @@ export default async function uploadGeospatialDataset(ctx: Context) {
   }
 
   try {
-    const startEvent = {
-      type: EventTypes.START_GIS_FILE_UPLOAD,
+    const initialEvent = {
+      type: EventTypes.INITIAL,
       payload: {
         ...uploadMetadata,
         etlContextId,
@@ -56,7 +56,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", startEvent);
+    await ctx.call("data_manager/events.dispatch", initialEvent);
 
     const gdi = new GeospatialDatasetIntegrator();
 
@@ -86,7 +86,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
           },
         };
 
-        await ctx.call("dama_dispatcher.dispatch", progressEvent);
+        await ctx.call("data_manager/events.dispatch", progressEvent);
 
         if (progress === 100) {
           received100pct = true;
@@ -108,7 +108,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
         },
       };
 
-      await ctx.call("dama_dispatcher.dispatch", progressEvent);
+      await ctx.call("data_manager/events.dispatch", progressEvent);
 
       const startedAnalysis = {
         type: EventTypes.START_GIS_FILE_UPLOAD_ANALYSIS,
@@ -118,7 +118,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
         },
       };
 
-      await ctx.call("dama_dispatcher.dispatch", startedAnalysis);
+      await ctx.call("data_manager/events.dispatch", startedAnalysis);
     });
 
     const { id, datasetMetadata } = await receiveDatasetDoneData;
@@ -134,7 +134,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", finishEvent);
+    await ctx.call("data_manager/events.dispatch", finishEvent);
 
     console.log(JSON.stringify({ finishEvent }, null, 4));
 
@@ -151,6 +151,6 @@ export default async function uploadGeospatialDataset(ctx: Context) {
       error: true,
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
   }
 }

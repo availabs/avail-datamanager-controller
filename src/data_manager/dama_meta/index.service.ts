@@ -7,13 +7,11 @@ import pgFormat from "pg-format";
 
 import { FSA } from "flux-standard-action";
 
-import serviceName from "./constants/serviceName";
-
-import EventTypes from "./constants/EventTypes";
-
 export type ServiceContext = Context & {
   params: FSA;
 };
+
+export const serviceName = "dama/metadata";
 
 export default {
   name: serviceName,
@@ -76,6 +74,39 @@ export default {
         const columnNames = rows.map(({ column_name }) => column_name);
 
         return columnNames;
+      },
+    },
+
+    getDamaSourceIdForName: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        // @ts-ignore
+        const { damaSourceName } = ctx.params;
+
+        console.log("==> damaSourceName:", damaSourceName);
+
+        const text = dedent(`
+          SELECT
+              source_id
+            FROM data_manager.sources
+            WHERE ( name = $1 )
+          ;
+        `);
+
+        const {
+          // @ts-ignore
+          rows: [{ source_id = null } = {}],
+        } = await ctx.call("dama_db.query", {
+          text,
+          values: [damaSourceName],
+        });
+
+        if (source_id === null) {
+          throw new Error(`No DamaSource with name ${damaSourceName}.`);
+        }
+
+        return source_id;
       },
     },
 
@@ -159,14 +190,8 @@ export default {
           { parentCtx: ctx }
         );
 
-        const root_etl_context_id = await ctx.call(
-          "dama_dispatcher.queryRootContextId",
-          { etl_context_id }
-        );
-
         const viewMeta = {
           ..._.pick(payload, columnNames),
-          root_etl_context_id,
           etl_context_id,
         };
 
@@ -204,7 +229,7 @@ export default {
 
         const { data_source_name } = payload;
 
-        const insertQ = `
+        const sql = `
           INSERT INTO data_manager.views (
             source_id, ${cols.join(", ")}
           )
@@ -218,7 +243,7 @@ export default {
         `;
 
         return {
-          text: dedent(insertQ),
+          text: dedent(sql),
           values: queryParams,
         };
       },
@@ -269,7 +294,7 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
-        const q = dedent(`
+        const sql = dedent(`
           SELECT
               source_id,
               name
@@ -278,7 +303,7 @@ export default {
           ;
         `);
 
-        const { rows } = await ctx.call("dama_db.query", q);
+        const { rows } = await ctx.call("dama_db.query", sql);
 
         return rows;
       },
@@ -299,7 +324,7 @@ export default {
         { formatTypes: [], formatValues: [] }
       );
 
-      const q = dedent(
+      const sql = dedent(
         pgFormat(
           `
             SELECT
@@ -312,7 +337,7 @@ export default {
       );
 
       const { rows } = await ctx.call("dama_db.query", {
-        text: q,
+        text: sql,
         values: [damaViewId],
       });
 
@@ -405,43 +430,16 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
-        const q = await this.actions.generateCreateDamaSourceSql(ctx.params, {
+        const sql = await this.actions.generateCreateDamaSourceSql(ctx.params, {
           parentCtx: ctx,
         });
 
         const {
           rows: [newDamaSource],
-        } = await ctx.call("dama_db.query", q);
+        } = await ctx.call("dama_db.query", sql);
 
         return newDamaSource;
       },
-    },
-
-    async queueEtlCreateDamaSource(ctx: Context) {
-      // @ts-ignore
-      const { params }: { params: object } = ctx;
-
-      // @ts-ignore
-      const { etlContextId } = params;
-
-      if (!etlContextId) {
-        throw new Error("The etlContextId parameter is required.");
-      }
-
-      const payload = _.omit(params, ["etlContextId"]);
-
-      const event = {
-        type: EventTypes.QUEUE_CREATE_NEW_DAMA_SOURCE,
-        payload,
-        meta: {
-          etl_context_id: etlContextId,
-          timestamp: new Date().toISOString(),
-        },
-      };
-
-      const result = await ctx.call("dama_dispatcher.dispatch", event);
-
-      return result;
     },
 
     generateCreateDamaViewSql: {
@@ -459,15 +457,8 @@ export default {
           etl_context_id = ctx.meta.etl_context_id || null;
         }
 
-        const root_etl_context_id = etl_context_id
-          ? await ctx.call("dama_dispatcher.queryRootContextId", {
-              etl_context_id,
-            })
-          : null;
-
         const newRow = {
           ...params,
-          root_etl_context_id,
           etl_context_id,
         };
 
@@ -483,13 +474,13 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
-        const q = await this.actions.generateCreateDamaViewSql(ctx.params, {
+        const sql = await this.actions.generateCreateDamaViewSql(ctx.params, {
           parentCtx: ctx,
         });
 
         const {
           rows: [damaSrcMeta],
-        } = await ctx.call("dama_db.query", q);
+        } = await ctx.call("dama_db.query", sql);
 
         return damaSrcMeta;
       },
@@ -500,13 +491,13 @@ export default {
       visibility: "published",
 
       async handler(ctx: Context) {
-        const q = `DELETE FROM data_manager.views where view_id = ${ctx.params.view_id}`;
+        const sql = `DELETE FROM data_manager.views where view_id = ${ctx.params.view_id}`;
 
-        const res = await ctx.call("dama_db.query", q);
+        const res = await ctx.call("dama_db.query", sql);
 
-        console.log('res', res);
+        console.log("res", res);
 
-        return q;
+        return sql;
       },
     },
 
@@ -521,37 +512,32 @@ export default {
         await ctx.call("dama_db.query", deleteViews);
         const res = await ctx.call("dama_db.query", deleteSource);
 
-        console.log('res', res);
+        console.log("res", res);
 
         return res;
       },
     },
 
-    async queueEtlCreateDamaView(ctx: Context) {
-      // @ts-ignore
-      const { params }: { params: object } = ctx;
+    makeAuthoritativeDamaView: {
+      // update view meta, update other views of the source too.
+      async handler(ctx: Context) {
+        const makeViewAuthSql = `
+              UPDATE data_manager.views
+              set metadata = CASE WHEN metadata is null THEN '{"authoritative": "true"}' ELSE metadata::text::jsonb || '{"authoritative": "true"}'  END
+              where view_id = ${ctx.params.view_id};
+        `;
 
-      // @ts-ignore
-      const { etlContextId } = params;
+        const invalidateOtherViewsSql = `
+              UPDATE data_manager.views
+              set metadata = metadata || '{"authoritative": "false"}'
+              where source_id IN (select source_id from data_manager.views where view_id = ${ctx.params.view_id})
+              and view_id != ${ctx.params.view_id};`;
 
-      if (!etlContextId) {
-        throw new Error("The etlContextId parameter is required.");
+        await ctx.call("dama_db.query", makeViewAuthSql);
+        await ctx.call("dama_db.query", invalidateOtherViewsSql);
+
+        return 'success';
       }
-
-      const payload = _.omit(params, ["etlContextId"]);
-
-      const event = {
-        type: EventTypes.QUEUE_CREATE_NEW_DAMA_VIEW,
-        payload,
-        meta: {
-          etl_context_id: etlContextId,
-          timestamp: new Date().toISOString(),
-        },
-      };
-
-      const result = await ctx.call("dama_dispatcher.dispatch", event);
-
-      return result;
     },
   },
 };

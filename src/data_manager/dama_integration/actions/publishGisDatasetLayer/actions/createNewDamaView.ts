@@ -4,7 +4,7 @@ import pgFormat from "pg-format";
 
 import { FSA } from "flux-standard-action";
 
-import EtlDamaCreateEventTypes from "../../../../dama_meta/constants/EventTypes";
+import EventTypes from "../../../constants/EventTypes";
 
 import { TransactionContext, DamaView } from "../index.d";
 
@@ -15,7 +15,7 @@ export default async function createNewDamaView(txnCtx: TransactionContext) {
   const { eventsByType } = params;
 
   const [createDamaViewEvent] = <[FSA]>(
-    eventsByType[EtlDamaCreateEventTypes.QUEUE_CREATE_NEW_DAMA_VIEW]
+    eventsByType[EventTypes.QUEUE_CREATE_NEW_DAMA_VIEW]
   );
 
   const queuedDamaViewMeta: any = _.cloneDeep(createDamaViewEvent.payload);
@@ -84,15 +84,23 @@ export default async function createNewDamaView(txnCtx: TransactionContext) {
 
     const dataTable = pgFormat("%I.%I", table_schema, table_name);
 
-    const q = {
+    const sql = {
       text: updateViewMetaSql,
       values: [table_schema, table_name, dataTable, damaViewId],
     };
 
-    await txnCtx.call("dama_db.query", q);
+    await txnCtx.call("dama_db.query", sql);
+
+    const newDamaViewSql = dedent(`
+      SELECT
+          *
+        FROM data_manager.views
+        WHERE ( view_id = $1 )
+      ;
+    `);
 
     const { rows } = await txnCtx.call("dama_db.query", {
-      text: "SELECT * FROM data_manager.views WHERE ( view_id = $1 );",
+      text: newDamaViewSql,
       values: [damaViewId],
     });
 

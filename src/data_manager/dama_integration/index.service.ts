@@ -138,7 +138,67 @@ export default {
         },
       };
 
-      await ctx.call("dama_dispatcher.dispatch", event);
+      await ctx.call("data_manager/events.dispatch", event);
+    },
+
+    async dispatchCreateDamaSourceEvent(ctx: Context) {
+      // @ts-ignore
+      const { params }: { params: object } = ctx;
+
+      // @ts-ignore
+      const { etl_context_id } = params;
+
+      if (!etl_context_id) {
+        throw new Error("The etl_context_id parameter is required.");
+      }
+
+      const payload = _.omit(params, ["etl_context_id"]);
+
+      const event = {
+        type: EventTypes.QUEUE_CREATE_NEW_DAMA_SOURCE,
+        payload,
+        meta: {
+          etl_context_id,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const result = await ctx.call("data_manager/events.dispatch", event, {
+        parentCtx: ctx,
+        meta: { etl_context_id },
+      });
+
+      return result;
+    },
+
+    async dispatchCreateDamaViewEvent(ctx: Context) {
+      // @ts-ignore
+      const { params }: { params: object } = ctx;
+
+      // @ts-ignore
+      const { etl_context_id } = params;
+
+      if (!etl_context_id) {
+        throw new Error("The etl_context_id parameter is required.");
+      }
+
+      const payload = _.omit(params, ["etl_context_id"]);
+
+      const event = {
+        type: EventTypes.QUEUE_CREATE_NEW_DAMA_VIEW,
+        payload,
+        meta: {
+          etl_context_id,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const result = await ctx.call("data_manager/events.dispatch", event, {
+        parentCtx: ctx,
+        meta: { etl_context_id },
+      });
+
+      return result;
     },
 
     publishGisDatasetLayer,

@@ -1,3 +1,4 @@
+CREATE SCHEMA IF NOT EXISTS _data_manager_admin ;
 /*
     If a dama's metadata column is null,
       use an existing dama view to initialize it.

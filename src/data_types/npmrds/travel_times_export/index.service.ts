@@ -195,7 +195,7 @@ export default {
         };
 
         return await this.broker.call(
-          "dama_dispatcher.dispatch",
+          "data_manager/events.dispatch",
           newEvent,
           opts
         );
@@ -284,7 +284,11 @@ export default {
         type: `${serviceName}:NPMRDS_TRAVEL_TIMES_EXPORT_DOWNLOADED`,
       };
 
-      await this.broker.call("dama_dispatcher.dispatch", downloadedEvent, opts);
+      await this.broker.call(
+        "data_manager/events.dispatch",
+        downloadedEvent,
+        opts
+      );
 
       const transformEvent = {
         type: `${serviceName}:STATUS_UPDATE`,
@@ -296,7 +300,11 @@ export default {
         meta: event.meta,
       };
 
-      await this.broker.call("dama_dispatcher.dispatch", transformEvent, opts);
+      await this.broker.call(
+        "data_manager/events.dispatch",
+        transformEvent,
+        opts
+      );
 
       const transformDoneData = await this.transformNpmrdsExportDownload(
         npmrdsDownloadName
@@ -326,7 +334,7 @@ export default {
 
       console.log(JSON.stringify({ transformDoneEvent }, null, 4));
       await this.broker.call(
-        "dama_dispatcher.dispatch",
+        "data_manager/events.dispatch",
         transformDoneEvent,
         opts
       );
@@ -400,7 +408,11 @@ export default {
       console.log(JSON.stringify({ tmcIdentStats }, null, 4));
 
       // console.log(JSON.stringify({ loadDoneEvent }, null, 4));
-      await this.broker.call("dama_dispatcher.dispatch", loadDoneEvent, opts);
+      await this.broker.call(
+        "data_manager/events.dispatch",
+        loadDoneEvent,
+        opts
+      );
 
       const doneData = {
         ...moveDoneData,
@@ -433,7 +445,7 @@ export default {
 
       console.log(JSON.stringify({ finalEvent }, null, 4));
 
-      await this.broker.call("dama_dispatcher.dispatch", finalEvent, opts);
+      await this.broker.call("data_manager/events.dispatch", finalEvent, opts);
     },
 
     async integrateNpmrdsTravelTimesEtlIntoDataManager(event: FSA) {
@@ -447,12 +459,6 @@ export default {
 
       // @ts-ignore
       const { etl_context_id, user_id } = meta;
-
-      const rootEtlContextId = await this.broker.call(
-        "dama_dispatcher.queryRootContextId",
-        { etl_context_id },
-        { meta }
-      );
 
       const [, state, , startDate, , endDate, ts] =
         npmrdsDownloadName.split(/_/);
@@ -484,12 +490,11 @@ export default {
             interval_version,                 -- $8
             geography_version,                -- $9
             user_id,                          -- $10
-            root_etl_context_id,              -- $11
                                               -- column values from EtlDoneData
-            table_schema,                     -- $12
-            table_name,                       -- $13
-            metadata,                         -- $14
-            statistics,                       -- $15
+            table_schema,                     -- $11
+            table_name,                       -- $12
+            metadata,                         -- $13
+            statistics,                       -- $14
             view_dependencies                 -- from cte_deps
           ) VALUES (
             $1,
@@ -505,7 +510,6 @@ export default {
             $12,
             $13,
             $14,
-            $15,
             ( SELECT deps FROM cte_deps )
           ) RETURNING *
         ;
@@ -560,7 +564,6 @@ export default {
           intervalVersion, // TODO : yrmo: Null if not complete month. Check for making authoritative.
           stateFips,
           user_id,
-          rootEtlContextId,
         ];
 
         columnValuesFromEtlDoneData.forEach((col) => {
@@ -655,7 +658,14 @@ export default {
         meta: { pgEnv },
       } = ctx;
 
-      const etl_context_id = await ctx.call("dama_dispatcher.spawnDamaContext");
+      const source_id = await ctx.call("dama/metadata.getDamaSourceIdForName", {
+        damaSourceName: NpmrdsDataSources.NpmrdsTravelTimesExport,
+      });
+
+      const etl_context_id = await ctx.call(
+        "data_manager/events.spawnEtlContext",
+        { source_id }
+      );
       const dama_controller_host = damaHost;
 
       const initialEvent = {
@@ -675,7 +685,7 @@ export default {
         },
       };
 
-      await ctx.call("dama_dispatcher.dispatch", initialEvent);
+      await ctx.call("data_manager/events.dispatch", initialEvent);
 
       // @ts-ignore
       const req = createNpmrdsDataRangeDownloadRequest({

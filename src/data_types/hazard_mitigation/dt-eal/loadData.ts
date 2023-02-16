@@ -3,9 +3,9 @@ import {PoolClient, QueryConfig, QueryResult} from "pg";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 import EventTypes from "../constants/EventTypes";
-import {per_basis_swd, pad_zero_losses, adjusted_dollar, adjusted_dollar_pop} from "./sqls";
+import {eal} from "./sqls";
 
-const update_view = async (ncei_schema, table_name, view_id, dbConnection, sqlLog, resLog) => {
+const update_view = async (hlr_schema, table_name, view_id, dbConnection, sqlLog, resLog) => {
   const updateViewMetaSql = dedent(
     `
       UPDATE data_manager.views
@@ -16,11 +16,11 @@ const update_view = async (ncei_schema, table_name, view_id, dbConnection, sqlLo
     `
   );
 
-  const data_table = pgFormat("%I.%I", ncei_schema, `${table_name}_${view_id}`);
+  const data_table = pgFormat("%I.%I", hlr_schema, `${table_name}_${view_id}`);
 
   const q = {
     text: updateViewMetaSql,
-    values: [ncei_schema, `${table_name}_${view_id}`, data_table, view_id],
+    values: [hlr_schema, `${table_name}_${view_id}`, data_table, view_id],
   };
 
   sqlLog.push(q);
@@ -33,24 +33,21 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: {etl_context_id, table_name, src_id, view_id, ncei_table, ncei_schema, nri_schema, nri_table},
+    params: {etl_context_id, table_name, src_id, view_id,
+      hlr_table, hlr_schema,
+      nri_schema, nri_table
+    },
   } = ctx;
   //
   if (!(etl_context_id)) {
     const etlcontextid = await ctx.call(
-      "data_manager/events.spawnEtlContext",
+      "dama_dispatcher.spawnDamaContext",
       {etl_context_id: null}
     );
     etl_context_id = etlcontextid;
     throw new Error("The etl_context_id parameter is required.");
   }
-
-  const initalEvent = {
-    type: EventTypes.INITIAL
-  }
-
-  await ctx.call("data_manager/events.dispatch", initialEvent);
-
+  console.log('???', JSON.stringify(ctx.params, null, 4));
   const dbConnection: PoolClient = await ctx.call("dama_db.getDbConnection");
   const sqlLog: any[] = [];
   const resLog: QueryResult[] = [];
@@ -64,7 +61,7 @@ export default async function publish(ctx: Context) {
     resLog.push(res);
 
     // create schema
-    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${ncei_schema};`;
+    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${hlr_schema};`;
     sqlLog.push(createSchema);
     res = await ctx.call("dama_db.query", {
       text: createSchema
@@ -73,32 +70,13 @@ export default async function publish(ctx: Context) {
     console.log("see this:", res.rows);
 
     // create table
-    sqlLog.push(per_basis_swd(table_name, view_id, ncei_schema, ncei_table));
+    sqlLog.push(eal(table_name, view_id,
+      hlr_schema, hlr_table,
+      nri_schema, nri_table));
     res = await ctx.call("dama_db.query", {
-      text: per_basis_swd(table_name, view_id, ncei_schema, ncei_table)
-    });
-    resLog.push(res);
-    console.log("see this:", res.rows);
-
-    // postprocessing
-
-    sqlLog.push(pad_zero_losses(table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table));
-    res = await ctx.call("dama_db.query", {
-      text: pad_zero_losses(table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table)
-    });
-    resLog.push(res);
-    console.log("see this:", res.rows);
-
-    sqlLog.push(adjusted_dollar(table_name, view_id, ncei_schema));
-    res = await ctx.call("dama_db.query", {
-      text: adjusted_dollar(table_name, view_id, ncei_schema)
-    });
-    resLog.push(res);
-    console.log("see this:", res.rows);
-
-    sqlLog.push(adjusted_dollar_pop(table_name, view_id, ncei_schema));
-    res = await ctx.call("dama_db.query", {
-      text: adjusted_dollar_pop(table_name, view_id, ncei_schema)
+      text: eal(table_name, view_id,
+        hlr_schema, hlr_table,
+        nri_schema, nri_table)
     });
     resLog.push(res);
     console.log("see this:", res.rows);
@@ -107,7 +85,7 @@ export default async function publish(ctx: Context) {
 
 
     // update view meta
-    await update_view(ncei_schema, table_name, view_id, dbConnection, sqlLog, resLog);
+    await update_view(hlr_schema, table_name, view_id, dbConnection, sqlLog, resLog);
 
     await dbConnection.query("COMMIT;");
 
@@ -131,7 +109,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("data_manager/events.dispatch", finalEvent);
+    await ctx.call("dama_dispatcher.dispatch", finalEvent);
 
     return finalEvent;
   } catch (err) {
@@ -151,7 +129,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("data_manager/events.dispatch", errEvent);
+    await ctx.call("dama_dispatcher.dispatch", errEvent);
 
     await dbConnection.query("ROLLBACK;");
 

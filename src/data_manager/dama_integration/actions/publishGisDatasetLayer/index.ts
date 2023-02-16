@@ -62,7 +62,7 @@ export default async function publish(ctx: Context) {
       payload: {
         damaSourceId,
         damaViewId,
-        queryLog: txn.queryLog,
+        queryLog: [...txn.queryLog],
         initializeDamaSourceMetadataWarning,
         conformDamaSourceViewTableSchemaWarning,
       },
@@ -73,10 +73,10 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    console.log(JSON.stringify({ finalEvent }, null, 4));
+    // console.log(JSON.stringify({ finalEvent }, null, 4));
 
     // Back to the parentCtx
-    await txnCtx.call("dama_dispatcher.dispatch", finalEvent);
+    await txnCtx.call("data_manager/events.dispatch", finalEvent);
 
     await txn.commit();
 
@@ -88,7 +88,7 @@ export default async function publish(ctx: Context) {
       type: GisDatasetIntegrationEventTypes.PUBLISH_ERROR,
       payload: {
         message: err.message,
-        queryLog: txn.queryLog,
+        queryLog: [...txn.queryLog],
       },
       meta: {
         etl_context_id,
@@ -98,7 +98,7 @@ export default async function publish(ctx: Context) {
     };
 
     // Back to the parentCtx
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     try {
       await txn.rollback();

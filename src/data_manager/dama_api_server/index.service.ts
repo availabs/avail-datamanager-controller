@@ -166,39 +166,9 @@ export default class ApiService extends Service {
                 res.end(JSON.stringify(dataSources));
               },
 
-              async "events/dispatch"(
-                req: IncomingRequest,
-                res: GatewayResponse
-              ) {
-                // TODO TODO TODO Auth and put user info in event meta TODO TODO TODO
-
-                const event = _.omit(req.$params, "pgEnv");
-
-                // @ts-ignore
-                const { pgEnv } = req.$ctx.meta;
-
-                event.meta = event.meta || {};
-                event.meta.pgEnv = pgEnv;
-
-                let { meta: { etl_context_id = null } = {} } = event;
-
-                if (etl_context_id === null) {
-                  etl_context_id = await req.$ctx.call(
-                    "dama_dispatcher.spawnDamaContext"
-                  );
-
-                  // @ts-ignore
-                  event.meta.etl_context_id = etl_context_id;
-                }
-
-                const damaaEvent = await req.$ctx.call(
-                  "dama_dispatcher.dispatch",
-                  event
-                );
-
-                return res.end(JSON.stringify(damaaEvent));
-              },
-
+              // No idea why this isnt' working
+              // "GET events/query": "data_manager/events.queryEvents",
+              //
               async "GET events/query"(
                 req: IncomingRequest,
                 res: GatewayResponse
@@ -206,7 +176,7 @@ export default class ApiService extends Service {
                 // TODO TODO TODO Auth and put user info in event meta TODO TODO TODO
 
                 const damaaEvents = await req.$ctx.call(
-                  "dama_dispatcher.queryDamaEvents",
+                  "data_manager/events.queryEvents",
                   req.$params
                 );
 
@@ -248,17 +218,13 @@ export default class ApiService extends Service {
 
               deleteDamaSource: "dama/metadata.deleteDamaSource",
 
+              makeAuthoritativeDamaView: "dama/metadata.makeAuthoritativeDamaView",
+
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
 
               // ETL
-              "GET /etl/new-context-id": "dama_dispatcher.spawnDamaContext",
-
-              "POST /etl/contextId/:etlContextId/queueCreateDamaSource":
-                "dama/metadata.queueEtlCreateDamaSource",
-
-              "POST /etl/contextId/:etlContextId/queueCreateDamaView":
-                "dama/metadata.queueEtlCreateDamaView",
+              "GET /etl/new-context-id": "data_manager/events.spawnEtlContext",
 
               // --- gis data set --//
               
@@ -306,6 +272,12 @@ export default class ApiService extends Service {
               "/staged-geospatial-dataset/:id/:layerName/loadDatabaseTable":
                 "dama/data_source_integrator.loadDatabaseTable",
 
+              "POST /staged-geospatial-dataset/dispatchCreateDamaSourceEvent":
+                "dama/data_source_integrator.dispatchCreateDamaSourceEvent",
+
+              "POST /staged-geospatial-dataset/dispatchCreateDamaViewEvent":
+                "dama/data_source_integrator.dispatchCreateDamaViewEvent",
+
               "/staged-geospatial-dataset/approveQA":
                 "dama/data_source_integrator.approveQA",
 
@@ -314,6 +286,9 @@ export default class ApiService extends Service {
 
               "/hazard_mitigation/hlrLoader":
                 "hazard_mitigation.hlrLoader.load",
+
+              "/hazard_mitigation/ealLoader":
+                "data_types/hazard_mitigation.ealLoader.load",
 
               "/hazard_mitigation/loadNCEI":
                 "hazard_mitigation.loadNCEI.load",
@@ -366,9 +341,6 @@ export default class ApiService extends Service {
             },
             path: "/api",
             whitelist: [
-              // AVAIL: We want to block ALL actions.
-              //        events/dispatch MUST be the only exposed interface
-              //
               // // Access to any actions in all services under "/api" URL
               // "admin/api",
               "**",
