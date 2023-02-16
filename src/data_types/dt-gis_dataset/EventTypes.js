@@ -1,7 +1,7 @@
 import { serviceName } from "./index.service";
 
 export default {
-  START_GIS_FILE_UPLOAD: `${serviceName}:START_GIS_FILE_UPLOAD`,
+  START_GIS_FILE_UPLOAD: `${serviceName}:INITIAL`,
   FINISH_GIS_FILE_UPLOAD: `${serviceName}:FINISH_GIS_FILE_UPLOAD`,
   GIS_FILE_UPLOAD_PROGRESS: `${serviceName}:GIS_FILE_UPLOAD_PROGRESS`,
   GIS_FILE_RECEIVED: `${serviceName}:GIS_FILE_RECEIVED`,
