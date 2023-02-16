@@ -54,6 +54,7 @@ type LocalVariables = {
 const dbInitializationScripts = [
   "create_required_extensions.sql",
   "create_dama_core_tables.sql",
+  "create_dama_etl_context_and_events_tables.sql",
   "create_dama_admin_helper_functions.sql",
   "create_geojson_schema_table.sql",
   "create_dama_table_schema_utils.sql",
@@ -333,6 +334,7 @@ export default {
               } catch (err) {
                 queryLog.push({
                   query,
+                  // @ts-ignore
                   result: err.message,
                 });
                 throw err;
@@ -454,6 +456,7 @@ export default {
         ;
       `);
 
+      // @ts-ignore
       const { rows } = await ctx.call("dama_db.query", {
         text,
         values: [tableSchema, tableName],
@@ -510,17 +513,17 @@ export default {
                     etl_context_id,
                     payload,
                     row_number() OVER (PARTITION BY etl_context_id ORDER BY event_id DESC) AS row_number
-                  FROM data_manager.dama_event_store
+                  FROM data_manager.event_store
                     INNER JOIN (
 
                       SELECT
                           etl_context_id
-                        FROM data_manager.dama_event_store
+                        FROM data_manager.event_store
                         WHERE ( type LIKE ( %L || '%' ) )
                       EXCEPT
                       SELECT
                           etl_context_id
-                        FROM data_manager.dama_event_store
+                        FROM data_manager.event_store
                         WHERE (
                           ( type LIKE ( %L || '%' ) )
                           AND
@@ -559,7 +562,7 @@ export default {
         `
           SELECT
               *
-            FROM data_manager.dama_event_store
+            FROM data_manager.event_store
             WHERE (
               ( etl_context_id = $1 )
               AND

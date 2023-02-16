@@ -33,9 +33,15 @@ export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
 
   const etlcontextid = await ctx.call(
-    "dama_dispatcher.spawnDamaContext",
+    "data_manager/events.spawnEtlContext",
     { etl_context_id: null }
   );
+
+  const initalEvent = {
+    type: EventTypes.INITIAL
+  }
+
+  await ctx.call("data_manager/events.dispatch", initialEvent);
 
   const {
     // @ts-ignore
@@ -126,7 +132,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", finalEvent);
+    await ctx.call("data_manager/events.dispatch", finalEvent);
 
     return finalEvent;
   } catch (err) {
@@ -146,7 +152,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     await dbConnection.query("ROLLBACK;");
 

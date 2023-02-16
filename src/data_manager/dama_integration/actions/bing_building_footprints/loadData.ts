@@ -59,7 +59,7 @@ export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
 
   const etlcontextid = await ctx.call(
-    "dama_dispatcher.spawnDamaContext",
+    "data_manager/events.spawnEtlContext",
     { etl_context_id: null, pgEnv: null, table: null }
   );
 
@@ -104,7 +104,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", finalEvent);
+    await ctx.call("data_manager/events.dispatch", finalEvent);
 
     return finalEvent;
   } catch (err) {
@@ -121,7 +121,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     throw err;
   }

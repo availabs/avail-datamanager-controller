@@ -24,7 +24,7 @@ async function getInsertViewMetadataSql(
 }
 
 const create_view = async (etl_context_id, dbConnection, ctx, sqlLog) => {
-  const events: FSA[] = await ctx.call("dama_dispatcher.queryDamaEvents", {
+  const events: FSA[] = await ctx.call("data_manager/events.queryEvents", {
     etl_context_id,
   });
 
@@ -85,12 +85,18 @@ export default async function publish(ctx: Context) {
   //
   if (!(etl_context_id)) {
     const etlcontextid = await ctx.call(
-      "dama_dispatcher.spawnDamaContext",
+      "data_manager/events.spawnEtlContext",
       { etl_context_id: null }
     );
     etl_context_id = etlcontextid;
     throw new Error("The etl_context_id parameter is required.");
   }
+
+  const initalEvent = {
+    type: EventTypes.INITIAL
+  }
+
+  await ctx.call("data_manager/events.dispatch", initialEvent);
 
   const dbConnection: PoolClient = await ctx.call("dama_db.getDbConnection");
   const sqlLog: any[] = [];
@@ -150,7 +156,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", finalEvent);
+    await ctx.call("data_manager/events.dispatch", finalEvent);
 
     return finalEvent;
   } catch (err) {
@@ -170,7 +176,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     await dbConnection.query("ROLLBACK;");
 

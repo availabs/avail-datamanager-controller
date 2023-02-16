@@ -19,10 +19,10 @@ import { stateAbbr2FipsCode } from "../../../../data_utils/constants/stateFipsCo
 
 const NUM_TMCS = 1;
 // const STATES = ["ct", "nj", "ny", "pa"];
-const STATES = ["nj", "ny"];
+const STATES = ["ny"];
 
 const DATA_START_DATE = "2021-01-01";
-const DATA_END_DATE = "2022-12-31";
+const DATA_END_DATE = "2022-03-31";
 
 const EPOCHS = _.range(0, 288);
 
