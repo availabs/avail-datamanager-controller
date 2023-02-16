@@ -42,7 +42,6 @@ export type DamaView = {
 
   user_id?: number;
 
-  root_etl_context_id?: number;
   etl_context_id?: number;
 
   _created_timestamp?: Date;
@@ -56,5 +55,5 @@ export type TransactionContext = Context & {
     newDamaSource: DamaSource | null;
     newDamaView: DamaView | null;
   };
-  meta: { transactionId: string };
+  meta: { transactionId: string; etl_context_id: number };
 };

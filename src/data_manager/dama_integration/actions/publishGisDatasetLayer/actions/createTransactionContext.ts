@@ -22,7 +22,7 @@ export default async function createTransactionContext(
     throw new Error("The etl_context_id and user_id parameters are required.");
   }
 
-  const events: FSA[] = await ctx.call("dama_dispatcher.queryDamaEvents", {
+  const events: FSA[] = await ctx.call("data_manager/events.queryEvents", {
     etl_context_id,
   });
 
@@ -50,7 +50,6 @@ export default async function createTransactionContext(
   txnCtx.meta = {
     ..._.cloneDeep(ctx.meta),
     etl_context_id,
-    user_id,
     transactionId: txn.transactionId,
   };
 

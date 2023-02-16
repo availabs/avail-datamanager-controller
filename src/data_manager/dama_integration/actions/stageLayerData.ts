@@ -25,7 +25,7 @@ export default async function stageLayerData(ctx: Context) {
     throw new Error("etl_context_id parameter is required");
   }
 
-  const events: FSA[] = await ctx.call("dama_dispatcher.queryDamaEvents", {
+  const events: FSA[] = await ctx.call("data_manager/events.queryEvents", {
     etl_context_id,
   }); // Filter out the future events
 
@@ -52,7 +52,7 @@ export default async function stageLayerData(ctx: Context) {
     },
   };
 
-  await ctx.call("dama_dispatcher.dispatch", stageReqEvent);
+  await ctx.call("data_manager/events.dispatch", stageReqEvent);
 
   const gdi = new GeospatialDatasetIntegrator(gis_upload_id);
 
@@ -75,7 +75,7 @@ export default async function stageLayerData(ctx: Context) {
     },
   };
 
-  await ctx.call("dama_dispatcher.dispatch", loadedEvent);
+  await ctx.call("data_manager/events.dispatch", loadedEvent);
 
   const qaRequestEvent = {
     type: EventTypes.QA_REQUEST,
@@ -86,7 +86,7 @@ export default async function stageLayerData(ctx: Context) {
     },
   };
 
-  await ctx.call("dama_dispatcher.dispatch", qaRequestEvent);
+  await ctx.call("data_manager/events.dispatch", qaRequestEvent);
 
   return migration_result;
 }

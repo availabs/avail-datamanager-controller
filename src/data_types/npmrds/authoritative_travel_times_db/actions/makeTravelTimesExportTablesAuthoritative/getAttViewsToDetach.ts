@@ -137,8 +137,6 @@ export function handleHasAttViewIdsCase(
     let ettCursor = 0;
 
     while (attCursor < attIntervals.length || ettCursor < ettIntervals.length) {
-      console.log("attCursor:", attCursor, "|", "ettCursor:", ettCursor);
-
       const attInterval = attIntervals[attCursor];
       const ettInterval = ettIntervals[ettCursor];
 
@@ -172,6 +170,7 @@ export function handleHasAttViewIdsCase(
     }
   }
 
+  /*
   console.log(
     JSON.stringify(
       {
@@ -183,6 +182,7 @@ export function handleHasAttViewIdsCase(
       4
     )
   );
+ */
 
   return {
     sortedNewAttDateRangeIntervalsByState,
@@ -297,6 +297,7 @@ export function validateNoAttGaps(
       return acc;
     }, {});
 
+    /*
     console.log(
       JSON.stringify(
         { attViewsMeta, sortedNewAttDateRangeIntervalsByState },
@@ -304,19 +305,18 @@ export function validateNoAttGaps(
         4
       )
     );
+    */
 
     const states = _.uniq([
       ...Object.keys(oldAttIntervalUnionsByState),
       ...Object.keys(newAttIntervalUnionsByState),
     ]).sort();
 
-    console.log(states);
-
     for (const state of states) {
       const oldInterval = oldAttIntervalUnionsByState[state];
       const newInterval = newAttIntervalUnionsByState[state];
 
-      console.log(JSON.stringify({ state, oldInterval, newInterval }, null, 4));
+      // console.log(JSON.stringify({ state, oldInterval, newInterval }, null, 4));
 
       if (oldInterval && !newInterval.engulfs(oldInterval)) {
         const oldStr = oldInterval.toISODate();
@@ -361,16 +361,18 @@ export default function getAttViewsToDetach(
       ? handleHasAttViewIdsCase(attViewsMeta, ettViewsMeta)
       : handleNoAttViewIdsCase(ettViewsMeta);
 
-  console.log(JSON.stringify({ attViewIdsToDetach }, null, 4));
+  // console.log(JSON.stringify({ attViewIdsToDetach }, null, 4));
 
   const dateExtentsByState = validateNoAttGaps(
     attViewsMeta,
     sortedNewAttDateRangeIntervalsByState
   );
 
+  /*
   console.log("$#".repeat(20));
   console.log(JSON.stringify({ dateExtentsByState }, null, 4));
   console.log("$#".repeat(20));
+  */
 
   const attViewsToDetach = attViewsMeta
     ? attViewIdsToDetach.map((attViewId) => attViewsMeta.byViewId[attViewId])

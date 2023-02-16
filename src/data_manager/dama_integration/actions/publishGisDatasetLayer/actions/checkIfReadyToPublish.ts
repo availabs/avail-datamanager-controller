@@ -3,13 +3,13 @@ import _ from "lodash";
 import { Context } from "moleculer";
 import { FSA } from "flux-standard-action";
 
-import EtlDamaCreateEventTypes from "../../../../dama_meta/constants/EventTypes";
+import EventTypes from "../../../constants/EventTypes";
 
 import GisDatasetIntegrationEventTypes from "../../../constants/EventTypes";
 
 export const ReadyToPublishPrerequisites = [
-  GisDatasetIntegrationEventTypes.QA_APPROVED,
-  EtlDamaCreateEventTypes.QUEUE_CREATE_NEW_DAMA_VIEW,
+  EventTypes.QA_APPROVED,
+  EventTypes.QUEUE_CREATE_NEW_DAMA_VIEW,
 ];
 
 export default async function checkIfReadyToPublish(
@@ -43,7 +43,7 @@ export default async function checkIfReadyToPublish(
       error: true,
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     console.error("errEvent:", errEvent);
 

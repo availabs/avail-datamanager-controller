@@ -166,10 +166,6 @@ export async function createAuthoritativeStateYearMonthTable(
 
   const result = await dbConn.query(sql);
 
-  console.log(JSON.stringify({ result }, null, 4));
-
-  console.log(sql);
-
   return { schemaName, tableName };
 }
 
@@ -237,7 +233,8 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
   attViewsToDetach: ParsedNpmrdsTravelTimesExportTableMetadata[],
   attViewsMeta: EttViewsMetaSummary | null,
   ettViewsMeta: EttViewsMetaSummary,
-  dateExtentsByState: Record<string, [string, string]>
+  dateExtentsByState: Record<string, [string, string]>,
+  etl_context_id: number
 ) {
   const {
     sortedByStateThenStartDate: ettViewIds,
@@ -313,7 +310,8 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
       end_date,                       -- $6
       last_updated,                   -- $7
       view_dependencies,              -- $8
-      metadata                        -- $9
+      metadata,                       -- $9
+      etl_context_id                  -- $10
     ) VALUES (
       'public',
       'npmrds_test',
@@ -326,7 +324,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
           WHERE ( name = $1 )
       ),
 
-      $2, $3, $4, $5, $6, $7, $8, $9
+      $2, $3, $4, $5, $6, $7, $8, $9, $10
 
     ) RETURNING *
   `);
@@ -341,6 +339,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
     lastUpdated,
     viewDependencies,
     metadata,
+    etl_context_id,
   ];
 
   const {

@@ -1,7 +1,8 @@
 import serviceName from "./serviceName";
 
 export default {
-  START_GIS_FILE_UPLOAD: `${serviceName}:START_GIS_FILE_UPLOAD`,
+  INITIAL: `${serviceName}:INITIAL`,
+
   FINISH_GIS_FILE_UPLOAD: `${serviceName}:FINISH_GIS_FILE_UPLOAD`,
   GIS_FILE_UPLOAD_PROGRESS: `${serviceName}:GIS_FILE_UPLOAD_PROGRESS`,
   GIS_FILE_RECEIVED: `${serviceName}:GIS_FILE_RECEIVED`,
@@ -15,6 +16,9 @@ export default {
 
   QA_REQUEST: `${serviceName}:QA_REQUEST`,
   QA_APPROVED: `${serviceName}:QA_APPROVED`,
+
+  QUEUE_CREATE_NEW_DAMA_SOURCE: `${serviceName}:QUEUE_CREATE_NEW_DAMA_SOURCE`,
+  QUEUE_CREATE_NEW_DAMA_VIEW: `${serviceName}:QUEUE_CREATE_NEW_DAMA_VIEW`,
 
   READY_TO_PUBLISH: `${serviceName}:READY_TO_PUBLISH`,
 

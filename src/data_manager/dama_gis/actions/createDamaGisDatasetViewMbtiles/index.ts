@@ -24,7 +24,7 @@ export default async function createDamaGisDatasetViewMbtiles(ctx: Context) {
     params: { damaViewId },
   } = ctx;
 
-  const etl_context_id = await ctx.call("dama_dispatcher.spawnDamaContext");
+  const etl_context_id = await ctx.call("data_manager/events.spawnEtlContext");
 
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
     await new Promise((resolve, reject) =>
@@ -69,7 +69,7 @@ export default async function createDamaGisDatasetViewMbtiles(ctx: Context) {
     meta: { etl_context_id },
   };
 
-  await ctx.call("dama_dispatcher.dispatch", initialEvent);
+  await ctx.call("data_manager/events.dispatch", initialEvent);
 
   const featuresAsyncIterator = <AsyncGenerator<Feature>>(
     await ctx.call(
@@ -126,7 +126,7 @@ export default async function createDamaGisDatasetViewMbtiles(ctx: Context) {
       meta: { etl_context_id, timestamp: now },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", finalEvent);
+    await ctx.call("data_manager/events.dispatch", finalEvent);
   } catch (err) {
     const errorEvent = {
       type: "createDamaGisDatasetViewMbtiles:ERROR",
@@ -135,7 +135,7 @@ export default async function createDamaGisDatasetViewMbtiles(ctx: Context) {
       meta: { etl_context_id },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errorEvent);
+    await ctx.call("data_manager/events.dispatch", errorEvent);
 
     throw err;
   } finally {
