@@ -37,8 +37,9 @@ export default async function publish(ctx: Context) {
     { etl_context_id: null }
   );
 
-  const initalEvent = {
-    type: EventTypes.INITIAL
+  const initialEvent = {
+    type: EventTypes.INITIAL,
+    meta: {etl_context_id: etlcontextid}
   }
 
   await ctx.call("data_manager/events.dispatch", initialEvent);
