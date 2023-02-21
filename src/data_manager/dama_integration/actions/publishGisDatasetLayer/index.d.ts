@@ -11,8 +11,7 @@ export type DamaSource = {
   metadata?: any;
   categories?: any;
   type?: string;
-  display_name?: string;
-
+  
   user_id?: number;
 
   _created_timestamp?: Date;

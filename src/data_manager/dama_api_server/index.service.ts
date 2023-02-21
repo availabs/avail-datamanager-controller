@@ -227,11 +227,28 @@ export default class ApiService extends Service {
               // ETL
               "GET /etl/new-context-id": "data_manager/events.spawnEtlContext",
 
+              // --- gis data set --//
+              
+              "gis-dataset/upload":
+                "multipart:gis-dataset.uploadFile",
+
+              "GET /gis-dataset/:id/layerNames":
+                "gis-dataset.getLayerNames",
+
+              "GET /gis-dataset/:id/:layerName/tableDescriptor":
+                "gis-dataset.getTableDescriptor",
+
+              "GET /gis-dataset/:id/:layerName/layerAnalysis":
+                "gis-dataset.getLayerAnalysis",
+
+              "gis-dataset/publish":
+                "gis-dataset.publish",
+              
+
+              // --- end data set --//
               "gis/create-mbtiles/damaViewId/:damaViewId":
                 "dama/gis.createDamaGisDatasetViewMbtiles",
 
-              "GET staged-geospatial-dataset/existingDatasetUploads":
-                "dama/data_source_integrator.getExistingDatasetUploads",
 
               // FIXME: Returns an array. See
               // https://github.com/moleculerjs/moleculer-web/blob/5b0eebe83ece78dbacd40d02ae90fd7c143572ed/src/alias.js#L194
@@ -269,40 +286,40 @@ export default class ApiService extends Service {
                 "dama/data_source_integrator.publishGisDatasetLayer",
 
               "/hazard_mitigation/hlrLoader":
-                "data_types/hazard_mitigation.hlrLoader.load",
+                "hazard_mitigation.hlrLoader.load",
 
               "/hazard_mitigation/ealLoader":
                 "data_types/hazard_mitigation.ealLoader.load",
 
               "/hazard_mitigation/loadNCEI":
-                "data_types/hazard_mitigation.loadNCEI.load",
+                "hazard_mitigation.loadNCEI.load",
 
               "/hazard_mitigation/enhanceNCEI":
-                "data_types/hazard_mitigation.enhanceNCEI.load",
+                "hazard_mitigation.enhanceNCEI.load",
 
               "/hazard_mitigation/csvUploadAction":
-                "data_types/hazard_mitigation.csvUploadAction.load",
+                "hazard_mitigation.csvUploadAction.load",
 
               "/hazard_mitigation/tigerDownloadAction":
-                "data_types/hazard_mitigation.tigerDownloadAction.load",
+                "hazard_mitigation.tigerDownloadAction.load",
 
               "/hazard_mitigation/versionSelectorUtils":
-                "data_types/hazard_mitigation.versionSelectorUtils.load",
+                "hazard_mitigation.versionSelectorUtils.load",
 
               "/hazard_mitigation/openFemaDataLoader":
-                "data_types/hazard_mitigation.openFemaDataLoader.load",
+                "hazard_mitigation.openFemaDataLoader.load",
 
               "/hazard_mitigation/usdaLoader":
-                "data_types/hazard_mitigation.usdaLoader.load",
+                "hazard_mitigation.usdaLoader.load",
 
               "/hazard_mitigation/sbaLoader":
-                "data_types/hazard_mitigation.sbaLoader.load",
+                "hazard_mitigation.sbaLoader.load",
 
               "/hazard_mitigation/nriLoader":
-                "data_types/hazard_mitigation.nriLoader.load",
+                "hazard_mitigation.nriLoader.load",
 
               "/hazard_mitigation/pbSWDLoader":
-                "data_types/hazard_mitigation.pbSWDLoader.load",
+                "hazard_mitigation.pbSWDLoader.load",
 
               "data-types/npmrds/getToposortedDamaSourcesMeta":
                 "dama/data_types/npmrds.getToposortedDamaSourcesMeta",

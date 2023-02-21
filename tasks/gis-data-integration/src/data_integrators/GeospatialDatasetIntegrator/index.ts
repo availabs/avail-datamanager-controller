@@ -825,12 +825,15 @@ export default class GeospatialDatasetIntegrator {
     const datetime = new Date();
 
     try {
+      console.log('gdi Load Table meta start')
+      console.time('gdi load 1')
       const loadTableMetadata = await loadTable(
         <string>this.datasetPath,
         tableDescriptor,
         pgEnv
       );
-
+      console.timeEnd('gdi load 1')
+      
       this.setDatasetLayerUploadStatus(
         layerName,
         DatasetLayerUploadStatus.STAGED
@@ -838,17 +841,23 @@ export default class GeospatialDatasetIntegrator {
 
       const { PGHOST, PGDATABASE } = getPsqlCredentials(pgEnv);
 
+      console.log('gdi Load Table meta persist')
+      console.time('gdi load 2')
       await this.persistLoadTableMetadata(
         { PGHOST, PGDATABASE, ...loadTableMetadata },
         datetime
       );
+      console.timeEnd('gdi load 2')
 
+      console.log('gdi Load Table persistDatasetLayerCreateTableSql')
+      console.time('gdi load 3')
       await this.persistDatasetLayerCreateTableSql(
         layerName,
         loadTableMetadata.createTableSql,
         datetime
       );
-
+      console.timeEnd('gdi load 3')
+      
       return loadTableMetadata;
     } catch (err) {
       await this.persistDatasetLayerLoadError(layerName, <Error>err, datetime);

@@ -1,18 +1,14 @@
 import { ReadStream } from "fs";
-import { Context } from "moleculer";
 import _ from "lodash";
 
-import { FSA } from "flux-standard-action";
 
-export type ServiceContext = Context & {
-  params: FSA;
-};
-
+//import { receiveDataset } from './utils'
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import EventTypes from "../constants/EventTypes";
+import EventTypes from '../EventTypes'
 
-export default async function uploadGeospatialDataset(ctx: Context) {
+
+export default async function uploadGeospatialDataset(ctx) {
   const {
     params,
     meta: {
@@ -41,8 +37,8 @@ export default async function uploadGeospatialDataset(ctx: Context) {
   }
 
   try {
-    const initialEvent = {
-      type: EventTypes.INITIAL,
+    const startEvent = {
+      type: EventTypes.START_GIS_FILE_UPLOAD,
       payload: {
         ...uploadMetadata,
         etlContextId,
@@ -56,7 +52,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
       },
     };
 
-    await ctx.call("data_manager/events.dispatch", initialEvent);
+    await ctx.call("dama_dispatcher.dispatch", startEvent);
 
     const gdi = new GeospatialDatasetIntegrator();
 
@@ -86,7 +82,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
           },
         };
 
-        await ctx.call("data_manager/events.dispatch", progressEvent);
+        await ctx.call("dama_dispatcher.dispatch", progressEvent);
 
         if (progress === 100) {
           received100pct = true;
@@ -108,7 +104,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
         },
       };
 
-      await ctx.call("data_manager/events.dispatch", progressEvent);
+      await ctx.call("dama_dispatcher.dispatch", progressEvent);
 
       const startedAnalysis = {
         type: EventTypes.START_GIS_FILE_UPLOAD_ANALYSIS,
@@ -118,7 +114,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
         },
       };
 
-      await ctx.call("data_manager/events.dispatch", startedAnalysis);
+      await ctx.call("dama_dispatcher.dispatch", startedAnalysis);
     });
 
     const { id, datasetMetadata } = await receiveDatasetDoneData;
@@ -134,7 +130,7 @@ export default async function uploadGeospatialDataset(ctx: Context) {
       },
     };
 
-    await ctx.call("data_manager/events.dispatch", finishEvent);
+    await ctx.call("dama_dispatcher.dispatch", finishEvent);
 
     console.log(JSON.stringify({ finishEvent }, null, 4));
 
@@ -151,6 +147,6 @@ export default async function uploadGeospatialDataset(ctx: Context) {
       error: true,
     };
 
-    await ctx.call("data_manager/events.dispatch", errEvent);
+    await ctx.call("dama_dispatcher.dispatch", errEvent);
   }
 }

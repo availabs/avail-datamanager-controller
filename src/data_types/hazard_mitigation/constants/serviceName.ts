@@ -1,1 +1,1 @@
-export default "data_types/hazard_mitigation";
+export default "hazard_mitigation";
