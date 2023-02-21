@@ -536,8 +536,53 @@ export default {
         await ctx.call("dama_db.query", makeViewAuthSql);
         await ctx.call("dama_db.query", invalidateOtherViewsSql);
 
-        return 'success';
-      }
+        return "success";
+      },
+    },
+
+    async getDamaSourceMetadataByName(ctx: Context) {
+      const {
+        params: { damaSourceNames },
+      } = ctx;
+
+      const opts = { parentCtx: ctx };
+
+      const sql = dedent(`
+        SELECT
+            *
+          FROM data_manager.sources
+          WHERE ( name = ANY($1) )
+      `);
+
+      // @ts-ignore
+      const { rows } = await ctx.call(
+        "dama_db.query",
+        {
+          text: sql,
+          values: [damaSourceNames],
+        },
+        opts
+      );
+
+      const rowsByName = rows.reduce((acc: Record<string, any>, row: any) => {
+        const { name } = row;
+
+        acc[name] = row;
+
+        return acc;
+      }, {});
+
+      // @ts-ignore
+      const metaByName = damaSourceNames.reduce(
+        (acc: Record<string, any>, name: string) => {
+          acc[name] = rowsByName[name] || null;
+
+          return acc;
+        },
+        {}
+      );
+
+      return metaByName;
     },
   },
 };

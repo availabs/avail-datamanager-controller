@@ -218,7 +218,8 @@ export default class ApiService extends Service {
 
               deleteDamaSource: "dama/metadata.deleteDamaSource",
 
-              makeAuthoritativeDamaView: "dama/metadata.makeAuthoritativeDamaView",
+              makeAuthoritativeDamaView:
+                "dama/metadata.makeAuthoritativeDamaView",
 
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
@@ -302,6 +303,12 @@ export default class ApiService extends Service {
 
               "/hazard_mitigation/pbSWDLoader":
                 "data_types/hazard_mitigation.pbSWDLoader.load",
+
+              "data-types/npmrds/getToposortedDamaSourcesMeta":
+                "dama/data_types/npmrds.getToposortedDamaSourcesMeta",
+
+              "data-types/npmrds/initializeNpmrdsSources":
+                "dama/data_types/npmrds.initializeDamaSources",
 
               "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
                 "dama/data_types/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",

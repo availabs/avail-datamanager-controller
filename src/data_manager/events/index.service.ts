@@ -72,7 +72,7 @@ export default {
       async handler(ctx: Context & { params: FSA }) {
         const { params } = ctx;
 
-        console.log(JSON.stringify({ params, meta: ctx.meta }, null, 4));
+        // console.log(JSON.stringify({ params, meta: ctx.meta }, null, 4));
 
         const etl_context_id =
           +params.meta?.etl_context_id || +ctx.meta?.etl_context_id;
@@ -93,7 +93,14 @@ export default {
         */
 
         // @ts-ignore
-        const { type, payload, meta = null, error = null } = params;
+        const { type, meta = null, error = null } = params;
+        let { payload } = params;
+
+        // JS Array types won't load into PG columns.
+        if (Array.isArray(payload)) {
+          // @ts-ignore
+          payload = JSON.stringify(payload);
+        }
 
         const sql = dedent(`
           INSERT INTO data_manager.event_store (
@@ -106,18 +113,20 @@ export default {
             RETURNING *
         `);
 
+        const values = [
+          etl_context_id,
+          type,
+          payload || null,
+          meta || null,
+          error || false,
+        ];
+
         const {
           rows: [damaEvent],
           // @ts-ignore
         } = await ctx.call("dama_db.query", {
           text: sql,
-          values: [
-            etl_context_id,
-            type,
-            payload || null,
-            meta || null,
-            error || false,
-          ],
+          values,
         });
 
         event = damaEvent;
