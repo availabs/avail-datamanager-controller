@@ -27,11 +27,17 @@ CREATE TABLE IF NOT EXISTS data_manager.etl_contexts (
   _created_timestamp        TIMESTAMP NOT NULL DEFAULT NOW(),
   _modified_timestamp       TIMESTAMP NOT NULL DEFAULT NOW(),
 
-  FOREIGN KEY (parent_context_id)   REFERENCES data_manager.etl_contexts(etl_context_id),
+  FOREIGN KEY (parent_context_id)
+    REFERENCES data_manager.etl_contexts(etl_context_id)
+    ON DELETE CASCADE,
 
-  FOREIGN KEY (source_id)   REFERENCES data_manager.sources(source_id),
+  FOREIGN KEY (source_id)
+    REFERENCES data_manager.sources(source_id)
+    ON DELETE CASCADE,
 
-  FOREIGN KEY (etl_status)  REFERENCES data_manager.etl_statuses(etl_status)
+  FOREIGN KEY (etl_status)
+    REFERENCES data_manager.etl_statuses(etl_status)
+    ON DELETE CASCADE
 ) ;
 
 
@@ -46,7 +52,9 @@ CREATE TABLE IF NOT EXISTS data_manager.event_store (
   
   _created_timestamp        TIMESTAMP NOT NULL DEFAULT NOW(),
 
-  FOREIGN KEY (etl_context_id) REFERENCES data_manager.etl_contexts(etl_context_id)
+  FOREIGN KEY (etl_context_id)
+    REFERENCES data_manager.etl_contexts(etl_context_id)
+    ON DELETE CASCADE
 ) ;
 
 CREATE INDEX IF NOT EXISTS event_store_etl_ctx_idx
@@ -209,7 +217,9 @@ DO
         THEN
           ALTER TABLE data_manager.views
             ADD CONSTRAINT views_etl_ctx_id_fkey
-            FOREIGN KEY (etl_context_id) REFERENCES data_manager.etl_contexts (etl_context_id)
+            FOREIGN KEY (etl_context_id)
+              REFERENCES data_manager.etl_contexts (etl_context_id)
+              ON DELETE CASCADE
           ;
       END IF ;
 
@@ -236,7 +246,9 @@ DO
         THEN
           ALTER TABLE data_manager.etl_contexts
             ADD CONSTRAINT etl_contexts_initial_event_id_fkey
-            FOREIGN KEY (initial_event_id) REFERENCES data_manager.event_store (event_id)
+            FOREIGN KEY (initial_event_id)
+              REFERENCES data_manager.event_store (event_id)
+              ON DELETE CASCADE
           ;
       END IF ;
 
@@ -263,7 +275,9 @@ DO
         THEN
           ALTER TABLE data_manager.etl_contexts
             ADD CONSTRAINT etl_contexts_latest_event_id_fkey
-            FOREIGN KEY (latest_event_id) REFERENCES data_manager.event_store (event_id)
+            FOREIGN KEY (latest_event_id)
+              REFERENCES data_manager.event_store (event_id)
+              ON DELETE CASCADE
           ;
       END IF ;
 
