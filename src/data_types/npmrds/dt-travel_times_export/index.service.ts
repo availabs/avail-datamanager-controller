@@ -35,7 +35,7 @@ const loadDownloadedExportsIntoSqlitePath = join(
   "../../../../tasks/avail-datasources-watcher/tasks/downloadedExportsIntoSqlite/run"
 );
 
-export const serviceName = "dama/data_types/npmrds/travel_times_export/etl";
+export const serviceName = "dama/data_types/npmrds/dt-travel_times_export/etl";
 
 const IDLE_TIMEOUT = 1000 * 60 * 60; // One Hour
 
@@ -357,12 +357,12 @@ export default {
       const [loadNpmrdsTravelTimesDoneData, loadTmcIdentDoneData] =
         await Promise.all([
           this.broker.call(
-            "dama/data_types/npmrds/travel_times_export_db.load",
+            "dama/data_types/npmrds/dt-travel_times_export_db.load",
             { npmrdsExportSqliteDbPath },
             opts
           ),
           this.broker.call(
-            "dama/data_types/npmrds/tmc_identification_imp.load",
+            "dama/data_types/npmrds/dt-tmc_identification_imp.load",
             { npmrdsExportSqliteDbPath },
             opts
           ),
@@ -377,12 +377,12 @@ export default {
       // const [npmrdsTravelTimesStats, tmcIdentStats] = await Promise.all([
       const [tmcIdentStats] = await Promise.all([
         // this.broker.call(
-        // "dama/data_types/npmrds/travel_times_export_db.computeStatistics",
+        // "dama/data_types/npmrds/dt-travel_times_export_db.computeStatistics",
         // { npmrdsExportSqliteDbPath },
         // opts
         // ),
         this.broker.call(
-          "dama/data_types/npmrds/tmc_identification_imp.computeStatistics",
+          "dama/data_types/npmrds/dt-tmc_identification_imp.computeStatistics",
           { loadDoneData },
           opts
         ),
@@ -422,7 +422,7 @@ export default {
       };
 
       const integrateEvent = {
-        type: "INTEGRATE_INTO_VIEWS",
+        type: `${serviceName}:INTEGRATE_INTO_VIEWS`,
         payload: {
           npmrdsDownloadName,
           doneData,

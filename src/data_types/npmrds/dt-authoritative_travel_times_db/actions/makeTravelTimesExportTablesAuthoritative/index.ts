@@ -113,7 +113,7 @@ export default async function makeTravelTimesExportTablesAuthoritative(
   damaViewIds = Array.isArray(damaViewIds) ? damaViewIds : [damaViewIds];
 
   const eventTypePrefix =
-    "dama/data_types/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative";
+    "dama/data_types/npmrds/dt-authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative";
 
   const source_id = await ctx.call("dama/metadata.getDamaSourceIdForName", {
     damaSourceName: NpmrdsAuthoritativeTravelTimesDb,

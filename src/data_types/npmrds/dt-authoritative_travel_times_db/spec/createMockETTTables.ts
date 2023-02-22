@@ -1,5 +1,5 @@
 /*
-  ./node_modules/.bin/ts-node src/data_sources/npmrds/authoritative_travel_times_db/spec/createMockETTTables.ts
+  ./node_modules/.bin/ts-node src/data_sources/npmrds/dt-authoritative_travel_times_db/spec/createMockETTTables.ts
 */
 import dedent from "dedent";
 import pgFormat from "pg-format";

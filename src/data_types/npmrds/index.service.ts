@@ -28,6 +28,17 @@ export default {
     },
 
     async initializeDamaSources(ctx: Context) {
+      let toposortedDamaSrcMeta: any = await ctx.call(
+        `${serviceName}.getToposortedDamaSourcesMeta`
+      );
+
+      // @ts-ignore
+      if (
+        toposortedDamaSrcMeta.every(({ source_id: id }) => Number.isFinite(id))
+      ) {
+        return toposortedDamaSrcMeta;
+      }
+
       const etl_context_id = await ctx.call(
         "data_manager/events.spawnEtlContext"
       );
@@ -41,7 +52,7 @@ export default {
         meta: { etl_context_id },
       });
 
-      const toposortedDamaSrcMeta = await ctx.call(
+      toposortedDamaSrcMeta = await ctx.call(
         "dama_db.loadToposortedDamaSourceMetadata",
         {
           toposortedDataSourcesMetadata:

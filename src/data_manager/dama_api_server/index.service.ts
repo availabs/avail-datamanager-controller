@@ -228,12 +228,10 @@ export default class ApiService extends Service {
               "GET /etl/new-context-id": "data_manager/events.spawnEtlContext",
 
               // --- gis data set --//
-              
-              "gis-dataset/upload":
-                "multipart:gis-dataset.uploadFile",
 
-              "GET /gis-dataset/:id/layerNames":
-                "gis-dataset.getLayerNames",
+              "gis-dataset/upload": "multipart:gis-dataset.uploadFile",
+
+              "GET /gis-dataset/:id/layerNames": "gis-dataset.getLayerNames",
 
               "GET /gis-dataset/:id/:layerName/tableDescriptor":
                 "gis-dataset.getTableDescriptor",
@@ -241,14 +239,11 @@ export default class ApiService extends Service {
               "GET /gis-dataset/:id/:layerName/layerAnalysis":
                 "gis-dataset.getLayerAnalysis",
 
-              "gis-dataset/publish":
-                "gis-dataset.publish",
-              
+              "gis-dataset/publish": "gis-dataset.publish",
 
               // --- end data set --//
               "gis/create-mbtiles/damaViewId/:damaViewId":
                 "dama/gis.createDamaGisDatasetViewMbtiles",
-
 
               // FIXME: Returns an array. See
               // https://github.com/moleculerjs/moleculer-web/blob/5b0eebe83ece78dbacd40d02ae90fd7c143572ed/src/alias.js#L194
@@ -291,8 +286,7 @@ export default class ApiService extends Service {
               "/hazard_mitigation/ealLoader":
                 "data_types/hazard_mitigation.ealLoader.load",
 
-              "/hazard_mitigation/loadNCEI":
-                "hazard_mitigation.loadNCEI.load",
+              "/hazard_mitigation/loadNCEI": "hazard_mitigation.loadNCEI.load",
 
               "/hazard_mitigation/enhanceNCEI":
                 "hazard_mitigation.enhanceNCEI.load",
@@ -328,16 +322,16 @@ export default class ApiService extends Service {
                 "dama/data_types/npmrds.initializeDamaSources",
 
               "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
-                "dama/data_types/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
+                "dama/data_types/npmrds/dt-travel_times_export/etl.getNpmrdsDataDateExtent",
 
               "/data-sources/npmrds/travel-times-export/etl/queueNpmrdsExportRequest":
-                "dama/data_types/npmrds/travel_times_export/etl.queueNpmrdsExportRequest",
+                "dama/data_types/npmrds/dt-travel_times_export/etl.queueNpmrdsExportRequest",
 
               "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
-                "dama/data_types/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
+                "dama/data_types/npmrds/dt-travel_times_export/etl.getOpenRequestsStatuses",
 
               "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
-                "dama/data_types/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
+                "dama/data_types/npmrds/dt-authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
             },
           },
 
