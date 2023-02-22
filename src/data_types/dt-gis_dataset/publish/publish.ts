@@ -87,6 +87,11 @@ export default async function publish(ctx) {
       view_id: damaViewId,
     } = damaView;
 
+    await ctx.call("data_manager/events.setEtlContextSourceId", {
+      etl_context_id,
+      source_id: damaSourceId,
+    });
+
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
 
     const finalEvent = {
