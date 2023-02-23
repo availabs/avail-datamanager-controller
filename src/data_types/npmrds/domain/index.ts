@@ -105,7 +105,7 @@ export const npmrdsDataSourcesInitialMetadataByName = {
     description:
       "Database table containing the authoritative NPMRDS Travel Times. The NPMRDS Authoritative Travel Times Database Table combines many NPMRDS Travel Times Imports.",
     type: "npmrds_travel_times",
-    display_name: "NPMRDS Authoritative Travel Times",
+    display_name: "NPMRDS Travel Times",
     source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesImp],
   },
 
@@ -132,7 +132,7 @@ export const npmrdsDataSourcesInitialMetadataByName = {
   [NpmrdsDataSources.NpmrdsTmcIdentification]: {
     description: "NPMRDS TMC Identification Authoritative Data Source.",
     type: "npmrds_tmc_identification",
-    display_name: "NPMRDS TMC Identification Authoritative Data Source",
+    display_name: "NPMRDS TMC Identification",
     source_dependencies_names: [NpmrdsDataSources.NpmrdsTmcIdentificationImp],
   },
 };
