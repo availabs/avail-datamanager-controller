@@ -1,9 +1,9 @@
-# NpmrdsAuthoritativeTravelTimesDb RULES
+# NpmrdsTravelTimes RULES
 
 Abbreviations:
 
--   NpmrdsAuthoritativeTravelTimesDb (ATT)
--   NpmrdsTravelTimesExportDb (ETT)
+-   NpmrdsTravelTimes (ATT)
+-   NpmrdsTravelTimesImp (ETT)
 
 ```
   1. Cannot create data gaps:
@@ -17,8 +17,8 @@ Abbreviations:
     c. IF the ATTs for a StateYearMonth currently span a date range,
         the new authoritative ATTs must cover at least that range.
 
-  2. New NpmrdsAuthoritativeTravelTimesDb DamaView must have at least the same
-     date range per state as the old NpmrdsAuthoritativeTravelTimesDb DamaView.
+  2. New NpmrdsTravelTimes DamaView must have at least the same
+     date range per state as the old NpmrdsTravelTimes DamaView.
 
   3. ROLLBACKs: Must support rolling back changes.
 

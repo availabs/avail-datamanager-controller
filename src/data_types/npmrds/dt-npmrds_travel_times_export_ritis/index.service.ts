@@ -35,7 +35,8 @@ const loadDownloadedExportsIntoSqlitePath = join(
   "../../../../tasks/avail-datasources-watcher/tasks/downloadedExportsIntoSqlite/run"
 );
 
-export const serviceName = "dama/data_types/npmrds/dt-travel_times_export/etl";
+export const serviceName =
+  "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis";
 
 const IDLE_TIMEOUT = 1000 * 60 * 60; // One Hour
 
@@ -216,7 +217,7 @@ export default {
       if (existsSync(newNpmrdsTravelTimesExport)) {
         if (process.env?.NODE_ENV?.toLowerCase() === "development") {
           console.warn(
-            "\nBecause NODE_ENV === development, removing existing NpmrdsTravelTimesExport directory.\n"
+            "\nBecause NODE_ENV === development, removing existing NpmrdsTravelTimesExportRitis directory.\n"
           );
           await rmAsync(newNpmrdsTravelTimesExport, {
             recursive: true,
@@ -224,7 +225,7 @@ export default {
           });
         } else {
           throw Error(
-            `NpmrdsTravelTimesExport directory already exists: ${newNpmrdsTravelTimesExport}`
+            `NpmrdsTravelTimesExportRitis directory already exists: ${newNpmrdsTravelTimesExport}`
           );
         }
       }
@@ -243,7 +244,7 @@ export default {
           // TODO:  use fs.stat to determine if the path points to a file or directory.
           //        SEE: https://nodejs.org/api/fs.html#fsstatpath-options-callback
           const path =
-            k === NpmrdsDataSources.NpmrdsTravelTimesExport
+            k === NpmrdsDataSources.NpmrdsTravelTimesExportRitis
               ? null
               : v.replace(oldNpmrdsTravelTimesExport, exportRootRelativePath);
 
@@ -320,7 +321,7 @@ export default {
       //        1. Move the npmrdsTravelTimesExport dir to the DamaCntlrDataDir
       //        2. Alter all the paths
       //          1. basename of the npmrdsExportsDir
-      //          2. move to NpmrdsTravelTimesExport's damaCntrlrDataDir
+      //          2. move to NpmrdsTravelTimesExportRitis's damaCntrlrDataDir
       //          3. all other paths, simple string replace old npmrdsExportsDir with new npmrdsExportsDir
 
       const transformDoneEvent = {
@@ -357,32 +358,31 @@ export default {
       const [loadNpmrdsTravelTimesDoneData, loadTmcIdentDoneData] =
         await Promise.all([
           this.broker.call(
-            "dama/data_types/npmrds/dt-travel_times_export_db.load",
+            "dama/data_types/npmrds/dt-npmrds_travel_times_imp.load",
             { npmrdsExportSqliteDbPath },
             opts
           ),
           this.broker.call(
-            "dama/data_types/npmrds/dt-tmc_identification_imp.load",
+            "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp.load",
             { npmrdsExportSqliteDbPath },
             opts
           ),
         ]);
 
       const loadDoneData = {
-        [NpmrdsDataSources.NpmrdsTravelTimesExportDb]:
-          loadNpmrdsTravelTimesDoneData,
+        [NpmrdsDataSources.NpmrdsTravelTimesImp]: loadNpmrdsTravelTimesDoneData,
         [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
       };
 
       // const [npmrdsTravelTimesStats, tmcIdentStats] = await Promise.all([
       const [tmcIdentStats] = await Promise.all([
         // this.broker.call(
-        // "dama/data_types/npmrds/dt-travel_times_export_db.computeStatistics",
+        // "dama/data_types/npmrds/dt-npmrds_travel_times_imp.computeStatistics",
         // { npmrdsExportSqliteDbPath },
         // opts
         // ),
         this.broker.call(
-          "dama/data_types/npmrds/dt-tmc_identification_imp.computeStatistics",
+          "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp.computeStatistics",
           { loadDoneData },
           opts
         ),
@@ -396,7 +396,7 @@ export default {
         payload: {
           status: "LOAD_DONE",
           doneData: {
-            [NpmrdsDataSources.NpmrdsTravelTimesExportDb]:
+            [NpmrdsDataSources.NpmrdsTravelTimesImp]:
               loadNpmrdsTravelTimesDoneData,
             [NpmrdsDataSources.NpmrdsTmcIdentificationImp]:
               loadTmcIdentDoneData,
@@ -416,8 +416,7 @@ export default {
 
       const doneData = {
         ...moveDoneData,
-        [NpmrdsDataSources.NpmrdsTravelTimesExportDb]:
-          loadNpmrdsTravelTimesDoneData,
+        [NpmrdsDataSources.NpmrdsTravelTimesImp]: loadNpmrdsTravelTimesDoneData,
         [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
       };
 
@@ -659,7 +658,7 @@ export default {
       } = ctx;
 
       const source_id = await ctx.call("dama/metadata.getDamaSourceIdForName", {
-        damaSourceName: NpmrdsDataSources.NpmrdsTravelTimesExport,
+        damaSourceName: NpmrdsDataSources.NpmrdsTravelTimesExportRitis,
       });
 
       const etl_context_id = await ctx.call(
@@ -677,7 +676,7 @@ export default {
           is_expanded,
         },
         meta: {
-          dama_source_name: NpmrdsDataSources.NpmrdsTravelTimesExport,
+          dama_source_name: NpmrdsDataSources.NpmrdsTravelTimesExportRitis,
           dama_controller_host,
           etl_context_id,
           user_id,

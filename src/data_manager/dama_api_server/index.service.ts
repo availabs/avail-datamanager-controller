@@ -321,17 +321,17 @@ export default class ApiService extends Service {
               "data-types/npmrds/initializeNpmrdsSources":
                 "dama/data_types/npmrds.initializeDamaSources",
 
-              "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
-                "dama/data_types/npmrds/dt-travel_times_export/etl.getNpmrdsDataDateExtent",
+              "/data-types/npmrds/npmrds-travel-times-export-ritis/getNpmrdsDataDateExtent":
+                "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis.getNpmrdsDataDateExtent",
 
-              "/data-sources/npmrds/travel-times-export/etl/queueNpmrdsExportRequest":
-                "dama/data_types/npmrds/dt-travel_times_export/etl.queueNpmrdsExportRequest",
+              "/data-types/npmrds/npmrds-travel-times-export-ritis/queueNpmrdsExportRequest":
+                "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis.queueNpmrdsExportRequest",
 
-              "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
-                "dama/data_types/npmrds/dt-travel_times_export/etl.getOpenRequestsStatuses",
+              "/data-types/npmrds/npmrds-travel-times-export-ritis/getOpenRequestsStatuses":
+                "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis.getOpenRequestsStatuses",
 
-              "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
-                "dama/data_types/npmrds/dt-authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
+              "/data-types/npmrds/npmrds-travel-times/makeTravelTimesExportTablesAuthoritative":
+                "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative",
             },
           },
 

@@ -1,5 +1,5 @@
 /*
-  ./node_modules/.bin/ts-node src/data_sources/npmrds/dt-authoritative_travel_times_db/spec/createMockETTTables.ts
+  ./node_modules/.bin/ts-node src/data_sources/npmrds/dt-npmrds_travel_times/spec/createMockETTTables.ts
 */
 import dedent from "dedent";
 import pgFormat from "pg-format";
@@ -78,7 +78,7 @@ function generateMockEttMetadata(interval: "week" | "month") {
         name,
         year,
         state,
-        table_schema: "npmrds_travel_times_exports",
+        table_schema: "npmrds_travel_times_imports",
         table_name,
         is_expanded: true,
         data_start_date,
@@ -114,7 +114,7 @@ const createTableSqlTemplate = dedent(
         PRIMARY KEY ( tmc, date, epoch ),
 
         -- The following CHECK CONSTRAINTs allow the table to later be ATTACHed
-        --   to the NpmrdsAuthoritativeTravelTimesDb PARTITIONed TABLE hierarchy.
+        --   to the NpmrdsTravelTimes PARTITIONed TABLE hierarchy.
 
         CONSTRAINT npmrds_state_chk CHECK ( state = %L ),
         CONSTRAINT npmrds_date_chk CHECK(
@@ -220,7 +220,7 @@ const getEttDamaSrcId = memoize(async (db: NodePgClient) => {
     rows: [{ source_id }],
   } = await db.query({
     text,
-    values: [NpmrdsDataSources.NpmrdsTravelTimesExportDb],
+    values: [NpmrdsDataSources.NpmrdsTravelTimesImp],
   });
 
   return source_id;
@@ -307,17 +307,15 @@ async function insertMockEttDamaView(db: NodePgClient, meta: any) {
   return view_id;
 }
 
-// curl 'localhost:3369/dama-admin/dama_dev_1/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTableAuthoritative?damaViewId=1739'
+// curl 'localhost:3369/dama-admin/dama_dev_1/data-sources/npmrds/dt-npmrds_travel_times/makeTravelTimesExportTableAuthoritative?damaViewId=1739'
 
 async function main() {
   const db = await getConnectedNodePgClient("dama_dev_1");
 
   await db.query("BEGIN ;");
   await db.query("DELETE FROM data_manager.views WHERE view_id > 6 ;");
-  await db.query("DROP SCHEMA IF EXISTS npmrds_travel_times_exports CASCADE ;");
-  await db.query(
-    "DROP SCHEMA IF EXISTS npmrds_authoritative_travel_times_partitions CASCADE ;"
-  );
+  await db.query("DROP SCHEMA IF EXISTS npmrds_travel_times_imports CASCADE ;");
+  await db.query("DROP SCHEMA IF EXISTS npmrds_travel_times CASCADE ;");
 
   const ettMeta = {
     weekly: generateMockEttMetadata("week"),

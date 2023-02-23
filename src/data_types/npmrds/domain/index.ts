@@ -4,7 +4,8 @@ import { Graph, alg as GraphAlgorithms } from "graphlib";
 import _ from "lodash";
 
 export enum NpmrdsDataSources {
-  NpmrdsTravelTimesExport = "NpmrdsTravelTimesExport",
+  NpmrdsTravelTimesExportRitis = "NpmrdsTravelTimesExportRitis",
+
   NpmrdsAllVehTravelTimesExport = "NpmrdsAllVehTravelTimesExport",
   NpmrdsPassVehTravelTimesExport = "NpmrdsPassVehTravelTimesExport",
   NpmrdsFrgtTrkTravelTimesExport = "NpmrdsFrgtTrkTravelTimesExport",
@@ -12,17 +13,18 @@ export enum NpmrdsDataSources {
   NpmrdsTravelTimesExportSqlite = "NpmrdsTravelTimesExportSqlite",
 
   NpmrdsTravelTimesCsv = "NpmrdsTravelTimesCsv",
-  NpmrdsTravelTimesExportDb = "NpmrdsTravelTimesExportDb",
-  NpmrdsAuthoritativeTravelTimesDb = "NpmrdsAuthoritativeTravelTimesDb",
+  NpmrdsTravelTimesImp = "NpmrdsTravelTimesImp",
+  NpmrdsTravelTimes = "NpmrdsTravelTimes",
 
   NpmrdsTmcIdentificationCsv = "NpmrdsTmcIdentificationCsv",
   NpmrdsTmcIdentificationImp = "NpmrdsTmcIdentificationImp",
-  NpmrdsTmcIdentificationAds = "NpmrdsTmcIdentificationAds",
+  NpmrdsTmcIdentification = "NpmrdsTmcIdentification",
 }
 
 export enum NpmrdsDatabaseSchemas {
-  NpmrdsTravelTimesExportDb = "npmrds_travel_times_exports",
-  NpmrdsAuthoritativeTravelTimesDb = "npmrds_authoritative_travel_times_partitions",
+  NpmrdsTravelTimesImp = "npmrds_travel_times_imports",
+
+  NpmrdsTravelTimes = "npmrds_travel_times",
 
   NpmrdsTmcIdentificationImp = "npmrds_tmc_identification_imp",
 }
@@ -32,11 +34,11 @@ export enum NpmrdsDatabaseSchemas {
 //        Therefore, these values are for initialization.
 //            Current values should be queried from the DB.
 export const npmrdsDataSourcesInitialMetadataByName = {
-  [NpmrdsDataSources.NpmrdsTravelTimesExport]: {
+  [NpmrdsDataSources.NpmrdsTravelTimesExportRitis]: {
     description:
       "Raw RITIS NPMRDS Travel Times Export ZIP archives as downloaded from RITIS. Comprised of the all vehicle, passenger vehicle, and freight truck exports.",
-    type: "npmrds_travel_times_export",
-    display_name: "NPMRDS Travel Times Export",
+    type: "npmrds_travel_times_export_ritis",
+    display_name: "NPMRDS Travel Times Export (RITIS)",
     source_dependencies_names: null,
   },
 
@@ -45,7 +47,7 @@ export const npmrdsDataSourcesInitialMetadataByName = {
       "Raw RITIS NPMRDS all vehicles travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the all vehicle travel times CSV and a TMC_Identification CSV that provides road segment metadata.",
     type: "npmrds_data_source_travel_times_export",
     display_name: "Raw NPMRDS All Vehicles Travel Times Export",
-    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExport],
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExportRitis],
   },
 
   [NpmrdsDataSources.NpmrdsPassVehTravelTimesExport]: {
@@ -53,7 +55,7 @@ export const npmrdsDataSourcesInitialMetadataByName = {
       "Raw RITIS NPMRDS passenger vehicles travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the passenger vehicle travel times CSV and a TMC_Identification CSV that provides road segment metadata.",
     type: "npmrds_data_source_travel_times_export",
     display_name: "Raw NPMRDS Passenger Vehicles Travel Times Export",
-    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExport],
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExportRitis],
   },
 
   [NpmrdsDataSources.NpmrdsFrgtTrkTravelTimesExport]: {
@@ -61,7 +63,7 @@ export const npmrdsDataSourcesInitialMetadataByName = {
       "Raw RITIS NPMRDS freight truck travel times export ZIP archive downloaded as part of a RITIS NPMRDS Travel Times Export. The ZIP archive includes the freight trucks travel times CSV and a TMC_Identification CSV that provides road segment metadata.",
     type: "npmrds_data_source_travel_times_export",
     display_name: "Raw NPMRDS Freight Truck Travel Times Export",
-    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExport],
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExportRitis],
   },
 
   [NpmrdsDataSources.NpmrdsTravelTimesCsv]: {
@@ -89,22 +91,22 @@ export const npmrdsDataSourcesInitialMetadataByName = {
     ],
   },
 
-  [NpmrdsDataSources.NpmrdsTravelTimesExportDb]: {
+  [NpmrdsDataSources.NpmrdsTravelTimesImp]: {
     description:
-      "Database table containing the NPMRDS Travel Times loaded from an NpmrdsTravelTimesExport. Authoritative versions are integrated into the NpmrdsAuthoritativeTravelTimesDb data type.",
-    type: "npmrds_travel_times_export_db",
-    display_name: "NPMRDS Travel Times Export Database Table",
+      "Database table containing the NPMRDS Travel Times imported into the database from an NpmrdsTravelTimesExportRitis. These imports are non-authoritative until made authoritative after QA. Authoritative versions are integrated into the NpmrdsTravelTimes data type.",
+    type: "npmrds_travel_times_imp",
+    display_name: "NPMRDS Travel Times Import",
     source_dependencies_names: [
       NpmrdsDataSources.NpmrdsTravelTimesExportSqlite,
     ],
   },
 
-  [NpmrdsDataSources.NpmrdsAuthoritativeTravelTimesDb]: {
+  [NpmrdsDataSources.NpmrdsTravelTimes]: {
     description:
-      "Database table containing the authoritative NPMRDS Travel Times. The NPMRDS Authoritative Travel Times Database Table combines many NPMRDS Travel Times Export Database Tables.",
-    type: "npmrds_authoritative_travel_times_db",
-    display_name: "NPMRDS Authoritative Travel Times Database Table",
-    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesExportDb],
+      "Database table containing the authoritative NPMRDS Travel Times. The NPMRDS Authoritative Travel Times Database Table combines many NPMRDS Travel Times Imports.",
+    type: "npmrds_travel_times",
+    display_name: "NPMRDS Authoritative Travel Times",
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesImp],
   },
 
   [NpmrdsDataSources.NpmrdsTmcIdentificationCsv]: {
@@ -127,9 +129,9 @@ export const npmrdsDataSourcesInitialMetadataByName = {
     ],
   },
 
-  [NpmrdsDataSources.NpmrdsTmcIdentificationAds]: {
+  [NpmrdsDataSources.NpmrdsTmcIdentification]: {
     description: "NPMRDS TMC Identification Authoritative Data Source.",
-    type: "npmrds_tmc_identification_ads",
+    type: "npmrds_tmc_identification",
     display_name: "NPMRDS TMC Identification Authoritative Data Source",
     source_dependencies_names: [NpmrdsDataSources.NpmrdsTmcIdentificationImp],
   },
@@ -150,7 +152,7 @@ for (const [name, meta] of Object.entries(
     continue;
   }
 
-  // We flatten the depencencies because NpmrdsAuthoritativeTravelTimesDb's is 2-dimensional.
+  // We flatten the depencencies because NpmrdsTravelTimes's is 2-dimensional.
   for (const dependencyName of _.flattenDeep(source_dependencies_names) || []) {
     if (name !== dependencyName) {
       g.setEdge(`${dependencyName}`, `${name}`);

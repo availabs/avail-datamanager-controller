@@ -219,7 +219,7 @@ DO
             ADD CONSTRAINT views_etl_ctx_id_fkey
             FOREIGN KEY (etl_context_id)
               REFERENCES data_manager.etl_contexts (etl_context_id)
-              ON DELETE CASCADE
+              -- We do _NOT_ want "ON DELETE CASCADE" here
           ;
       END IF ;
 

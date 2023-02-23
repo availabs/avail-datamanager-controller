@@ -9,7 +9,7 @@ import {
 
 import { NpmrdsDataSources } from "../../../domain";
 
-const { NpmrdsTravelTimesExportDb } = NpmrdsDataSources;
+const { NpmrdsTravelTimesImp } = NpmrdsDataSources;
 
 export function parseNpmrdsTravelTimesExportTableMetadata(
   ettViewMeta: any
@@ -93,7 +93,7 @@ export default async function getEttViewsMetadataSummary(
   });
 
   const nonEttViews = rows.filter(
-    ({ source_name }) => source_name !== NpmrdsTravelTimesExportDb
+    ({ source_name }) => source_name !== NpmrdsTravelTimesImp
   );
 
   if (nonEttViews.length) {

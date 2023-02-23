@@ -71,8 +71,8 @@ export function handleHasAttViewIdsCase(
     }, {});
 
   //  These ATTs overlap with ETTs, therefore we must
-  //    * detach them from the NpmrdsAuthoritativeTravelTimesDb partition tree
-  //    * remove them from the new NpmrdsAuthoritativeTravelTimesDb DamaView's view_dependencies
+  //    * detach them from the NpmrdsTravelTimes partition tree
+  //    * remove them from the new NpmrdsTravelTimes DamaView's view_dependencies
   const attViewIdsToDetachSet: Set<number> = new Set();
 
   // Need to collect the keeper ATTs.
