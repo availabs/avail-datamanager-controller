@@ -60,13 +60,13 @@ export default {
         }
       );
 
-      // @ts-ignore
-      const [{ source_id }] = toposortedDamaSrcMeta;
+      // NOTE: This complicates visualizing NpmrdsTravelTimesExportRitis requests.
+      // const [{ source_id }] = toposortedDamaSrcMeta;
 
-      await ctx.call("data_manager/events.setEtlContextSourceId", {
-        etl_context_id,
-        source_id,
-      });
+      // await ctx.call("data_manager/events.setEtlContextSourceId", {
+      //   etl_context_id,
+      //   source_id,
+      // });
 
       const finalEvent = {
         type: `${serviceName}.initializeDamaSources:FINAL`,
