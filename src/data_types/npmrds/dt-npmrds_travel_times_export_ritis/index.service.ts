@@ -18,7 +18,11 @@ import { stateAbbr2FipsCode } from "../../../data_utils/constants/stateFipsCodes
 import damaHost from "../../../constants/damaHost";
 import controllerDataDir from "../../../constants/dataDir";
 
-import { NpmrdsDataSources } from "../domain";
+import {
+  NpmrdsDataSources,
+  NpmrdsTravelTimesExportRitisElements,
+  NpmrdsTravelTimesExportEtlElements,
+} from "../domain";
 
 import npmrdsTravelTimesExportDataDir from "./constants/dataDir";
 
@@ -203,65 +207,6 @@ export default {
       }
     },
 
-    async moveTransformedDataToCanonicalDirectory(transformDoneData: any) {
-      const { npmrdsTravelTimesExport: oldNpmrdsTravelTimesExport } =
-        transformDoneData;
-
-      const npmrdsTravelTimesExportBase = basename(oldNpmrdsTravelTimesExport);
-
-      const newNpmrdsTravelTimesExport = join(
-        npmrdsTravelTimesExportDataDir,
-        npmrdsTravelTimesExportBase
-      );
-
-      if (existsSync(newNpmrdsTravelTimesExport)) {
-        if (process.env?.NODE_ENV?.toLowerCase() === "development") {
-          console.warn(
-            "\nBecause NODE_ENV === development, removing existing NpmrdsTravelTimesExportRitis directory.\n"
-          );
-          await rmAsync(newNpmrdsTravelTimesExport, {
-            recursive: true,
-            force: true,
-          });
-        } else {
-          throw Error(
-            `NpmrdsTravelTimesExportRitis directory already exists: ${newNpmrdsTravelTimesExport}`
-          );
-        }
-      }
-
-      await renameAsync(oldNpmrdsTravelTimesExport, newNpmrdsTravelTimesExport);
-
-      const exportRootRelativePath = newNpmrdsTravelTimesExport.replace(
-        controllerDataDir,
-        ""
-      );
-
-      const doneData = _(transformDoneData)
-        .mapKeys((_v, k: string) => k.charAt(0).toUpperCase() + k.slice(1))
-        .mapValues((v, k) => {
-          // Can't download the directory, only files.
-          // TODO:  use fs.stat to determine if the path points to a file or directory.
-          //        SEE: https://nodejs.org/api/fs.html#fsstatpath-options-callback
-          const path =
-            k === NpmrdsDataSources.NpmrdsTravelTimesExportRitis
-              ? null
-              : v.replace(oldNpmrdsTravelTimesExport, exportRootRelativePath);
-
-          return {
-            metadata: {
-              filelocation: {
-                host: damaHost,
-                path,
-              },
-            },
-          };
-        })
-        .value();
-
-      return doneData;
-    },
-
     async handleNpmrdsTravelTimesExportDownloaded(event: FSA) {
       // @ts-ignore
       const { payload, meta: { pgEnv, etl_context_id } = {} } = event;
@@ -318,7 +263,7 @@ export default {
       console.log(JSON.stringify({ transformDoneData }, null, 4));
 
       // TODO:
-      //        1. Move the npmrdsTravelTimesExport dir to the DamaCntlrDataDir
+      //        1. Move the npmrdsTravelTimesExportRitis dir to the DamaCntlrDataDir
       //        2. Alter all the paths
       //          1. basename of the npmrdsExportsDir
       //          2. move to NpmrdsTravelTimesExportRitis's damaCntrlrDataDir
@@ -333,7 +278,6 @@ export default {
         meta: event.meta,
       };
 
-      console.log(JSON.stringify({ transformDoneEvent }, null, 4));
       await this.broker.call(
         "data_manager/events.dispatch",
         transformDoneEvent,
@@ -343,9 +287,12 @@ export default {
       // LOAD
       //
       const {
-        [NpmrdsDataSources.NpmrdsTravelTimesExportSqlite]: {
+        [NpmrdsDataSources.NpmrdsTravelTimesExportEtl]: {
           metadata: {
-            filelocation: { path: npmrdsTravelTimesSqliteDbPath },
+            files: {
+              [NpmrdsTravelTimesExportEtlElements.NpmrdsTravelTimesExportSqlite]:
+                { path: npmrdsTravelTimesSqliteDbPath },
+            },
           },
         },
       } = moveDoneData;
@@ -407,7 +354,6 @@ export default {
 
       console.log(JSON.stringify({ tmcIdentStats }, null, 4));
 
-      // console.log(JSON.stringify({ loadDoneEvent }, null, 4));
       await this.broker.call(
         "data_manager/events.dispatch",
         loadDoneEvent,
@@ -429,22 +375,116 @@ export default {
         meta: event.meta,
       };
 
-      const toposortedDamaViewInfo =
-        await this.integrateNpmrdsTravelTimesEtlIntoDataManager(integrateEvent);
+      try {
+        const toposortedDamaViewInfo =
+          await this.integrateNpmrdsTravelTimesEtlIntoDataManager(
+            integrateEvent
+          );
 
-      const finalEvent = {
-        type: `${serviceName}:FINAL`,
-        payload: {
-          initialData: event.payload || null,
-          etlDoneData: doneData,
-          damaIntegrationDoneData: toposortedDamaViewInfo,
+        const finalEvent = {
+          type: `${serviceName}:FINAL`,
+          payload: {
+            initialData: event.payload || null,
+            etlDoneData: doneData,
+            damaIntegrationDoneData: toposortedDamaViewInfo,
+          },
+          meta: event.meta,
+        };
+
+        console.log(JSON.stringify({ finalEvent }, null, 4));
+
+        await this.broker.call(
+          "data_manager/events.dispatch",
+          finalEvent,
+          opts
+        );
+      } catch (err: any) {
+        const errEvent = {
+          type: `${serviceName}:ERROR`,
+          payload: err.message,
+          meta: event.meta,
+          error: true,
+        };
+
+        await this.broker.call("data_manager/events.dispatch", errEvent, opts);
+      }
+    },
+
+    async moveTransformedDataToCanonicalDirectory(transformDoneData: any) {
+      const { npmrdsTravelTimesExportRitis: oldNpmrdsTravelTimesExport } =
+        transformDoneData;
+
+      const npmrdsTravelTimesExportBase = basename(oldNpmrdsTravelTimesExport);
+
+      const newNpmrdsTravelTimesExport = join(
+        npmrdsTravelTimesExportDataDir,
+        npmrdsTravelTimesExportBase
+      );
+
+      if (existsSync(newNpmrdsTravelTimesExport)) {
+        if (process.env?.NODE_ENV?.toLowerCase() === "development") {
+          console.warn(
+            "\nBecause NODE_ENV === development, removing existing NpmrdsTravelTimesExportRitis directory.\n"
+          );
+          await rmAsync(newNpmrdsTravelTimesExport, {
+            recursive: true,
+            force: true,
+          });
+        } else {
+          throw Error(
+            `NpmrdsTravelTimesExportRitis directory already exists: ${newNpmrdsTravelTimesExport}`
+          );
+        }
+      }
+
+      await renameAsync(oldNpmrdsTravelTimesExport, newNpmrdsTravelTimesExport);
+
+      const exportRootRelativePath = newNpmrdsTravelTimesExport.replace(
+        controllerDataDir,
+        ""
+      );
+
+      const elementsToFilesMeta = (elemNames: string[]) =>
+        elemNames.reduce((acc, name) => {
+          const k = name.charAt(0).toLowerCase() + name.slice(1);
+
+          acc[name] = {
+            host: damaHost,
+            path: transformDoneData[k]?.replace(
+              oldNpmrdsTravelTimesExport,
+              exportRootRelativePath
+            ),
+          };
+
+          return acc;
+        }, {});
+
+      const rawExportFiles = elementsToFilesMeta([
+        NpmrdsTravelTimesExportRitisElements.NpmrdsAllVehiclesTravelTimesExport,
+        NpmrdsTravelTimesExportRitisElements.NpmrdsPassengerVehiclesTravelTimesExport,
+        NpmrdsTravelTimesExportRitisElements.NpmrdsFreightTrucksTravelTimesExport,
+      ]);
+
+      const etlFiles = elementsToFilesMeta([
+        NpmrdsTravelTimesExportEtlElements.NpmrdsTravelTimesExportSqlite,
+        NpmrdsTravelTimesExportEtlElements.NpmrdsTmcIdentificationCsv,
+        NpmrdsTravelTimesExportEtlElements.NpmrdsTravelTimesCsv,
+      ]);
+
+      const doneData = {
+        [NpmrdsDataSources.NpmrdsTravelTimesExportRitis]: {
+          metadata: {
+            files: rawExportFiles,
+          },
         },
-        meta: event.meta,
+        [NpmrdsDataSources.NpmrdsTravelTimesExportEtl]: {
+          metadata: {
+            files: etlFiles,
+          },
+        },
       };
 
-      console.log(JSON.stringify({ finalEvent }, null, 4));
-
-      await this.broker.call("data_manager/events.dispatch", finalEvent, opts);
+      return doneData;
     },
 
     async integrateNpmrdsTravelTimesEtlIntoDataManager(event: FSA) {
