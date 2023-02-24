@@ -227,7 +227,7 @@ export default class ApiService extends Service {
               "GET /etl/new-context-id": "data_manager/events.spawnEtlContext",
 
               // --- gis data set --//
-              
+
               "gis-dataset/upload":
                 "multipart:gis-dataset.uploadFile",
 
@@ -242,7 +242,7 @@ export default class ApiService extends Service {
 
               "gis-dataset/publish":
                 "gis-dataset.publish",
-              
+
 
               // --- end data set --//
               "gis/create-mbtiles/damaViewId/:damaViewId":
@@ -294,7 +294,7 @@ export default class ApiService extends Service {
                 "hazard_mitigation.loadNCEI.load",
 
               "/hazard_mitigation/enhanceNCEI":
-                "hazard_mitigation.enhanceNCEI.load",
+                "hazard_mitigation.enhancedNCEI.load",
 
               "/hazard_mitigation/csvUploadAction":
                 "hazard_mitigation.csvUploadAction.load",
