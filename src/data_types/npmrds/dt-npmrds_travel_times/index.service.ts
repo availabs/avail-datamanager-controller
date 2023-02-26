@@ -9,12 +9,9 @@ import { NodePgPoolClient } from "../../../data_manager/dama_db/postgres/Postgre
 
 import { NpmrdsDataSources } from "../domain";
 
-import makeTravelTimesExportTablesAuthoritative, {
-  getEttMetadata,
-} from "./actions/makeTravelTimesExportTablesAuthoritative";
+import makeTravelTimesExportTablesAuthoritative from "./actions/makeTravelTimesExportTablesAuthoritative";
 
-export const serviceName =
-  "dama/data_types/npmrds/authoritative_travel_times_db";
+export const serviceName = "dama/data_types/npmrds/dt-npmrds_travel_times";
 
 const queryNpmrdsAuthoritativePartitionTreeSqlPath = join(
   __dirname,
@@ -31,7 +28,7 @@ export default {
         { encoding: "utf8" }
       );
 
-      const query = pgFormat(sql, NpmrdsDataSources.NpmrdsTravelTimesExportDb);
+      const query = pgFormat(sql, NpmrdsDataSources.NpmrdsTravelTimesImp);
 
       // @ts-ignore
       const { rows: dependencyTreeSummary } = await ctx.call(
@@ -45,28 +42,5 @@ export default {
     },
 
     makeTravelTimesExportTablesAuthoritative,
-
-    async getEttMetadata(ctx: Context) {
-      let {
-        // @ts-ignore
-        params: { damaViewIds },
-      } = ctx;
-
-      if (!damaViewIds) {
-        throw new Error("Missing required parameter damaViewIds.");
-      }
-
-      damaViewIds = Array.isArray(damaViewIds)
-        ? damaViewIds.map((vId) => +vId)
-        : [+damaViewIds];
-
-      const dbConn: NodePgPoolClient = await ctx.call(
-        "dama_db.getDbConnection"
-      );
-
-      const ettMeta = await getEttMetadata(dbConn, damaViewIds);
-
-      console.log(JSON.stringify(ettMeta, null, 4));
-    },
   },
 };

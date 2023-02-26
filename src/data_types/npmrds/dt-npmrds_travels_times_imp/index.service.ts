@@ -10,7 +10,7 @@ import damaHost from "../../../constants/damaHost";
 
 import loadNpmrdsTravelTimesTable from "./tasks/loadNpmrdsTravelTimesTable/main";
 
-export const serviceName = "dama/data_types/npmrds/travel_times_export_db";
+export const serviceName = "dama/data_types/npmrds/dt-npmrds_travel_times_imp";
 
 export default {
   name: serviceName,

@@ -19,7 +19,7 @@ import {
   updateNpmrdsAuthTravTimesViewMeta,
 } from "./npmrdsAuthoritativeTravelTimesSql";
 
-const { NpmrdsAuthoritativeTravelTimesDb } = NpmrdsDataSources;
+const { NpmrdsTravelTimes } = NpmrdsDataSources;
 
 function validateNpmrdsTravelTimesExportEligibleForAuthoritative(
   ettViewsMeta: EttViewsMetaSummary
@@ -53,7 +53,7 @@ function validateNpmrdsTravelTimesExportEligibleForAuthoritative(
     if (!(dataStartYear === dataEndYear && dataStartMonth === dataEndMonth)) {
       errorMessages.push(
         // eslint-disable-next-line max-len
-        `${NpmrdsAuthoritativeTravelTimesDb} tables MUST be within a single calendar month. The ${tableName} (view_id ${damaViewId}) is for ${data_start_date} to ${data_end_date}.`
+        `${NpmrdsTravelTimes} tables MUST be within a single calendar month. The ${tableName} (view_id ${damaViewId}) is for ${data_start_date} to ${data_end_date}.`
       );
     }
   }
@@ -78,7 +78,7 @@ export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(
       WHERE (
         ( a.name = $1 )
         AND
-        -- The current NpmrdsAuthoritativeTravelTimesDb doesn't have a next,
+        -- The current NpmrdsTravelTimes doesn't have a next,
         --   indicating it's the tail of the LinkedList.
         ( b.metadata->'dama'->'versionLinkedList'->'next' = 'null'::JSONB )
       )
@@ -86,7 +86,7 @@ export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(
 
   const { rows } = await dbConn.query({
     text: sql,
-    values: [NpmrdsAuthoritativeTravelTimesDb],
+    values: [NpmrdsTravelTimes],
   });
 
   if (rows.length === 0) {
@@ -95,7 +95,7 @@ export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(
 
   if (rows.length > 1) {
     throw new Error(
-      `INVARIANT VIOLATION: More than one ${NpmrdsAuthoritativeTravelTimesDb} DamaView with dama.versionLinkedList.nextViewId = null`
+      `INVARIANT VIOLATION: More than one ${NpmrdsTravelTimes} DamaView with dama.versionLinkedList.nextViewId = null`
     );
   }
 
@@ -111,31 +111,6 @@ export default async function makeTravelTimesExportTablesAuthoritative(
   } = ctx;
 
   damaViewIds = Array.isArray(damaViewIds) ? damaViewIds : [damaViewIds];
-
-  const eventTypePrefix =
-    "dama/data_types/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative";
-
-  const source_id = await ctx.call("dama/metadata.getDamaSourceIdForName", {
-    damaSourceName: NpmrdsAuthoritativeTravelTimesDb,
-  });
-
-  const etl_context_id: number = await ctx.call(
-    "data_manager/events.spawnEtlContext",
-    {
-      source_id,
-      // @ts-ignore
-      parent_context_id: ctx.meta?.etl_context_id || null,
-    }
-  );
-
-  const etlOpts = { parentCtx: ctx, meta: { etl_context_id } };
-
-  const initialEvent = {
-    type: `${eventTypePrefix}:INITIAL`,
-    payload: { damaViewIds },
-  };
-
-  await ctx.call("data_manager/events.dispatch", initialEvent, etlOpts);
 
   const dbConn: NodePgDbConnection = await ctx.call("dama_db.getDbConnection");
 
@@ -172,10 +147,7 @@ export default async function makeTravelTimesExportTablesAuthoritative(
 
     validateNpmrdsTravelTimesExportEligibleForAuthoritative(ettViewsMeta);
 
-    const { attViewsToDetach, dateExtentsByState } = getAttViewsToDetach(
-      attViewsMeta,
-      ettViewsMeta
-    );
+    const attViewsToDetach = getAttViewsToDetach(attViewsMeta, ettViewsMeta);
 
     for (const attView of attViewsToDetach) {
       await detachAttView(dbConn, attView);
@@ -225,22 +197,8 @@ export default async function makeTravelTimesExportTablesAuthoritative(
         curNpmrdsAuthTravTimesViewMeta,
         attViewsToDetach,
         attViewsMeta,
-        ettViewsMeta,
-        dateExtentsByState,
-        etl_context_id
+        ettViewsMeta
       );
-
-    const finalEventPayload = {
-      oldDamaViewId: curNpmrdsAuthTravTimesViewMeta.view_id,
-      newDamaViewId: newNpmrdsAuthTravTimesViewMeta.view_id,
-    };
-
-    const finalEvent = {
-      type: `${eventTypePrefix}:FINAL`,
-      payload: finalEventPayload,
-    };
-
-    await ctx.call("data_manager/events.dispatch", finalEvent, etlOpts);
 
     dbConn.query("COMMIT ;");
 
@@ -249,15 +207,6 @@ export default async function makeTravelTimesExportTablesAuthoritative(
       curNpmrdsAuthTravTimesViewMeta: newNpmrdsAuthTravTimesViewMeta,
     };
   } catch (err) {
-    const errorEvent = {
-      type: `${eventTypePrefix}:ERROR`,
-      // @ts-ignore
-      payload: { message: err.message },
-      error: true,
-    };
-
-    await ctx.call("data_manager/events.dispatch", errorEvent, etlOpts);
-
     console.error(err);
     dbConn.query("ROLLBACK ;");
     throw err;
@@ -265,7 +214,38 @@ export default async function makeTravelTimesExportTablesAuthoritative(
     // @ts-ignore
     if (dbConn.release) {
       // @ts-ignore
-      await dbConn.release();
+      dbConn.release();
     }
   }
+}
+
+export async function getEttMetadata(
+  dbConn: NodePgDbConnection,
+  damaViewIds: number[]
+) {
+  const curNpmrdsAuthTravTimesViewMeta =
+    (await getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(dbConn)) || {};
+
+  const { view_dependencies: curAttViewIds = [] } =
+    curNpmrdsAuthTravTimesViewMeta || {};
+
+  const curAttViewIdsSet: Set<number> = new Set(curAttViewIds);
+
+  // The currently non-ATT damaViewIds
+  const nonAttViewIds: number[] = damaViewIds
+    .map((viewId: number | string) => +viewId)
+    .filter((viewId: number) => !curAttViewIdsSet.has(viewId));
+
+  // If every submitted damaViewId is already authoritative, then no-op.
+  if (nonAttViewIds.length === 0) {
+    return null;
+  }
+
+  const attViewsMeta = await getEttViewsMetadataSummary(dbConn, curAttViewIds);
+  const ettViewsMeta = await getEttViewsMetadataSummary(dbConn, nonAttViewIds);
+
+  return {
+    attViewsMeta,
+    ettViewsMeta,
+  };
 }

@@ -10,7 +10,8 @@ import damaHost from "../../../constants/damaHost";
 import load from "./tasks/loadNpmrdsTmcIdentificationImp/main";
 import computeStatistics from "./tasks/computeStatistics/main";
 
-export const serviceName = "dama/data_types/npmrds/tmc_identification_imp";
+export const serviceName =
+  "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp";
 
 export default {
   name: serviceName,

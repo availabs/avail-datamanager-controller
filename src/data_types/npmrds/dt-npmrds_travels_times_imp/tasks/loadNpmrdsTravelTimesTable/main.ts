@@ -23,7 +23,7 @@ const pipelineAsync = promisify(pipeline);
 
 import { NpmrdsDatabaseSchemas } from "../../../domain";
 
-const schemaName = NpmrdsDatabaseSchemas.NpmrdsTravelTimesExportDb;
+const schemaName = NpmrdsDatabaseSchemas.NpmrdsTravelTimesImp;
 
 const columns = [
   "tmc",
@@ -95,7 +95,7 @@ async function createPostgesDbTable(sqliteDB: SQLiteDB, pgDB: PostgresDB) {
             PRIMARY KEY ( tmc, date, epoch ),
 
             -- The following CHECK CONSTRAINTs allow the table to later be ATTACHed
-            --   to the NpmrdsAuthoritativeTravelTimesDb PARTITIONed TABLE hierarchy.
+            --   to the NpmrdsTravelTimes PARTITIONed TABLE hierarchy.
 
             CONSTRAINT npmrds_state_chk CHECK ( state = %L ),
             CONSTRAINT npmrds_date_chk CHECK(

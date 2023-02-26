@@ -12,7 +12,7 @@ import {
   EttViewsMetaSummary,
 } from "./domain";
 
-const schemaName = NpmrdsDatabaseSchemas.NpmrdsAuthoritativeTravelTimesDb;
+const schemaName = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
 
 export const getNpmrdsStateYearMonthTableName = (
   state: string,
@@ -73,7 +73,6 @@ export async function createAuthoritativeStateTable(
   const tableName = `npmrds_${state}`;
 
   await createAuthoritativePartitionsSchema(dbConn);
-  await createAuthoritativeRootTable(dbConn);
 
   const sql = dedent(
     pgFormat(
@@ -166,6 +165,10 @@ export async function createAuthoritativeStateYearMonthTable(
 
   const result = await dbConn.query(sql);
 
+  console.log(JSON.stringify({ result }, null, 4));
+
+  console.log(sql);
+
   return { schemaName, tableName };
 }
 
@@ -232,9 +235,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
   prevNpmrdsAuthTravTimesViewMeta: any,
   attViewsToDetach: ParsedNpmrdsTravelTimesExportTableMetadata[],
   attViewsMeta: EttViewsMetaSummary | null,
-  ettViewsMeta: EttViewsMetaSummary,
-  dateExtentsByState: Record<string, [string, string]>,
-  etl_context_id: number
+  ettViewsMeta: EttViewsMetaSummary
 ) {
   const {
     sortedByStateThenStartDate: ettViewIds,
@@ -292,7 +293,6 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
         next: null,
       },
     },
-    dateExtentsByState,
   };
 
   const insertSql = dedent(`
@@ -301,7 +301,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
       table_name,
       active_start_timestamp,
 
-      source_id,                      -- $1 NpmrdsAuthoritativeTravelTimesDb name
+      source_id,                      -- $1 NpmrdsTravelTimes name
 
       interval_version,               -- $2
       geography_version,              -- $3
@@ -310,8 +310,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
       end_date,                       -- $6
       last_updated,                   -- $7
       view_dependencies,              -- $8
-      metadata,                       -- $9
-      etl_context_id                  -- $10
+      metadata                        -- $9
     ) VALUES (
       'public',
       'npmrds_test',
@@ -324,13 +323,13 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
           WHERE ( name = $1 )
       ),
 
-      $2, $3, $4, $5, $6, $7, $8, $9, $10
+      $2, $3, $4, $5, $6, $7, $8, $9
 
     ) RETURNING *
   `);
 
   const values = [
-    NpmrdsDataSources.NpmrdsAuthoritativeTravelTimesDb,
+    NpmrdsDataSources.NpmrdsTravelTimes,
     intervalVersion,
     stateFipsCSL,
     newVersion,
@@ -339,7 +338,6 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
     lastUpdated,
     viewDependencies,
     metadata,
-    etl_context_id,
   ];
 
   const {

@@ -218,7 +218,8 @@ export default class ApiService extends Service {
 
               deleteDamaSource: "dama/metadata.deleteDamaSource",
 
-              makeAuthoritativeDamaView: "dama/metadata.makeAuthoritativeDamaView",
+              makeAuthoritativeDamaView:
+                "dama/metadata.makeAuthoritativeDamaView",
 
               "GET metadata/datasource-latest-view-table-columns":
                 "dama/metadata.getDataSourceLatestViewTableColumns",
@@ -228,11 +229,9 @@ export default class ApiService extends Service {
 
               // --- gis data set --//
 
-              "gis-dataset/upload":
-                "multipart:gis-dataset.uploadFile",
+              "gis-dataset/upload": "multipart:gis-dataset.uploadFile",
 
-              "GET /gis-dataset/:id/layerNames":
-                "gis-dataset.getLayerNames",
+              "GET /gis-dataset/:id/layerNames": "gis-dataset.getLayerNames",
 
               "GET /gis-dataset/:id/:layerName/tableDescriptor":
                 "gis-dataset.getTableDescriptor",
@@ -240,14 +239,11 @@ export default class ApiService extends Service {
               "GET /gis-dataset/:id/:layerName/layerAnalysis":
                 "gis-dataset.getLayerAnalysis",
 
-              "gis-dataset/publish":
-                "gis-dataset.publish",
-
+              "gis-dataset/publish": "gis-dataset.publish",
 
               // --- end data set --//
               "gis/create-mbtiles/damaViewId/:damaViewId":
                 "dama/gis.createDamaGisDatasetViewMbtiles",
-
 
               // FIXME: Returns an array. See
               // https://github.com/moleculerjs/moleculer-web/blob/5b0eebe83ece78dbacd40d02ae90fd7c143572ed/src/alias.js#L194
@@ -290,8 +286,7 @@ export default class ApiService extends Service {
               "/hazard_mitigation/ealLoader":
                 "data_types/hazard_mitigation.ealLoader.load",
 
-              "/hazard_mitigation/loadNCEI":
-                "hazard_mitigation.loadNCEI.load",
+              "/hazard_mitigation/loadNCEI": "hazard_mitigation.loadNCEI.load",
 
               "/hazard_mitigation/enhanceNCEI":
                 "hazard_mitigation.enhancedNCEI.load",
@@ -320,17 +315,23 @@ export default class ApiService extends Service {
               "/hazard_mitigation/pbSWDLoader":
                 "hazard_mitigation.pbSWDLoader.load",
 
-              "/data-sources/npmrds/travel-times-export/etl/getNpmrdsDataDateExtent":
-                "dama/data_types/npmrds/travel_times_export/etl.getNpmrdsDataDateExtent",
+              "data-types/npmrds/getToposortedDamaSourcesMeta":
+                "dama/data_types/npmrds.getToposortedDamaSourcesMeta",
 
-              "/data-sources/npmrds/travel-times-export/etl/queueNpmrdsExportRequest":
-                "dama/data_types/npmrds/travel_times_export/etl.queueNpmrdsExportRequest",
+              "data-types/npmrds/initializeNpmrdsSources":
+                "dama/data_types/npmrds.initializeDamaSources",
 
-              "/data-sources/npmrds/travel-times-export/etl/getOpenRequestsStatuses":
-                "dama/data_types/npmrds/travel_times_export/etl.getOpenRequestsStatuses",
+              "/data-types/npmrds/npmrds-travel-times-export-ritis/getNpmrdsDataDateExtent":
+                "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis.getNpmrdsDataDateExtent",
 
-              "/data-sources/npmrds/authoritative-travel-times-db/makeTravelTimesExportTablesAuthoritative":
-                "dama/data_types/npmrds/authoritative_travel_times_db.makeTravelTimesExportTablesAuthoritative",
+              "/data-types/npmrds/npmrds-travel-times-export-ritis/queueNpmrdsExportRequest":
+                "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis.queueNpmrdsExportRequest",
+
+              "/data-types/npmrds/npmrds-travel-times-export-ritis/getOpenRequestsStatuses":
+                "dama/data_types/npmrds/dt-npmrds_travel_times_export_ritis.getOpenRequestsStatuses",
+
+              "/data-types/npmrds/npmrds-travel-times/makeTravelTimesExportTablesAuthoritative":
+                "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative",
             },
           },
 

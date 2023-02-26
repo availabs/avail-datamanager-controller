@@ -46,7 +46,7 @@ ALTER TABLE data_manager.sources
 CREATE TABLE IF NOT EXISTS data_manager.views (
   view_id                 SERIAL PRIMARY KEY,
 
-  source_id               INTEGER NOT NULL REFERENCES data_manager.sources (source_id),
+  source_id               INTEGER NOT NULL REFERENCES data_manager.sources (source_id) ON DELETE CASCADE,
 
   data_type               TEXT,
 

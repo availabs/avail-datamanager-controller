@@ -55,6 +55,11 @@ export default async function publish(ctx: Context) {
       view_id: damaViewId,
     } = <DamaView>txnCtx.params.newDamaView;
 
+    await ctx.call("data_manager/events.setEtlContextSourceId", {
+      etl_context_id,
+      source_id: damaSourceId,
+    });
+
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
 
     const finalEvent = {
