@@ -275,14 +275,22 @@ order by nri_category asc
 
 
 --   hazard,
+
+------------------------ num events
 -- # swd events,
 -- # 0 loss swd events,
 -- # loss swd events,
+
 -- # pb events,
 -- # 0 loss pb events,
 -- # loss pb events,
+
+
+---------------------- total loss
 -- $ swd loss total
 -- $ pb loss total
+
+---------------------- eal
 -- $ swd loss annual
 -- $ avail_eal
 -- $ nri_eal

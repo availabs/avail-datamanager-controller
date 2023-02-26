@@ -64,7 +64,7 @@ const mergeTables = async (ctx, fileNames, view_id, table_name) => {
   });
 };
 
-const createIndices = async (ctx, view_id, table_name) => {
+const createIndices = async (ctx, view_id, table_name, sqlLog) => {
   let query = `
       BEGIN;
       CREATE INDEX IF NOT EXISTS geom_idx_tl_2017_${table_name}_${view_id}
@@ -73,17 +73,18 @@ const createIndices = async (ctx, view_id, table_name) => {
       TABLESPACE pg_default;
 
     COMMIT;
-    `
+    `;
+  sqlLog.push(query);
   return ctx.call("dama_db.query", {
     text: query,
   });
 }
 
-const correctGeoid = async (ctx, view_id, table_name) => {
+const correctGeoid = async (ctx, view_id, table_name, sqlLog) => {
   let query = `
       BEGIN;
 
-      ALTER table_name geo.tl_2017_${table_name}_${view_id}
+      ALTER TABLE geo.tl_2017_${table_name}_${view_id}
       ALTER COLUMN geoid TYPE text;
 
       UPDATE geo.tl_2017_${table_name}_${view_id} dst
@@ -91,7 +92,8 @@ const correctGeoid = async (ctx, view_id, table_name) => {
       where length(geoid::text) = ${table_name === "tract" ? 10 : 9};
 
       COMMIT;
-    `
+    `;
+  sqlLog.push(query);
   return ctx.call("dama_db.query", {
     text: query,
   });
@@ -126,9 +128,9 @@ export default async function publish(ctx: Context) {
       await mergeTables(ctx, files.map(f => f.replace(".zip", "")), view_id, table_name);
     }
 
-    await createIndices(ctx, view_id, table_name);
+    await createIndices(ctx, view_id, table_name.toLowerCase(), sqlLog);
 
-    await correctGeoid(ctx, view_id, table_name.toLowerCase());
+    await correctGeoid(ctx, view_id, table_name.toLowerCase(), sqlLog);
 
     await update_view({table_schema: 'geo', table_name: `tl_2017_${table_name.toLowerCase()}`, view_id, dbConnection, sqlLog});
 
