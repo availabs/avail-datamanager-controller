@@ -284,15 +284,15 @@ export default class ApiService extends Service {
                 "hazard_mitigation.hlrLoader.load",
 
               "/hazard_mitigation/ealLoader":
-                "data_types/hazard_mitigation.ealLoader.load",
+                "hazard_mitigation.ealLoader.load",
 
               "/hazard_mitigation/loadNCEI": "hazard_mitigation.loadNCEI.load",
 
               "/hazard_mitigation/enhanceNCEI":
-                "hazard_mitigation.enhanceNCEI.load",
+                "hazard_mitigation.enhancedNCEI.load",
 
-              "/hazard_mitigation/csvUploadAction":
-                "hazard_mitigation.csvUploadAction.load",
+              "/hazard_mitigation/zoneToCountyLoader":
+                "hazard_mitigation.zoneToCountyLoader.load",
 
               "/hazard_mitigation/tigerDownloadAction":
                 "hazard_mitigation.tigerDownloadAction.load",

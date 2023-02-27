@@ -8,6 +8,7 @@ import fs from "fs";
 import https from "https";
 import {execSync} from "child_process";
 import {loadFiles} from "./upload";
+import {err, fin, init, update_view} from "../utils/macros";
 
 
 // mol $ call 'dama/data_source_integrator.testUploadAction' --table_name details --#pgEnv dama_dev_1
@@ -29,132 +30,36 @@ const fetchFileList = async (currTable) => {
   console.log("unzipped");
 };
 
-const update_view = async (table_name, view_id, dbConnection, sqlLog, resLog) => {
-  const updateViewMetaSql = dedent(
-    `
-      UPDATE data_manager.views
-      SET table_schema = $1,
-          table_name   = $2,
-          data_table   = $3
-      WHERE view_id = $4
-    `
-  );
-
-  const data_table = pgFormat("%I.%I", tables[table_name](view_id).schema, `${table_name}_${view_id}`);
-
-  const q = {
-    text: updateViewMetaSql,
-    values: [tables[table_name](view_id).schema, `${table_name}_${view_id}`, data_table, view_id],
-  };
-
-  sqlLog.push(q);
-  const res = await dbConnection.query(q);
-  resLog.push(res);
-};
 
 export default async function publish(ctx: Context) {
-  // throw new Error("publish TEST ERROR");
-
   let {
     // @ts-ignore
-    params: {etl_context_id, table_name, view_id},
+    params: {table_name}
   } = ctx;
-  //
-  if (!(etl_context_id)) {
-    const etlcontextid = await ctx.call(
-      "data_manager/events.spawnEtlContext",
-      {etl_context_id: null}
-    );
-    etl_context_id = etlcontextid;
-    throw new Error("The etl_context_id parameter is required.");
-  }
 
-  const initalEvent = {
-    type: EventTypes.INITIAL
-  }
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'nri'});
 
-  await ctx.call("data_manager/events.dispatch", initialEvent);
-
-  const dbConnection: PoolClient = await ctx.call("dama_db.getDbConnection");
-  const sqlLog: any[] = [];
-  const resLog: QueryResult[] = [];
-
-  // let view_id = 13
   try {
-    let res: QueryResult;
-
-    sqlLog.push("BEGIN ;");
-    res = await dbConnection.query("BEGIN ;");
-    resLog.push(res);
-    //
     // create schema
     const createSchema = `CREATE SCHEMA IF NOT EXISTS ${tables[table_name](view_id).schema};`;
     sqlLog.push(createSchema);
-    res = await ctx.call("dama_db.query", {
+    await ctx.call("dama_db.query", {
       text: createSchema,
     });
-    resLog.push(res);
-    console.log("see this:", res.rows);
 
     console.log("downloading", table_name);
+    // download
     await fetchFileList(table_name);
+
+    // upload
     await loadFiles(ctx, view_id);
 
     await dbConnection.query("COMMIT;");
-    //
-    //
-    // // update view meta
-    await update_view(table_name, view_id, dbConnection, sqlLog, resLog);
-    //
-    // await dbConnection.query("COMMIT;");
-    //
-    //
-    // await loadFiles(table_name, view_id, ctx);
-    //
-    // console.log("uploaded!");
 
-    // We need the data_manager.views id
-    await dbConnection.query("COMMIT;");
-    dbConnection.release();
+    await update_view({table_schema: tables[table_name](view_id).schema, table_name, view_id, dbConnection, sqlLog});
 
-    const finalEvent = {
-      type: EventTypes.FINAL,
-      payload: {
-        data_manager_view_id: -1,
-        createSchema: sqlLog,
-        createTable: sqlLog,
-        publishCmdResults: resLog,
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        etl_context_id
-      },
-    };
-
-    await ctx.call("data_manager/events.dispatch", finalEvent);
-
-    return finalEvent;
-  } catch (err) {
-    console.error(err);
-
-    const errEvent = {
-      type: EventTypes.PUBLISH_ERROR,
-      payload: {
-        message: err.message,
-        successfulcreateSchema: sqlLog,
-        successfulcreateTable: sqlLog,
-        successfulPublishCmdResults: resLog,
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        etl_context_id
-      },
-    };
-
-    await ctx.call("data_manager/events.dispatch", errEvent);
-
-    await dbConnection.query("ROLLBACK;");
-
-    throw err;
+    return fin({etl_context_id, ctx, dbConnection, payload: {view_id, source_id}});
+  } catch (e) {
+    return err({e, etl_context_id, sqlLog, ctx, dbConnection});
   }
 }

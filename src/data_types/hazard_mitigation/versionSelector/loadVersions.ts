@@ -2,6 +2,7 @@ import { Context } from "moleculer";
 
 import { PoolClient, QueryConfig, QueryResult } from "pg";
 import EventTypes from "../constants/EventTypes";
+import {err, fin, init} from "../utils/macros";
 
 export const ReadyToPublishPrerequisites = [
   EventTypes.QA_APPROVED,
@@ -13,29 +14,12 @@ export const ReadyToPublishPrerequisites = [
 export default async function publish(ctx: Context) {
   // throw new Error("publish TEST ERROR");
 
-  const etlcontextid = await ctx.call(
-    "data_manager/events.spawnEtlContext",
-    { etl_context_id: null }
-  );
-
-  const initalEvent = {
-    type: EventTypes.INITIAL
-  }
-
-  await ctx.call("data_manager/events.dispatch", initialEvent);
-
   const {
     // @ts-ignore
-    params: { etl_context_id = etlcontextid, type},
+    params: { type },
   } = ctx;
-  //
-  if (!(etl_context_id)) {
-    throw new Error("The etl_context_id parameter is required.");
-  }
 
-  const dbConnection: PoolClient = await ctx.call("dama_db.getDbConnection");
-  const sqlLog: any[] = [];
-  const resLog: QueryResult[] = [];
+  const {etl_context_id, dbConnection, sqlLog} = await init({ctx, type: null, createSource: false});
 
   try {
     let resSources: QueryResult;
@@ -46,58 +30,17 @@ export default async function publish(ctx: Context) {
     resSources = await ctx.call("dama_db.query", {
       text: getSrcs
     });
-    resLog.push(resSources.rows);
-    console.log("see this:", resSources.rows);
 
     const getViews = `SELECT * FROM data_manager.views WHERE source_id IN (${resSources.rows.map(src => src.source_id)});`;
-    console.log('??', getSrcs)
-    console.log('??', getViews)
+
     sqlLog.push(getViews);
     resViews = await ctx.call("dama_db.query", {
       text: getViews
     });
-    resLog.push(resViews.rows);
-    console.log("see this:", resViews.rows);
 
 
-    await dbConnection.query("COMMIT;");
-    dbConnection.release();
-
-    const finalEvent = {
-      type: EventTypes.FINAL,
-      sources: resSources.rows,
-      views: resViews.rows,
-      payload: {
-        data_manager_view_id: -1,
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        etl_context_id
-      },
-    };
-
-    await ctx.call("data_manager/events.dispatch", finalEvent);
-
-    return finalEvent;
-  } catch (err) {
-    console.error(err);
-
-    const errEvent = {
-      type: EventTypes.PUBLISH_ERROR,
-      payload: {
-        message: err.message,
-        successfulPublishCmdResults: resLog,
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-        etl_context_id
-      },
-    };
-
-    await ctx.call("data_manager/events.dispatch", errEvent);
-
-    await dbConnection.query("ROLLBACK;");
-
-    throw err;
+    return fin({etl_context_id, ctx, dbConnection, other: {sources: resSources.rows, views: resViews.rows}});
+  } catch (e) {
+    return err({e, etl_context_id, sqlLog, ctx, dbConnection});
   }
 }
