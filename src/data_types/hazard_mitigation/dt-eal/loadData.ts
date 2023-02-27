@@ -5,17 +5,12 @@ import {err, fin, init, update_view} from "../utils/macros";
 export default async function publish(ctx: Context) {
   let {
     // @ts-ignore
-    params: {table_name, source_name, existing_source_id, view_dependencies, version,
+    params: {table_name, version,
       hlr_table, hlr_schema,
       nri_schema, nri_table
     },
   } = ctx;
-
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} =  parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :  await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type: 'eal'});
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, view_dependencies: JSON.parse(view_dependencies), version});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'eal'});
 
   try {
     // create schema

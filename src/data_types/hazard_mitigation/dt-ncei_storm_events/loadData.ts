@@ -53,12 +53,7 @@ export default async function publish(ctx: Context) {
     params: { table_name, source_name, existing_source_id, version },
   } = ctx;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} =  parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :  await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type: 'ncei_storm_events'});
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, version});
-
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ncei_storm_events'});
 
   try {
     let res: QueryResult;

@@ -9,18 +9,12 @@ export default async function publish(ctx: Context) {
   let {
     // @ts-ignore
     params: {
-      table_name, source_name, version, existing_source_id, view_dependencies,
+      table_name,
       ncei_table, ncei_schema, nri_schema, nri_table
     },
   } = ctx;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} = parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :
-    await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, view_dependencies: JSON.parse(view_dependencies), type: 'per_basis'});
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, version});
-
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'per_basis'});
 
   try {
 

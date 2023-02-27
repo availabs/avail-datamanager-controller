@@ -57,7 +57,6 @@ export const loadFiles = async (ctx, view_id, table = "nri") => {
                     .filter(d2 => d2.length > 1)
                     .map((d2) => {
                       return d2.reduce((acc, value, index) => {
-                        console.log(headers[index])
                         if (tables[table](view_id).columns.map(c => c.name).includes(headers[index].toLowerCase())) {
                           acc[headers[index].toLowerCase()] =
                             (numCols || []).includes(headers[index]) && [null, "", " ", undefined].includes(value) ?
@@ -79,7 +78,6 @@ export const loadFiles = async (ctx, view_id, table = "nri") => {
                     .filter(d2 => d2);
 
                 const query = nri.insert(values).toQuery();
-                console.log(query)
                 return ctx.call("dama_db.query", query);
               }, Promise.resolve())
           );

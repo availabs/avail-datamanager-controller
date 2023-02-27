@@ -101,18 +101,12 @@ const correctGeoid = async (ctx, view_id, table_name, sqlLog) => {
 export default async function publish(ctx: Context) {
   const {
     // @ts-ignore
-    params: { table_name, source_name, version, existing_source_id,
-    },
+    params: { table_name },
     meta: { pgEnv },
   } = ctx;
   const url = `https://www2.census.gov/geo/tiger/TIGER2017/${table_name}/`;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} = parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :
-    await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type: `tl_${table_name.toLowerCase()}`});
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, version});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: `tl_${table_name.toLowerCase()}`});
 
   try {
     // step 1

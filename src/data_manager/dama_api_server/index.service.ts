@@ -284,7 +284,7 @@ export default class ApiService extends Service {
                 "hazard_mitigation.hlrLoader.load",
 
               "/hazard_mitigation/ealLoader":
-                "data_types/hazard_mitigation.ealLoader.load",
+                "hazard_mitigation.ealLoader.load",
 
               "/hazard_mitigation/loadNCEI": "hazard_mitigation.loadNCEI.load",
 

@@ -20,17 +20,10 @@ const fetchFileList = async (fileName, url, table_name) => {
 export default async function publish(ctx: Context) {
   const {
     // @ts-ignore
-    params: {
-      table_name, source_name, version, existing_source_id
-    }
+    params: { table_name }
   } = ctx;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} = parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :
-    await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type: table_name});
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, version});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: table_name});
 
   try {
     const data_cleaning_file_path = "src/data_types/hazard_mitigation/dt-sba/dataCleaning.py";

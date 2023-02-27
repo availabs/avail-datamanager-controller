@@ -8,7 +8,7 @@ export default async function publish(ctx: Context) {
 
   let {
     params: {
-      table_name, source_name, existing_source_id, view_dependencies, version,
+      table_name,
       pb_table, pb_schema,
       nri_schema, nri_table,
       state_schema, state_table,
@@ -17,12 +17,7 @@ export default async function publish(ctx: Context) {
     }
   } = ctx;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} =  parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :  await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type: 'hlr'});
-
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, view_dependencies: JSON.parse(view_dependencies), version});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'hlr'});
 
   try {
     let res: QueryResult;

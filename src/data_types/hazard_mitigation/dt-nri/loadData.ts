@@ -32,18 +32,12 @@ const fetchFileList = async (currTable) => {
 
 
 export default async function publish(ctx: Context) {
-  // throw new Error("publish TEST ERROR");
-
   let {
     // @ts-ignore
-    params: {table_name, source_name, existing_source_id, version}
+    params: {table_name}
   } = ctx;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
-
-  const {source_id} =  parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :  await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type: 'nri'});
-
-  const {view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, view_dependencies: JSON.parse(view_dependencies), version});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'nri'});
 
   try {
     // create schema

@@ -19,7 +19,7 @@ export default async function publish(ctx: Context) {
     params: { type },
   } = ctx;
 
-  const {etl_context_id, dbConnection, sqlLog} = await init(ctx);
+  const {etl_context_id, dbConnection, sqlLog} = await init({ctx, type: null, createSource: false});
 
   try {
     let resSources: QueryResult;
