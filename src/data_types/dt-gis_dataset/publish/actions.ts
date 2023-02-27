@@ -1,4 +1,3 @@
-import _ from "lodash";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 import { spawn } from "child_process";
@@ -9,19 +8,14 @@ import { createGzip } from "zlib";
 import { Readable } from "stream";
 import { rename as renameAsync } from "fs/promises";
 import { join, basename } from "path";
-
-
 import tmp from "tmp";
 
-//import { Feature } from "geojson";
+import installTippecanoe from "../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
 
-import tippecanoePath    from "../../../../data_utils/gis/tippecanoe/constants/tippecanoePath";
-import installTippecanoe from "../../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
+import { etlDir, mbtilesDir, libDir } from "../../../constants";
 
-import etlDir     from "../../../../constants/etlDir";
-import mbtilesDir from "../../../../constants/mbtilesDir";
-
-
+// path to tippecanoe executable
+const tippecanoePath = join(libDir, "tippecanoe/tippecanoe")
 
 function asyncGeneratorToNdjsonStream(iter) {
   async function* toNdjson() {
@@ -42,19 +36,15 @@ const pipelineAsync = promisify(pipeline);
 //   etlWorkDir?: string;
 // };
 
-
-
-
-
-
-
-export default async function createGisDatasetViewMbtiles(ctx, damaViewId, damaSourceId) {
+export async function createGisDatasetViewMbtiles(ctx, etl_context_id, damaViewId, damaSourceId) {
   const {
     // @ts-ignore
     meta: { 
-      etl_context_id,
+      pgEnv
     }
   } = ctx;
+
+  console.log('createGisDatasetViewMbtiles context_id: ', etl_context_id, ctx.meta)
 
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
     await new Promise((resolve, reject) =>
@@ -163,7 +153,7 @@ export default async function createGisDatasetViewMbtiles(ctx, damaViewId, damaS
 }
 
 
-export async function createMbTiles({
+export async function createMbtilesTask({
   layerName,
   mbtilesFilePath,
   featuresAsyncIterator,
@@ -279,8 +269,6 @@ export async function createMbTiles({
     tippecanoeStderr,
   };
 }
-
-
 
 export async function createView(ctx, view_values) {
  

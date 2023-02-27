@@ -1,6 +1,8 @@
 import { Context } from "moleculer";
 import uploadFile from './upload/upload'
 import publish from './publish/publish'
+import dedent from "dedent";
+import pgFormat from "pg-format";
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
@@ -244,7 +246,7 @@ export default {
 
       return sql;
     },
-    
+
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator: {
       visibility: "protected",
 
