@@ -14,80 +14,80 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_missing_tables AS
     WHERE ( b.table_catalog IS NULL )
 ;
 
-CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
-  WITH cte_sources_meta AS (
-    SELECT
-        source_id,
-        COALESCE(metadata, '[]'::JSONB) AS metadata
-      FROM data_manager.sources
-  ), cte_sources_meta_elems AS (
-    SELECT
-        source_id,
-        jsonb_array_elements(
-          metadata
-        ) AS meta_elem
-      FROM cte_sources_meta
-  ), cte_views_meta_elems AS (
-    SELECT
-        source_id,
-        view_id,
-        jsonb_array_elements(table_simplified_schema) as meta_elem
-      FROM _data_manager_admin.dama_table_json_schema
-  ), cte_source_meta_only AS (
-    SELECT
-        b.source_id,
-        b.view_id,
-        a.meta_elem
-      FROM cte_sources_meta_elems AS a
-        INNER JOIN cte_views_meta_elems AS b
-          USING (source_id)
-    EXCEPT
-    SELECT
-        b.source_id,
-        b.view_id,
-        b.meta_elem
-      FROM cte_views_meta_elems AS b
-  ), cte_view_meta_only AS (
-    SELECT
-        b.source_id,
-        b.view_id,
-        b.meta_elem
-      FROM cte_views_meta_elems AS b
-    EXCEPT
-    SELECT
-        b.source_id,
-        b.view_id,
-        a.meta_elem
-      FROM cte_sources_meta_elems AS a
-        INNER JOIN cte_views_meta_elems AS b
-          USING (source_id)
-  ), cte_view_metadata_summary AS (
-    SELECT
-        source_id,
-        view_id,
-        jsonb_agg(DISTINCT b.meta_elem)
-          FILTER (WHERE b.meta_elem IS NOT NULL) AS source_metadata_only,
-        jsonb_agg(DISTINCT c.meta_elem)
-          FILTER (WHERE c.meta_elem IS NOT NULL) AS view_metadata_only
-      FROM _data_manager_admin.dama_table_column_types AS a
-        FULL OUTER JOIN cte_source_meta_only AS b
-          USING (source_id, view_id)
-        FULL OUTER JOIN cte_view_meta_only AS c
-          USING (source_id, view_id)
-      GROUP BY source_id, view_id
-  )
-    SELECT
-        source_id,
-        view_id,
-        source_metadata_only,
-        view_metadata_only,
-        (
-          ( source_metadata_only IS NULL )
-          AND
-          ( view_metadata_only IS NULL )
-        ) AS view_metadata_is_conformant
-      FROM cte_view_metadata_summary
-;
+-- CREATE OR REPLACE VIEW _data_manager_admin.dama_views_metadata_conformity AS
+--   WITH cte_sources_meta AS (
+--     SELECT
+--         source_id,
+--         COALESCE(metadata, '[]'::JSONB) AS metadata
+--       FROM data_manager.sources
+--   ), cte_sources_meta_elems AS (
+--     SELECT
+--         source_id,
+--         jsonb_array_elements(
+--           metadata
+--         ) AS meta_elem
+--       FROM cte_sources_meta
+--   ), cte_views_meta_elems AS (
+--     SELECT
+--         source_id,
+--         view_id,
+--         jsonb_array_elements(table_simplified_schema) as meta_elem
+--       FROM _data_manager_admin.dama_table_json_schema
+--   ), cte_source_meta_only AS (
+--     SELECT
+--         b.source_id,
+--         b.view_id,
+--         a.meta_elem
+--       FROM cte_sources_meta_elems AS a
+--         INNER JOIN cte_views_meta_elems AS b
+--           USING (source_id)
+--     EXCEPT
+--     SELECT
+--         b.source_id,
+--         b.view_id,
+--         b.meta_elem
+--       FROM cte_views_meta_elems AS b
+--   ), cte_view_meta_only AS (
+--     SELECT
+--         b.source_id,
+--         b.view_id,
+--         b.meta_elem
+--       FROM cte_views_meta_elems AS b
+--     EXCEPT
+--     SELECT
+--         b.source_id,
+--         b.view_id,
+--         a.meta_elem
+--       FROM cte_sources_meta_elems AS a
+--         INNER JOIN cte_views_meta_elems AS b
+--           USING (source_id)
+--   ), cte_view_metadata_summary AS (
+--     SELECT
+--         source_id,
+--         view_id,
+--         jsonb_agg(DISTINCT b.meta_elem)
+--           FILTER (WHERE b.meta_elem IS NOT NULL) AS source_metadata_only,
+--         jsonb_agg(DISTINCT c.meta_elem)
+--           FILTER (WHERE c.meta_elem IS NOT NULL) AS view_metadata_only
+--       FROM _data_manager_admin.dama_table_column_types AS a
+--         FULL OUTER JOIN cte_source_meta_only AS b
+--           USING (source_id, view_id)
+--         FULL OUTER JOIN cte_view_meta_only AS c
+--           USING (source_id, view_id)
+--       GROUP BY source_id, view_id
+--   )
+--     SELECT
+--         source_id,
+--         view_id,
+--         source_metadata_only,
+--         view_metadata_only,
+--         (
+--           ( source_metadata_only IS NULL )
+--           AND
+--           ( view_metadata_only IS NULL )
+--         ) AS view_metadata_is_conformant
+--       FROM cte_view_metadata_summary
+-- ;
 
 CREATE OR REPLACE VIEW _data_manager_admin.dama_source_distinct_view_metadata AS
   SELECT
@@ -383,8 +383,12 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_views_comprehensive
         _data_manager_admin.dama_view_name(view_id) AS dama_view_name
       FROM data_manager.views
         NATURAL LEFT JOIN _data_manager_admin.dama_views_int_ids
-        NATURAL LEFT JOIN _data_manager_admin.dama_views_missing_tables
-        NATURAL LEFT JOIN _data_manager_admin.dama_views_metadata_conformity
+        --
+        -- below joins are never used anywhere in server code and currently
+        -- break the view ERROR:  cannot extract elements from an object
+        --
+        --NATURAL LEFT JOIN _data_manager_admin.dama_views_missing_tables
+        --NATURAL LEFT JOIN _data_manager_admin.dama_views_metadata_conformity
         LEFT OUTER JOIN (
           SELECT
               view_id,

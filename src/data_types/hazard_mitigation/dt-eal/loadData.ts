@@ -109,7 +109,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", finalEvent);
+    await ctx.call("data_manager/events.dispatch", finalEvent);
 
     return finalEvent;
   } catch (err) {
@@ -129,7 +129,7 @@ export default async function publish(ctx: Context) {
       },
     };
 
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     await dbConnection.query("ROLLBACK;");
 

@@ -18,17 +18,6 @@ import uploadGeospatialDataset from "./actions/uploadGeospatialDataset";
 import stageLayerData from "./actions/stageLayerData";
 import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
 
-// import loadNCEI from "./actions/ncei_storm_events/loadData";
-// import enhanceNCEI from "./actions/ncei_storm_events/postUploadProcessData";
-// import csvUploadAction from "./actions/csvUploadAction";
-// import tigerDownloadAction from "./actions/tiger_2017/loadData";
-// import versionSelectorUtils from "./actions/versionSelectorUtils";
-// import openFemaDataLoader from "./actions/openFemaData/openFemaDataLoader";
-// import usdaLoader from "./actions/usda/loadData";
-// import sbaLoader from "./actions/sba/loadData";
-// import nriLoader from "./actions/nri/loadData";
-// import pbSWDLoader from "./actions/per_basis_swd/loadData";
-// import hlrLoader from "./actions/hlr/loadData";
 
 export default {
   name: serviceName,

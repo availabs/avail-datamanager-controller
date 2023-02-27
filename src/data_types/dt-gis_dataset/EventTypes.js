@@ -13,9 +13,6 @@ export default {
   STAGE_LAYER_DATA_REQUEST: `${serviceName}:STAGE_LAYER_DATA_REQUEST`,
   LAYER_DATA_STAGED: `${serviceName}:LAYER_DATA_STAGED`,
 
-  QA_REQUEST: `${serviceName}:QA_REQUEST`,
-  QA_APPROVED: `${serviceName}:QA_APPROVED`,
-
   READY_TO_PUBLISH: `${serviceName}:READY_TO_PUBLISH`,
 
   NOT_READY_TO_PUBLISH: `${serviceName}:NOT_READY_TO_PUBLISH`,
