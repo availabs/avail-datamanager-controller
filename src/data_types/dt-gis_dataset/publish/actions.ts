@@ -15,11 +15,11 @@ import tmp from "tmp";
 
 //import { Feature } from "geojson";
 
-import tippecanoePath    from "../../../../data_utils/gis/tippecanoe/constants/tippecanoePath";
-import installTippecanoe from "../../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
+import tippecanoePath    from "../../../data_utils/gis/tippecanoe/constants/tippecanoePath";
+import installTippecanoe from "../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
 
-import etlDir     from "../../../../constants/etlDir";
-import mbtilesDir from "../../../../constants/mbtilesDir";
+import etlDir     from "../../../constants/etlDir";
+import mbtilesDir from "../../../constants/mbtilesDir";
 
 
 
