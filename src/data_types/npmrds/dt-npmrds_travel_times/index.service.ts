@@ -5,8 +5,6 @@ import pgFormat from "pg-format";
 
 import { Context } from "moleculer";
 
-import { NodePgPoolClient } from "../../../data_manager/dama_db/postgres/PostgreSQL";
-
 import { NpmrdsDataSources } from "../domain";
 
 import makeTravelTimesExportTablesAuthoritative from "./actions/makeTravelTimesExportTablesAuthoritative";

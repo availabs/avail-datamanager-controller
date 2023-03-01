@@ -361,18 +361,10 @@ export default function getAttViewsToDetach(
       ? handleHasAttViewIdsCase(attViewsMeta, ettViewsMeta)
       : handleNoAttViewIdsCase(ettViewsMeta);
 
-  // console.log(JSON.stringify({ attViewIdsToDetach }, null, 4));
-
   const dateExtentsByState = validateNoAttGaps(
     attViewsMeta,
     sortedNewAttDateRangeIntervalsByState
   );
-
-  /*
-  console.log("$#".repeat(20));
-  console.log(JSON.stringify({ dateExtentsByState }, null, 4));
-  console.log("$#".repeat(20));
-  */
 
   const attViewsToDetach = attViewsMeta
     ? attViewIdsToDetach.map((attViewId) => attViewsMeta.byViewId[attViewId])
