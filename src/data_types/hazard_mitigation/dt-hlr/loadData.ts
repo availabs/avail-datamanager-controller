@@ -35,6 +35,7 @@ export default async function publish(ctx: Context) {
       ncei_schema, ncei_table, pb_schema, pb_table, nri_schema, nri_table);
 
     sqlLog.push(createTableSql);
+    console.log('sql', createTableSql)
     await ctx.call("dama_db.query", {text: createTableSql});
 
     await dbConnection.query("COMMIT;");
