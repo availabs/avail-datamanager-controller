@@ -25,6 +25,8 @@ const DATA_END_DATE = "2022-12-31";
 
 const EPOCHS = _.range(0, 288);
 
+const PG_ENV = "dama_dev_1";
+
 const createName = (
   state: string,
   startDate: string,
@@ -309,7 +311,7 @@ async function insertMockEttDamaView(db: NodePgClient, meta: any) {
 // curl 'localhost:3369/dama-admin/dama_dev_1/data-sources/npmrds/dt-npmrds_travel_times/makeTravelTimesExportTableAuthoritative?damaViewId=1739'
 
 async function main() {
-  const db = await getConnectedNodePgClient("dama_dev_1");
+  const db = await getConnectedNodePgClient(PG_ENV);
 
   await db.query("BEGIN ;");
   await db.query("DELETE FROM data_manager.views WHERE view_id > 6 ;");
