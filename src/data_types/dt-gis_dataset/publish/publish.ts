@@ -79,7 +79,13 @@ export default async function publish(ctx) {
 
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
 
-    const mbtilesData = await createGisDatasetViewMbtiles(ctx, etlContextId, damaViewId, damaSourceId)
+    ctx.params.damaViewId = damaViewId
+    ctx.meta.etl_context_id = etlContextId
+
+    const mbtilesData = await ctx.call('gis-dataset.createViewMbtiles', {
+      damaViewId,
+      damaSourceId
+    })
 
     const finalEvent = {
       type: EventTypes.FINAL,

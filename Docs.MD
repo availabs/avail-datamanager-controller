@@ -46,20 +46,23 @@
 
 
 Data Types
- - Data Types are code for processing data into the dama server. They can load external data or process existing data
- 
- - A datatype should have
+   - Data Types are code for processing data into the dama server. They can load external data or process existing data
+   - A datatype should have
    - a create step with creates initial source at least
    - should create source metadata if applicable
    - ability to load new view for existing source
 
 
-ToDo:
- - Work to move folders to match new datastructus
- - paul - rename data_sources to data_types and unbreak things
- - Alex - move gis_data_set parts into data_types
- - shuan - move dat_integrations code to approproate data_types
- - move dama_event_store and etl_context
+Questions
+ - discuss what should be in the standard template data-type
+ - Should constants be available through dama-meta instead of file imports?
+ - How might etlContexts / services work with a task queue?
+ - How to make an all processes (etlContexts) page 
+ - How do we standardize default view list / individual view page
+ - Discuss how delete currently works and how it should work
+ - How should we handle data sources that we don't want the client to see?
+ - Discuss plan to unify current clients
+
    
 
 
