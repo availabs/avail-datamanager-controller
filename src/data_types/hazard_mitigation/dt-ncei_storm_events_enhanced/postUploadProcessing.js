@@ -58,7 +58,9 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
                 THEN 'winterweat'
               WHEN event_type IN ('Volcanic Ash','Volcanic Ashfall')
                 THEN 'volcano'
-              WHEN event_type IN ('Coastal Flood', 'High Surf','Sneakerwave','Storm Surge/Tide','Rip Current')
+              WHEN event_type IN ('Coastal Flood', 'High Surf','Sneakerwave',
+--                                   'Storm Surge/Tide',
+                                  'Rip Current')
                 THEN 'coastal'
               ELSE event_type
               END;
