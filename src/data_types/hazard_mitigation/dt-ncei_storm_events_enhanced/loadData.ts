@@ -15,7 +15,7 @@ export default async function publish(ctx: Context) {
   let {
     // @ts-ignore
     params: { table_name,
-      ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table},
+      ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, county_schema, county_table, ztc_schema, ztc_table},
   } = ctx;
 
   const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ncei_storm_events_enhanced', metadata: {changelog_version: 2}});
@@ -33,7 +33,7 @@ export default async function publish(ctx: Context) {
       text: createTableSql,
     });
 
-    await postProcess(ctx, `${table_name}${view_id ? `_${view_id}` : ``}`, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
+    await postProcess(ctx, `${table_name}${view_id ? `_${view_id}` : ``}`, tract_schema, tract_table, county_schema, county_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
     console.log("post upload process finished.");
 
     await update_view({table_schema: ncei_schema, table_name, view_id, dbConnection, sqlLog});
