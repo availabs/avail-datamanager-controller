@@ -164,7 +164,7 @@ export async function createAuthoritativeStateYearMonthTable(
     )
   );
 
-  const result = await dbConn.query(sql);
+  await dbConn.query(sql);
 
   return { schemaName, tableName };
 }

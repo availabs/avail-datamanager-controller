@@ -8,6 +8,7 @@ import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/
 import { createSource, createView } from './actions' 
 
 export default async function publish(ctx) {
+  // params come from post data
   let {
     // @ts-ignore
     params: {
@@ -30,10 +31,10 @@ export default async function publish(ctx) {
     }
   } = ctx;
 
-  const txn = await ctx.call("dama_db.createTransaction");
+  //const txn = await ctx.call("dama_db.createTransaction");
   
   try {
-    txn.begin()
+    // txn.begin()
     let damaSource = null
     // create a source if necessary
     if(!source_id) {
@@ -56,29 +57,13 @@ export default async function publish(ctx) {
     tableDescriptor.tableName = damaView.table_name //`etlctx_${etl_context_id}_${uniqId}`;
     await gdi.persistLayerTableDescriptor(tableDescriptor);
 
-    const migration_result = await gdi.loadTable({ layerName, pgEnv });
-    //console.log('publish table', migration_result)
+    let loadTableWarning
 
-    //await publishStagedDataset(txnCtx);
+    try {
+      const migration_result = await gdi.loadTable({ layerName, pgEnv });
+    } catch( err ) {
 
-    let initializeDamaSourceMetadataWarning: string | undefined;
-
-    // try {
-    //   await initializeDamaSourceMetadataUsingViews(ctx);
-    // } catch (err) {
-    //   console.error(err);
-    //   initializeDamaSourceMetadataWarning = err.message;
-    // }
-
-    // ??? Should this go above initializeDamaSourceMetadata ???
-    let conformDamaSourceViewTableSchemaWarning: string | undefined;
-
-    // try {
-    //   await conformDamaSourceViewTableSchema(txnCtx);
-    // } catch (err) {
-    //   console.error(err);
-    //   conformDamaSourceViewTableSchemaWarning = err.message;
-    // }
+    }
 
     const {
       table_schema: tableSchema,
@@ -98,10 +83,7 @@ export default async function publish(ctx) {
       type: EventTypes.FINAL,
       payload: {
         damaSourceId,
-        damaViewId,
-        queryLog: txn.queryLog,
-        initializeDamaSourceMetadataWarning,
-        conformDamaSourceViewTableSchemaWarning,
+        damaViewId
       },
       meta: {
         etl_context_id: etlContextId,
@@ -110,12 +92,12 @@ export default async function publish(ctx) {
       },
     };
 
-    console.log(JSON.stringify({ finalEvent }, null, 4));
+    console.log('final event')
+    //console.log(JSON.stringify({ finalEvent }, null, 4));
 
-    // Back to the parentCtx
-    await ctx.call("dama_dispatcher.dispatch", finalEvent);
+    await ctx.call("data_manager/events.dispatch", finalEvent);
 
-    await txn.commit();
+    //await txn.commit();
 
     return finalEvent;
   } catch (err) {
@@ -124,8 +106,7 @@ export default async function publish(ctx) {
     const errEvent = {
       type: EventTypes.PUBLISH_ERROR,
       payload: {
-        message: err.message,
-        queryLog: txn.queryLog,
+        message: err.message
       },
       meta: {
         etl_context_id: etlContextId,
@@ -135,10 +116,10 @@ export default async function publish(ctx) {
     };
 
     // Back to the parentCtx
-    await ctx.call("dama_dispatcher.dispatch", errEvent);
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
     try {
-      await txn.rollback();
+      //await txn.rollback();
     } catch (err2) {
       //
       cosole.log('transaction rollback error')

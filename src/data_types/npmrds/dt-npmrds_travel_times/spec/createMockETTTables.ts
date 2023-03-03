@@ -18,13 +18,14 @@ import { NpmrdsDataSources } from "../../domain";
 import { stateAbbr2FipsCode } from "../../../../data_utils/constants/stateFipsCodes";
 
 const NUM_TMCS = 1;
-// const STATES = ["ct", "nj", "ny", "pa"];
-const STATES = ["ny"];
+const STATES = ["ct", "nj", "ny", "pa"];
 
 const DATA_START_DATE = "2021-01-01";
-const DATA_END_DATE = "2022-03-31";
+const DATA_END_DATE = "2022-12-31";
 
 const EPOCHS = _.range(0, 288);
+
+const PG_ENV = "dama_dev_1";
 
 const createName = (
   state: string,
@@ -83,7 +84,7 @@ function generateMockEttMetadata(interval: "week" | "month") {
         is_expanded: true,
         data_start_date,
         data_end_date,
-        is_complete_month: true,
+        is_complete_month: interval === "month",
         download_timestamp,
         endDateExclusive,
       });
@@ -310,7 +311,7 @@ async function insertMockEttDamaView(db: NodePgClient, meta: any) {
 // curl 'localhost:3369/dama-admin/dama_dev_1/data-sources/npmrds/dt-npmrds_travel_times/makeTravelTimesExportTableAuthoritative?damaViewId=1739'
 
 async function main() {
-  const db = await getConnectedNodePgClient("dama_dev_1");
+  const db = await getConnectedNodePgClient(PG_ENV);
 
   await db.query("BEGIN ;");
   await db.query("DELETE FROM data_manager.views WHERE view_id > 6 ;");

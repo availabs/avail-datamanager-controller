@@ -224,158 +224,160 @@ export default {
         },
       };
 
-      // FIXME: Need to emit the DamaView info into the event_store
-      const downloadedEvent = {
-        ...event,
-        type: `${serviceName}:NPMRDS_TRAVEL_TIMES_EXPORT_DOWNLOADED`,
-      };
+      try {
+        // FIXME: Need to emit the DamaView info into the event_store
+        const downloadedEvent = {
+          ...event,
+          type: `${serviceName}:NPMRDS_TRAVEL_TIMES_EXPORT_DOWNLOADED`,
+        };
 
-      await this.broker.call(
-        "data_manager/events.dispatch",
-        downloadedEvent,
-        opts
-      );
+        await this.broker.call(
+          "data_manager/events.dispatch",
+          downloadedEvent,
+          opts
+        );
 
-      const transformEvent = {
-        type: `${serviceName}:STATUS_UPDATE`,
-        payload: {
-          status: "TRANSFORMING",
-          // @ts-ignore
-          npmrdsDownloadName: event.payload.npmrdsDownloadName,
-        },
-        meta: event.meta,
-      };
+        const transformEvent = {
+          type: `${serviceName}:STATUS_UPDATE`,
+          payload: {
+            status: "TRANSFORMING",
+            // @ts-ignore
+            npmrdsDownloadName: event.payload.npmrdsDownloadName,
+          },
+          meta: event.meta,
+        };
 
-      await this.broker.call(
-        "data_manager/events.dispatch",
-        transformEvent,
-        opts
-      );
+        await this.broker.call(
+          "data_manager/events.dispatch",
+          transformEvent,
+          opts
+        );
 
-      const transformDoneData = await this.transformNpmrdsExportDownload(
-        npmrdsDownloadName
-      );
+        const transformDoneData = await this.transformNpmrdsExportDownload(
+          npmrdsDownloadName
+        );
 
-      const moveDoneData = await this.moveTransformedDataToCanonicalDirectory(
-        transformDoneData
-      );
+        const moveDoneData = await this.moveTransformedDataToCanonicalDirectory(
+          transformDoneData
+        );
 
-      console.log(JSON.stringify({ transformDoneData }, null, 4));
+        console.log(JSON.stringify({ transformDoneData }, null, 4));
 
-      // TODO:
-      //        1. Move the npmrdsTravelTimesExportRitis dir to the DamaCntlrDataDir
-      //        2. Alter all the paths
-      //          1. basename of the npmrdsExportsDir
-      //          2. move to NpmrdsTravelTimesExportRitis's damaCntrlrDataDir
-      //          3. all other paths, simple string replace old npmrdsExportsDir with new npmrdsExportsDir
+        // TODO:
+        //        1. Move the npmrdsTravelTimesExportRitis dir to the DamaCntlrDataDir
+        //        2. Alter all the paths
+        //          1. basename of the npmrdsExportsDir
+        //          2. move to NpmrdsTravelTimesExportRitis's damaCntrlrDataDir
+        //          3. all other paths, simple string replace old npmrdsExportsDir with new npmrdsExportsDir
 
-      const transformDoneEvent = {
-        type: `${serviceName}:STATUS_UPDATE`,
-        payload: {
-          status: "TRANSFORM_DONE",
-          doneData: moveDoneData,
-        },
-        meta: event.meta,
-      };
+        const transformDoneEvent = {
+          type: `${serviceName}:STATUS_UPDATE`,
+          payload: {
+            status: "TRANSFORM_DONE",
+            doneData: moveDoneData,
+          },
+          meta: event.meta,
+        };
 
-      await this.broker.call(
-        "data_manager/events.dispatch",
-        transformDoneEvent,
-        opts
-      );
+        await this.broker.call(
+          "data_manager/events.dispatch",
+          transformDoneEvent,
+          opts
+        );
 
-      // LOAD
-      //
-      const {
-        [NpmrdsDataSources.NpmrdsTravelTimesExportEtl]: {
-          metadata: {
-            files: {
-              [NpmrdsTravelTimesExportEtlElements.NpmrdsTravelTimesExportSqlite]:
-                { path: npmrdsTravelTimesSqliteDbPath },
+        // LOAD
+        //
+        const {
+          [NpmrdsDataSources.NpmrdsTravelTimesExportEtl]: {
+            metadata: {
+              files: {
+                [NpmrdsTravelTimesExportEtlElements.NpmrdsTravelTimesExportSqlite]:
+                  { path: npmrdsTravelTimesSqliteDbPath },
+              },
             },
           },
-        },
-      } = moveDoneData;
+        } = moveDoneData;
 
-      const npmrdsExportSqliteDbPath = join(
-        controllerDataDir,
-        npmrdsTravelTimesSqliteDbPath
-      );
+        const npmrdsExportSqliteDbPath = join(
+          controllerDataDir,
+          npmrdsTravelTimesSqliteDbPath
+        );
 
-      const [loadNpmrdsTravelTimesDoneData, loadTmcIdentDoneData] =
-        await Promise.all([
+        const [loadNpmrdsTravelTimesDoneData, loadTmcIdentDoneData] =
+          await Promise.all([
+            this.broker.call(
+              "dama/data_types/npmrds/dt-npmrds_travel_times_imp.load",
+              { npmrdsExportSqliteDbPath },
+              opts
+            ),
+            this.broker.call(
+              "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp.load",
+              { npmrdsExportSqliteDbPath },
+              opts
+            ),
+          ]);
+
+        const loadDoneData = {
+          [NpmrdsDataSources.NpmrdsTravelTimesImp]:
+            loadNpmrdsTravelTimesDoneData,
+          [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
+        };
+
+        // const [npmrdsTravelTimesStats, tmcIdentStats] = await Promise.all([
+        const [tmcIdentStats] = await Promise.all([
+          // this.broker.call(
+          // "dama/data_types/npmrds/dt-npmrds_travel_times_imp.computeStatistics",
+          // { npmrdsExportSqliteDbPath },
+          // opts
+          // ),
           this.broker.call(
-            "dama/data_types/npmrds/dt-npmrds_travel_times_imp.load",
-            { npmrdsExportSqliteDbPath },
-            opts
-          ),
-          this.broker.call(
-            "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp.load",
-            { npmrdsExportSqliteDbPath },
+            "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp.computeStatistics",
+            { loadDoneData },
             opts
           ),
         ]);
 
-      const loadDoneData = {
-        [NpmrdsDataSources.NpmrdsTravelTimesImp]: loadNpmrdsTravelTimesDoneData,
-        [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
-      };
+        loadDoneData[NpmrdsDataSources.NpmrdsTmcIdentificationImp].statistics =
+          tmcIdentStats;
 
-      // const [npmrdsTravelTimesStats, tmcIdentStats] = await Promise.all([
-      const [tmcIdentStats] = await Promise.all([
-        // this.broker.call(
-        // "dama/data_types/npmrds/dt-npmrds_travel_times_imp.computeStatistics",
-        // { npmrdsExportSqliteDbPath },
-        // opts
-        // ),
-        this.broker.call(
-          "dama/data_types/npmrds/dt-npmrds_tmc_identification_imp.computeStatistics",
-          { loadDoneData },
-          opts
-        ),
-      ]);
-
-      loadDoneData[NpmrdsDataSources.NpmrdsTmcIdentificationImp].statistics =
-        tmcIdentStats;
-
-      const loadDoneEvent = {
-        type: `${serviceName}:STATUS_UPDATE`,
-        payload: {
-          status: "LOAD_DONE",
-          doneData: {
-            [NpmrdsDataSources.NpmrdsTravelTimesImp]:
-              loadNpmrdsTravelTimesDoneData,
-            [NpmrdsDataSources.NpmrdsTmcIdentificationImp]:
-              loadTmcIdentDoneData,
+        const loadDoneEvent = {
+          type: `${serviceName}:STATUS_UPDATE`,
+          payload: {
+            status: "LOAD_DONE",
+            doneData: {
+              [NpmrdsDataSources.NpmrdsTravelTimesImp]:
+                loadNpmrdsTravelTimesDoneData,
+              [NpmrdsDataSources.NpmrdsTmcIdentificationImp]:
+                loadTmcIdentDoneData,
+            },
           },
-        },
-        meta: event.meta,
-      };
+          meta: event.meta,
+        };
 
-      console.log(JSON.stringify({ tmcIdentStats }, null, 4));
+        console.log(JSON.stringify({ tmcIdentStats }, null, 4));
 
-      await this.broker.call(
-        "data_manager/events.dispatch",
-        loadDoneEvent,
-        opts
-      );
+        await this.broker.call(
+          "data_manager/events.dispatch",
+          loadDoneEvent,
+          opts
+        );
 
-      const doneData = {
-        ...moveDoneData,
-        [NpmrdsDataSources.NpmrdsTravelTimesImp]: loadNpmrdsTravelTimesDoneData,
-        [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
-      };
+        const doneData = {
+          ...moveDoneData,
+          [NpmrdsDataSources.NpmrdsTravelTimesImp]:
+            loadNpmrdsTravelTimesDoneData,
+          [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: loadTmcIdentDoneData,
+        };
 
-      const integrateEvent = {
-        type: `${serviceName}:INTEGRATE_INTO_VIEWS`,
-        payload: {
-          npmrdsDownloadName,
-          doneData,
-        },
-        meta: event.meta,
-      };
+        const integrateEvent = {
+          type: `${serviceName}:INTEGRATE_INTO_VIEWS`,
+          payload: {
+            npmrdsDownloadName,
+            doneData,
+          },
+          meta: event.meta,
+        };
 
-      try {
         const toposortedDamaViewInfo =
           await this.integrateNpmrdsTravelTimesEtlIntoDataManager(
             integrateEvent
