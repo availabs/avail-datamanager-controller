@@ -232,7 +232,7 @@ const removeGeoidZzone = async (ctx, details_table_name) => {
 //   });
 // }
 
-const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table) => {
+const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table, state_schema, state_table) => {
     // first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
     // -- zone M should be null
     // -- records with begin_coords should map to geo.tl....
@@ -241,7 +241,7 @@ const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table) =>
     let query = `
         with states as (
             SELECT id, geoid, stusps, name
-            FROM geo.tl_2017_us_state
+            FROM ${state_schema}.${state_table}
         ),
         zone_to_county as (
             select zone, state, stusps, states.geoid, county, lpad(fips::text, 5, '0') fips
@@ -403,7 +403,12 @@ const createIndices = async (ctx, details_table_name) => {
   });
 }
 
-export const postProcess = async (ctx, details_table_name, tract_schema, tract_table, county_schema, county_table, cousub_schema, cousub_table, ztc_schema, ztc_table) => {
+export const postProcess = async (ctx, details_table_name,
+                                  tract_schema, tract_table,
+                                  state_schema, state_table,
+                                  county_schema, county_table,
+                                  cousub_schema, cousub_table,
+                                  ztc_schema, ztc_table) => {
   console.log("Welcome to post upload processing...", details_table_name);
   await createIndices(ctx, details_table_name);
   console.log('1');
@@ -431,7 +436,7 @@ export const postProcess = async (ctx, details_table_name, tract_schema, tract_t
   await removeGeoidZzone(ctx, details_table_name);
   console.log('7');
 
-  await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table);
+  await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table, state_schema, state_table);
   console.log('8');
 
   await updateGeoMzone(ctx, details_table_name);
