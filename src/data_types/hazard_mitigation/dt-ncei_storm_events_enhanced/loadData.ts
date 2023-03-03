@@ -18,7 +18,7 @@ export default async function publish(ctx: Context) {
       ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table},
   } = ctx;
 
-  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ncei_storm_events_enhanced', metadata: {changelog_version: 1}});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ncei_storm_events_enhanced', metadata: {changelog_version: 2}});
 
   try {
     let res: QueryResult;

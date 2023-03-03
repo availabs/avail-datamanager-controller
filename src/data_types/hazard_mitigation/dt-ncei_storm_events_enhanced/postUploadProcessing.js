@@ -62,7 +62,6 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
 --                                   'Storm Surge/Tide',
                                   'Rip Current')
                 THEN 'coastal'
-              ELSE event_type
               END;
 `
     return ctx.call("dama_db.query", {
@@ -127,6 +126,7 @@ const updateGeoTracts = async (ctx, details_table_name, tract_schema, tract_tabl
                  from severe_weather_new.${details_table_name}
                  where geoid is null
                    and begin_coords_geom is not null
+                   and cz_type != 'M'
              ),
              a as (
                  select s.event_id, t.geoid geoid
@@ -146,7 +146,10 @@ const updateGeoTracts = async (ctx, details_table_name, tract_schema, tract_tabl
   });
 }
 
-const updateGeoCounties = async (ctx, details_table_name) => {
+const updateGeoCounties = async (ctx, details_table_name) => { // shouldn't we be joining with county table to pull county level geoid?
+  // potential updates
+  // if there exists coords, use them
+  // exclude marine zones. those are shown by M cz_Type, and also through state_fips ('57', '58', '59', '61', '65', '73', '75', '77', '91', '92', '93', '94', '96', '97', '98')
     let query = `
         UPDATE severe_weather_new.${details_table_name}
         SET geoid = LPAD(state_fips::TEXT, 2, '0') || LPAD(cz_fips::TEXT, 3, '0')
@@ -191,71 +194,72 @@ const removeGeoidZzone = async (ctx, details_table_name) => {
   });
 }
 
-const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table) => { // severe_weather.zone_to_county
-    // todo first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
-    let query = `
-        UPDATE severe_weather_new.${details_table_name} d
-        SET geoid = lpad(fips::text, 5, '0')
-        FROM ${ztc_schema}.${ztc_table} z
-        WHERE z.zone = d.cz_fips
-        AND begin_lat = '0'
-        AND cz_type = 'Z';
-    `
-  return ctx.call("dama_db.query", {
-    text: query,
-  });
-}
-
-// const updateGeoZzoneV2 = async (ctx) => {
-//     // -- zone M should be null
-//     // -- records with begin_coords should map to geo.tl....
-//     // -- records with zone Z and no begin_coords should follow below sql
-//     // -- Z zone, no being_coords records with cz_name not mapping to county names remain null as there's no right way to map them
+// const updateGeoZzoneOld = async (ctx, details_table_name, ztc_schema, ztc_table) => { // severe_weather.zone_to_county
+//     // todo first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
 //     let query = `
-//         with states as (
-//             SELECT id, geoid, stusps, name
-//             FROM geo.tl_2017_us_state
-//         ),
-//         zone_to_county as (
-//             select zone, state, stusps, states.geoid, county, lpad(fips::text, 5, '0') fips
-//             from severe_weather.zone_to_county
-//             JOIN states
-//             ON states.stusps = state
-//             order by 1, 2, 3
-//         )
-//
-//         -- select
-//         -- cz_fips d_cz_fips, d.state d_state, state_fips d_state_fips, cz_name d_zone_name,
-//         -- zone ztc_zone, ztc.state ztc_state, county ztc_county, lpad(fips::text, 5, '0') ztc_fips, d.geoid, d.tmp_geoid,
-//         -- case when lpad(fips::text, 5, '0') = d.geoid then 1 else 0 end
-//         -- from severe_weather_new.${details_table_name} d
-//         -- JOIN zone_to_county ztc
-//         -- on d.cz_fips = ztc.zone
-//         -- AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
-//         -- AND lower(cz_name) like '%' || lower(county) || '%'
-//         -- where cz_type = 'Z' and begin_lat = '0' and lpad(fips::text, 5, '0') != d.geoid
-//         -- order by 1, 2
-//         -- limit 1000
-//
 //         UPDATE severe_weather_new.${details_table_name} d
-//         SET tmp_geoid = lpad(fips::text, 5, '0')
-//         FROM zone_to_county ztc
-//         WHERE (cz_type = 'Z' and begin_lat = '0')
-//         AND d.cz_fips = ztc.zone
-//         AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
-//         AND lower(cz_name) like '%' || lower(county) || '%'
-//         `
-//
+//         SET geoid = lpad(fips::text, 5, '0')
+//         FROM ${ztc_schema}.${ztc_table} z
+//         WHERE z.zone = d.cz_fips
+//         AND begin_lat = '0'
+//         AND cz_type = 'Z';
+//     `
 //   return ctx.call("dama_db.query", {
 //     text: query,
 //   });
 // }
 
+const updateGeoZzone = async (ctx) => {
+    // first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
+    // -- zone M should be null
+    // -- records with begin_coords should map to geo.tl....
+    // -- records with zone Z and no begin_coords should follow below sql
+    // -- Z zone, no being_coords records with cz_name not mapping to county names remain null as there's no right way to map them
+    let query = `
+        with states as (
+            SELECT id, geoid, stusps, name
+            FROM geo.tl_2017_us_state
+        ),
+        zone_to_county as (
+            select zone, state, stusps, states.geoid, county, lpad(fips::text, 5, '0') fips
+            from severe_weather.zone_to_county
+            JOIN states
+            ON states.stusps = state
+            order by 1, 2, 3
+        )
+
+        -- select
+        -- cz_fips d_cz_fips, d.state d_state, state_fips d_state_fips, cz_name d_zone_name,
+        -- zone ztc_zone, ztc.state ztc_state, county ztc_county, lpad(fips::text, 5, '0') ztc_fips, d.geoid, d.tmp_geoid,
+        -- case when lpad(fips::text, 5, '0') = d.geoid then 1 else 0 end
+        -- from severe_weather_new.${details_table_name} d
+        -- JOIN zone_to_county ztc
+        -- on d.cz_fips = ztc.zone
+        -- AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
+        -- AND lower(cz_name) like '%' || lower(county) || '%'
+        -- where cz_type = 'Z' and begin_lat = '0' and lpad(fips::text, 5, '0') != d.geoid
+        -- order by 1, 2
+        -- limit 1000
+
+        UPDATE severe_weather_new.${details_table_name} d
+        SET geoid = lpad(fips::text, 5, '0')
+        FROM zone_to_county ztc
+        WHERE (cz_type = 'Z' and begin_lat = '0')
+        AND d.cz_fips = ztc.zone
+        AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
+        AND lower(cz_name) like '%' || lower(county) || '%'
+        `
+
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
+
 const updateGeoMzone = async (ctx, details_table_name) => {
     let query = `
         update severe_weather_new.${details_table_name}
-        set geoid = null
-        where cz_type = 'M';
+          set geoid = null
+          where cz_type = 'M';
     `
   return ctx.call("dama_db.query", {
     text: query,
@@ -398,22 +402,20 @@ export const postProcess = async (ctx, details_table_name, tract_schema, tract_t
   await updateGeoCounties(ctx, details_table_name);
   console.log('6');
 
-  await updateGeoCousubs(ctx, details_table_name, cousub_schema, cousub_table); // uses geoid
+  await removeGeoidZzone(ctx, details_table_name);
   console.log('7');
 
-  await removeGeoidZzone(ctx, details_table_name);
+  await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table);
   console.log('8');
 
-  await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table);
+  await updateGeoMzone(ctx, details_table_name);
   console.log('9');
 
-  // await updateGeoZzoneV2(ctx);
-  await updateGeoMzone(ctx, details_table_name);
+  await updateGeoCousubs(ctx, details_table_name, cousub_schema, cousub_table);
   console.log('10');
 
   await updateDateTime(ctx, details_table_name);
   console.log('11');
-
 
   return Promise.resolve();
 }
