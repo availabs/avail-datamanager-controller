@@ -6,12 +6,78 @@ import {
   EttViewsMetaSummary,
 } from "./domain";
 
-export function getEttIntervalsByViewId(ettViewsMeta: EttViewsMetaSummary) {
+export function verifyNoEttOverlaps(ettViewsMeta: EttViewsMetaSummary) {
   const errorMessages: string[] = [];
 
+  const { byViewId, byMonthByYearByState } = ettViewsMeta;
+
+  const states = Object.keys(byMonthByYearByState).sort();
+  for (const state of states) {
+    const years = Object.keys(byMonthByYearByState[state]).sort();
+    for (const year of years) {
+      const months = Object.keys(byMonthByYearByState[state][year]).sort(
+        (a, b) => +a - +b
+      );
+      for (const month of months) {
+        const viewIds = byMonthByYearByState[state][year][month];
+
+        for (let a = 0; a < viewIds.length; ++a) {
+          const viewA = byViewId[viewIds[a]];
+
+          const {
+            damaViewId: a_view_id,
+            data_start_date: a_start,
+            data_end_date: a_end,
+          } = viewA;
+
+          const aStart = DateTime.fromISO(a_start).startOf("day");
+          const aEnd = DateTime.fromISO(a_end).plus({ days: 1 }).startOf("day");
+
+          const aIntvl = Interval.fromDateTimes(aStart, aEnd);
+
+          for (let b = a + 1; b < viewIds.length; ++b) {
+            const viewB = byViewId[viewIds[b]];
+
+            const {
+              damaViewId: b_view_id,
+              data_start_date: b_start,
+              data_end_date: b_end,
+            } = viewB;
+
+            const bStart = DateTime.fromISO(b_start).startOf("day");
+            const bEnd = DateTime.fromISO(b_end)
+              .plus({ days: 1 })
+              .startOf("day");
+
+            const bIntvl = Interval.fromDateTimes(bStart, bEnd);
+
+            const intxn = aIntvl.intersection(bIntvl);
+
+            if (intxn !== null) {
+              const intxnStart = intxn.start.toISODate();
+              const intxnEnd = intxn.end.plus({ days: -1 }).toISODate();
+
+              errorMessages.push(
+                `NpmrdsTravelTimeImports ${a_view_id} and ${b_view_id} for ${state} overlap: ${intxnStart} to ${intxnEnd}.`
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (errorMessages.length) {
+    throw new Error(
+      `INVARIANT VIOLATIONS:\n\t* ${errorMessages.join("\n\t* ")}`
+    );
+  }
+}
+
+export function getEttIntervalsByViewId(ettViewsMeta: EttViewsMetaSummary) {
   const ettIntervalsByViewId = ettViewsMeta.sortedByStateThenStartDate.reduce(
-    (acc, viewId, i, arr) => {
-      const { damaViewId, state, data_start_date, data_end_date } =
+    (acc, viewId) => {
+      const { damaViewId, data_start_date, data_end_date } =
         ettViewsMeta.byViewId[viewId];
 
       const dateRangeStart = DateTime.fromISO(data_start_date).startOf("day");
@@ -21,34 +87,12 @@ export function getEttIntervalsByViewId(ettViewsMeta: EttViewsMetaSummary) {
 
       const interval = Interval.fromDateTimes(dateRangeStart, dateRangeEnd);
 
-      // Make sure there is no overlap between the ETT Views.
-      if (i > 0) {
-        const prevViewId = arr[i - 1];
-        const { state: prevState } = ettViewsMeta.byViewId[prevViewId];
-
-        if (state === prevState) {
-          const prevInterval = acc[prevViewId];
-
-          const intxn = prevInterval.intersection(interval);
-
-          if (intxn !== null) {
-            errorMessages.push(
-              `ETT views ${prevViewId} and ${damaViewId} for state ${state} overlap: ${intxn.toISODate()}.`
-            );
-          }
-        }
-      }
-
       acc[damaViewId] = interval;
 
       return acc;
     },
     {}
   );
-
-  if (errorMessages.length) {
-    throw new Error(`INVARIANT VIOLATIONS:\n\t*${errorMessages.join("\n\t*")}`);
-  }
 
   return ettIntervalsByViewId;
 }
@@ -246,13 +290,11 @@ export function validateNoAttGaps(
 
     for (const curInterval of intervals.slice(1)) {
       if (!prevInterval.abutsStart(curInterval)) {
-        console.log("==> prevInterval", prevInterval.toISO());
-        console.log("==> curInterval", curInterval.toISO());
-
-        const [difference] = prevInterval.difference(curInterval);
+        const preEnd = prevInterval.end.toISODate();
+        const curStart = curInterval.start.toISODate();
 
         errorMessages.push(
-          `For state ${state} there is an ATT gap ${difference.toISODate()}`
+          `For state ${state} there is an date gap from ${preEnd} to ${curStart}`
         );
       }
 
@@ -316,8 +358,6 @@ export function validateNoAttGaps(
       const oldInterval = oldAttIntervalUnionsByState[state];
       const newInterval = newAttIntervalUnionsByState[state];
 
-      // console.log(JSON.stringify({ state, oldInterval, newInterval }, null, 4));
-
       if (oldInterval && !newInterval.engulfs(oldInterval)) {
         const oldStr = oldInterval.toISODate();
         const newStr = newInterval.toISODate();
@@ -330,7 +370,9 @@ export function validateNoAttGaps(
   }
 
   if (errorMessages.length) {
-    throw new Error(`INVARIANT VIOLATIONS:\n\t*${errorMessages.join("\n\t*")}`);
+    throw new Error(
+      `INVARIANT VIOLATIONS:\n\t* ${errorMessages.join("\n\t* ")}`
+    );
   }
 
   const dateExtentsByState = Object.keys(newAttIntervalUnionsByState).reduce(
@@ -354,6 +396,8 @@ export default function getAttViewsToDetach(
   attViewsMeta: null | EttViewsMetaSummary,
   ettViewsMeta: EttViewsMetaSummary
 ) {
+  verifyNoEttOverlaps(ettViewsMeta);
+
   const hasAttViewIds = !!attViewsMeta?.sortedByStateThenStartDate?.length;
 
   const { sortedNewAttDateRangeIntervalsByState, attViewIdsToDetach } =
@@ -361,18 +405,10 @@ export default function getAttViewsToDetach(
       ? handleHasAttViewIdsCase(attViewsMeta, ettViewsMeta)
       : handleNoAttViewIdsCase(ettViewsMeta);
 
-  // console.log(JSON.stringify({ attViewIdsToDetach }, null, 4));
-
   const dateExtentsByState = validateNoAttGaps(
     attViewsMeta,
     sortedNewAttDateRangeIntervalsByState
   );
-
-  /*
-  console.log("$#".repeat(20));
-  console.log(JSON.stringify({ dateExtentsByState }, null, 4));
-  console.log("$#".repeat(20));
-  */
 
   const attViewsToDetach = attViewsMeta
     ? attViewIdsToDetach.map((attViewId) => attViewsMeta.byViewId[attViewId])
