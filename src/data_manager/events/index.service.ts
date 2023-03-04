@@ -1,6 +1,7 @@
 // import { inspect } from "util";
 
 import dedent from "dedent";
+import pgFormat from "pg-format";
 import _ from "lodash";
 
 import { Context } from "moleculer";
@@ -75,6 +76,7 @@ export default {
         // console.log(JSON.stringify({ params, meta: ctx.meta }, null, 4));
 
         const etl_context_id =
+          // @ts-ignore
           +params.meta?.etl_context_id || +ctx.meta?.etl_context_id;
 
         if (!etl_context_id) {
@@ -84,13 +86,6 @@ export default {
         }
 
         let event = params;
-
-        /*
-        // @ts-ignore
-        event.meta = event.meta || {};
-        // @ts-ignore
-        event.meta.pgEnv = ctx.meta.pgEnv;
-        */
 
         // @ts-ignore
         const { type, meta = null, error = null } = params;
@@ -122,6 +117,7 @@ export default {
         ];
 
         const {
+          // @ts-ignore
           rows: [damaEvent],
           // @ts-ignore
         } = await ctx.call("dama_db.query", {
@@ -268,12 +264,110 @@ export default {
         `);
 
         const {
+          // @ts-ignore
           rows: [damaEvent],
           // @ts-ignore
         } = await ctx.call("dama_db.query", { text: sql, values: [event_id] });
 
         return damaEvent;
       },
+    },
+
+    // ASSUMES the following CONVENTION/INVARIANTs:
+    //    1. Event type prefixed by serviceName. E.G:  `${serviceName}/foo/bar:BAZ`
+    //    2. All ETL processes for the service end with a ":FINAL" or ":ERROR" event
+    //    3. All status update types match with /*UPDATE$/
+    async queryOpenEtlProcessesStatusUpdatesForService(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { serviceName },
+      } = ctx;
+
+      const q = dedent(
+        pgFormat(
+          `
+            SELECT
+                etl_context_id,
+                payload
+              FROM (
+                SELECT
+                    etl_context_id,
+                    payload,
+                    row_number() OVER (PARTITION BY etl_context_id ORDER BY event_id DESC) AS row_number
+                  FROM data_manager.event_store
+                    INNER JOIN (
+
+                      SELECT
+                          etl_context_id
+                        FROM data_manager.event_store
+                        WHERE ( type LIKE ( %L || '%' ) )
+                      EXCEPT
+                      SELECT
+                          etl_context_id
+                        FROM data_manager.event_store
+                        WHERE (
+                          ( type LIKE ( %L || '%' ) )
+                          AND
+                          (
+                            ( right(type, 6) = ':FINAL' )
+                            OR
+                            ( right(type, 6) = ':ERROR' )
+                          )
+                        )
+
+                     ) AS t USING (etl_context_id)
+                  WHERE ( right(type, 6) = 'UPDATE' )
+              ) AS t
+              WHERE ( row_number = 1 )
+          `,
+          serviceName,
+          serviceName
+        )
+      );
+
+      // @ts-ignore
+      const { rows } = await ctx.call("dama_db.query", q);
+
+      return rows;
+    },
+
+    //    1. All ETL processes for the service end with a single ":FINAL" or ":ERROR" event
+    async queryEtlContextFinalEvent(ctx: Context) {
+      const {
+        // @ts-ignore
+        params: { etlContextId },
+      } = ctx;
+
+      const q = dedent(
+        `
+         SELECT
+             *
+           FROM data_manager.event_store
+           WHERE (
+             ( etl_context_id = $1 )
+             AND
+             (
+               ( right(type, 6) = ':FINAL' )
+               OR
+               ( right(type, 6) = ':ERROR' ) -- FIXME: Once RETRY is implemented, this no longer true.
+             )
+           )
+       `
+      );
+
+      // @ts-ignore
+      const { rows } = await ctx.call("dama_db.query", {
+        text: q,
+        values: [etlContextId],
+      });
+
+      if (rows.length > 1) {
+        throw new Error(
+          "INVARIANT VIOLATION: There MUST be a single :FINAL or :ERROR event for an EtlContext."
+        );
+      }
+
+      return rows[0];
     },
   },
 };

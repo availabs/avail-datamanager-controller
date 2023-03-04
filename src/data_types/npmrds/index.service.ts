@@ -53,7 +53,7 @@ export default {
       });
 
       toposortedDamaSrcMeta = await ctx.call(
-        "dama_db.loadToposortedDamaSourceMetadata",
+        "dama/metadata.loadToposortedDamaSourceMetadata",
         {
           toposortedDataSourcesMetadata:
             toposortedNpmrdsDataSourcesInitialMetadata,

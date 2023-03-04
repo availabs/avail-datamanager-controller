@@ -7,6 +7,15 @@ import pgFormat from "pg-format";
 
 import { FSA } from "flux-standard-action";
 
+import {
+  NodePgPoolClient,
+  NodePgQueryConfig,
+} from "../dama_db/postgres/PostgreSQL";
+
+import generateToposortedLoadDataSourcesQueries, {
+  ToposortedLoadDataSourcesQueries,
+} from "./actions/generateToposortedLoadDataSourcesQueries";
+
 export type ServiceContext = Context & {
   params: FSA;
 };
@@ -583,6 +592,109 @@ export default {
       );
 
       return metaByName;
+    },
+
+    generateToposortedLoadDataSourcesQueries: {
+      visibility: "public",
+      handler: generateToposortedLoadDataSourcesQueries,
+    },
+
+    async loadToposortedDamaSourceMetadata(ctx: Context) {
+      const opts = { parentCtx: ctx };
+
+      const toposortedLoadDataSourcesQueries: ToposortedLoadDataSourcesQueries =
+        await this.actions.generateToposortedLoadDataSourcesQueries(
+          ctx.params,
+          opts
+        );
+
+      const dbConnection: NodePgPoolClient = await ctx.call(
+        "dama_db.getDbConnection"
+      );
+
+      await dbConnection.query("BEGIN ;");
+
+      const toposortedDamaSrcNames: string[] = [];
+      try {
+        for (const {
+          name,
+          existsQuery,
+          insertQuery,
+          allSourceDependencyNames,
+          existingSourceDependencyNamesQuery,
+          updateSourceDependenciesQuery,
+        } of toposortedLoadDataSourcesQueries) {
+          toposortedDamaSrcNames.push(name);
+
+          const {
+            rows: [{ data_source_exists }],
+          } = await dbConnection.query(existsQuery);
+
+          if (data_source_exists) {
+            continue;
+          }
+
+          await dbConnection.query(insertQuery);
+
+          if (!allSourceDependencyNames) {
+            continue;
+          }
+
+          const {
+            rows: [{ existing_source_dependency_names }],
+          } = await dbConnection.query(
+            <NodePgQueryConfig>existingSourceDependencyNamesQuery
+          );
+
+          const missingSrcs = _.difference(
+            allSourceDependencyNames,
+            existing_source_dependency_names
+          );
+
+          if (missingSrcs.length) {
+            throw new Error(
+              `ERROR: The following source_dependencies for ${name} do not exist: ${missingSrcs}`
+            );
+          }
+
+          await dbConnection.query(
+            <NodePgQueryConfig>updateSourceDependenciesQuery
+          );
+        }
+
+        const damaSrcMetaText = dedent(`
+          SELECT
+              *
+            FROM data_manager.sources
+            WHERE ( name = ANY( $1 ) )
+        `);
+
+        const damaSrcMetaValues = [toposortedDamaSrcNames];
+
+        const { rows: damaSrcMetaRows } = await dbConnection.query({
+          text: damaSrcMetaText,
+          values: damaSrcMetaValues,
+        });
+
+        await dbConnection.query("COMMIT ;");
+
+        const damaSrcMetaByName = damaSrcMetaRows.reduce((acc, row) => {
+          const { name } = row;
+          acc[name] = row;
+          return acc;
+        }, {});
+
+        const toposortedDamaSrcMeta = toposortedDamaSrcNames.map(
+          (name) => damaSrcMetaByName[name]
+        );
+
+        return toposortedDamaSrcMeta;
+      } catch (err) {
+        await dbConnection.query("ROLLBACK ;");
+        throw err;
+      } finally {
+        dbConnection.release();
+      }
     },
   },
 };
