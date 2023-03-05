@@ -119,9 +119,15 @@ class TaskManager {
   }
 
   async exitIfTaskRunningInAnotherProcess(old_pid: number) {
-    const fpath = `/proc/${old_pid}/environ`;
-
+    //  From https://man7.org/linux/man-pages/man5/proc.5.html
+    //    /proc/[pid]/environ
+    //        This file contains the initial environment that was set
+    //        when the currently executing program was started via
+    //        execve(2).  The entries are separated by null bytes
+    //        ('\0'), and there may be a null byte at the end.
     try {
+      const fpath = `/proc/${old_pid}/environ`;
+
       const envs = readFileSync(fpath, { encoding: "utf8" });
 
       const oldDamaTaskId = envs

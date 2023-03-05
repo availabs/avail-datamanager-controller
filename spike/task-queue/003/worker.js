@@ -2,8 +2,8 @@ require("ts-node").register();
 
 import TaskManager from "./TaskManager";
 
-// const CHAOS_FACTOR = 0;
-const CHAOS_FACTOR = 0.1;
+const CHAOS_FACTOR = 0;
+// const CHAOS_FACTOR = 0.1;
 
 function injectChaos() {
   if (Math.random() < CHAOS_FACTOR) {
