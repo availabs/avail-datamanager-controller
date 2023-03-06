@@ -9,7 +9,7 @@ import Database from "better-sqlite3";
 
 import { v4 as uuid } from "uuid";
 
-const NUM_TASKS = 10;
+const NUM_TASKS = 3;
 
 const db = new Database(join(__dirname, "db.sqlite3"));
 
