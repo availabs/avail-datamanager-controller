@@ -25,7 +25,7 @@ $ watch 'sqlite3 -header -column db.sqlite3 "SELECT * FROM events order by task_
 
 3. To run the code, from the repository's root:
 
-NOTE: Repeat this step repeatedly while killing the process using CTRL-C. You
+NOTE: Repeat the following command while killing the process using CTRL-C. You
 will see that the processing continues despite the parent process terminating.
 Additionally, restarting a parent process will safely restart any Tasks that
 ended due to errors or self-termination.
