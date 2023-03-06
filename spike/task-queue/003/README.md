@@ -20,7 +20,7 @@ $ tail -f log
 2. To watch the database modifications, from this directory
 
 ```sh
-$ watch 'sqlite3 -header -csv db.sqlite3 "SELECT * FROM events order by task_id, event_id" | column -s, -t -n'
+$ watch 'sqlite3 -header -column db.sqlite3 "SELECT * FROM events order by task_id, event_id"'
 ```
 
 3. To run the code, from the repository's root:
