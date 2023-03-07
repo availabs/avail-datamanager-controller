@@ -184,8 +184,6 @@ export async function getConnectedNodePgClient(
 ): Promise<NodePgClient> {
   const nodePgCreds = getNodePgCredentials(pgEnv);
 
-  // console.log(JSON.stringify({ nodePgCreds }, null, 4));
-
   const db = new Client(nodePgCreds);
   await db.connect();
 
@@ -197,8 +195,6 @@ export async function getConnectedNodePgPool(
   pgEnv: PgEnv
 ): Promise<NodePgPool> {
   const nodePgCreds = getNodePgCredentials(pgEnv);
-
-  // console.log(JSON.stringify({ nodePgCreds }, null, 4));
 
   const db = new Pool(nodePgCreds);
   await db.connect();

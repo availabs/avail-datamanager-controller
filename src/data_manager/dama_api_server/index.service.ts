@@ -128,7 +128,8 @@ export default class ApiService extends Service {
               // },
 
               // NOTE: Requires an etlContextId query parameter: ?etlContextId=n
-              "/getEtlProcessFinalEvent": "dama_db.queryEtlContextFinalEvent",
+              "/getEtlProcessFinalEvent":
+                "data_manager/events.queryEtlContextFinalEvent",
 
               async "GET table-json-schema"(
                 req: IncomingRequest,

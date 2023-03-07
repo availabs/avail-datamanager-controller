@@ -3,6 +3,6 @@
 set -e
 set -a
 
-source "../config/postgres.$1.env"
+source "../../config/postgres.$1.env"
 
 docker-compose -p ${PGDATABASE}_db down
