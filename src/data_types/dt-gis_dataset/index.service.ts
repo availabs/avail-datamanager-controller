@@ -67,7 +67,7 @@ export default {
     //-- to do: remove dama_admin views and simplify
     // -----------------------------------------------
     createViewMbtiles,
-    
+
     getDamaGisDatasetViewTableSchemaSummary: {
       async handler(ctx) {
         const {
@@ -150,6 +150,7 @@ export default {
         };
       },
     },
+
     async generateGisDatasetViewGeoJsonSqlQuery(ctx) {
       const {
         // @ts-ignore
