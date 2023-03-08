@@ -4,7 +4,7 @@ import pgFormat from "pg-format";
 
 import { Context } from "moleculer";
 
-import { NodePgQueryConfig } from "../postgres/PostgreSQL";
+import { NodePgQueryConfig } from "../../dama_db/postgres/PostgreSQL";
 
 export type Query = string | NodePgQueryConfig;
 
@@ -48,7 +48,8 @@ export default async function generateToposortedLoadDataSourcesQueries(
     params: { toposortedDataSourcesMetadata },
   } = ctx;
 
-  const tableDescription = await this.actions.describeTable(
+  const tableDescription = await ctx.call(
+    "dama_db.describeTable",
     {
       tableSchema: "data_manager",
       tableName: "sources",
@@ -56,7 +57,9 @@ export default async function generateToposortedLoadDataSourcesQueries(
     { parentCtx: ctx }
   );
 
+  // @ts-ignore
   const tableCols = Object.keys(tableDescription);
+
   const insertableColumns = tableCols.filter(
     (c) => c !== "source_dependencies"
   );

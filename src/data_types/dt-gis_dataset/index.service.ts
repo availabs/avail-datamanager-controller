@@ -1,6 +1,10 @@
 import { Context } from "moleculer";
 import uploadFile from './upload/upload'
 import publish from './publish/publish'
+import { createViewMbtiles } from  './mbtiles/mbtiles'
+import dedent from "dedent";
+import pgFormat from "pg-format";
+import _ from 'lodash';
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
@@ -62,6 +66,8 @@ export default {
     //-- MBTILES functions
     //-- to do: remove dama_admin views and simplify
     // -----------------------------------------------
+    createViewMbtiles,
+
     getDamaGisDatasetViewTableSchemaSummary: {
       async handler(ctx) {
         const {
@@ -78,7 +84,7 @@ export default {
               ( view_id = $1 )
             )
         `);
-
+        console.log('getDamaGisDatasetViewTableSchemaSummary', damaViewId)
         const { rows } = await ctx.call("dama_db.query", {
           text: damaViewPropsColsQ,
           values: [damaViewId],
@@ -144,6 +150,7 @@ export default {
         };
       },
     },
+
     async generateGisDatasetViewGeoJsonSqlQuery(ctx) {
       const {
         // @ts-ignore
@@ -244,7 +251,7 @@ export default {
 
       return sql;
     },
-    
+
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator: {
       visibility: "protected",
 

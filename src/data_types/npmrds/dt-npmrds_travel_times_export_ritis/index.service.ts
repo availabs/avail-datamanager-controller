@@ -775,7 +775,7 @@ export default {
     async getOpenRequestsStatuses(ctx: Context) {
       // @ts-ignore
       const openRequestStatuses: any[] = await ctx.call(
-        "dama_db.queryOpenEtlProcessesStatusUpdatesForService",
+        "data_manager/events.queryOpenEtlProcessesStatusUpdatesForService",
         {
           serviceName,
         }

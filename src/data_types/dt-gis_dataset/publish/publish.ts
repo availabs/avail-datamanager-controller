@@ -5,7 +5,7 @@ import EventTypes from "../EventTypes";
 
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import { createSource, createView } from './actions' 
+import { createSource, createView, createGisDatasetViewMbtiles } from './actions' 
 
 export default async function publish(ctx) {
   // params come from post data
@@ -78,6 +78,14 @@ export default async function publish(ctx) {
     });
 
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
+
+    ctx.params.damaViewId = damaViewId
+    //ctx.meta.etl_context_id = etlContextId
+
+    // const mbtilesData = await ctx.call('gis-dataset.createViewMbtiles', {
+    //   damaViewId,
+    //   damaSourceId
+    // } )
 
     const finalEvent = {
       type: EventTypes.FINAL,
