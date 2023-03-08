@@ -156,14 +156,14 @@ const updateGeoCounties = async (ctx, details_table_name, county_schema, county_
       from severe_weather_new.${details_table_name} d
              join ${county_schema}.${county_table} c
                   on st_contains(c.geom, d.begin_coords_geom)
-      where geoid is null
+      where d.geoid is null
         and cz_type != 'M'
     )
         UPDATE severe_weather_new.${details_table_name} dst
         SET geoid = dst.geoid
         FROM t
         WHERE dst.event_id = t.event_id
-        AND geoid IS NULL
+        AND dst.geoid IS NULL
         AND cz_type != 'M';
     `
   return ctx.call("dama_db.query", {
@@ -240,7 +240,7 @@ const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table, st
     // -- Z zone, no being_coords records with cz_name not mapping to county names remain null as there's no right way to map them
     let query = `
         with states as (
-            SELECT id, geoid, stusps, name
+            SELECT geoid, stusps, name
             FROM ${state_schema}.${state_table}
         ),
         zone_to_county as (
