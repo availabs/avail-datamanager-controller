@@ -8,7 +8,7 @@ export default async function publish(ctx: Context) {
 
   let {
     params: {
-      table_name,
+      table_name, startYear, endYear,
       pb_table, pb_schema,
       nri_schema, nri_table,
       state_schema, state_table,
@@ -31,8 +31,10 @@ export default async function publish(ctx: Context) {
 
 
     // create table
-    const createTableSql = hlr(table_name, view_id, state_schema, state_table, county_schema, county_table,
-      ncei_schema, ncei_table, pb_schema, pb_table, nri_schema, nri_table);
+    const createTableSql = hlr({
+      table_name, view_id, state_schema, state_table, county_schema, county_table,
+      ncei_schema, ncei_table, pb_schema, pb_table, nri_schema, nri_table, startYear, endYear
+    });
 
     sqlLog.push(createTableSql);
     console.log('sql', createTableSql)
