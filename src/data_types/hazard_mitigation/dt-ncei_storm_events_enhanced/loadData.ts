@@ -14,7 +14,7 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: { table_name,
+    params: { table_name, start_year, end_year,
       ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, state_schema, state_table, county_schema, county_table, ztc_schema, ztc_table},
   } = ctx;
 
@@ -26,9 +26,10 @@ export default async function publish(ctx: Context) {
     // create table
     const createTableSql = `
                 SELECT * INTO ${ncei_schema}.${table_name || tables.details.name}${view_id ? `_${view_id}` : ``}
-                    FROM (SELECT * FROM ${ncei_schema}.${ncei_table}) t;
+                    FROM (SELECT * FROM ${ncei_schema}.${ncei_table} ${start_year && end_year ? `WHERE year BETWEEN ${start_year} AND ${end_year}` : ``}) t;
     `;
     sqlLog.push(createTableSql);
+    console.log(createTableSql)
     res = await ctx.call("dama_db.query", {
       text: createTableSql,
     });

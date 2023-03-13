@@ -23,10 +23,10 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
             CASE
               WHEN event_type IN ('High Wind','Strong Wind','Marine High Wind','Marine Strong Wind',
                                   'Marine Thunderstorm Wind','Thunderstorm Wind','THUNDERSTORM WINDS LIGHTNING',
-                                  'TORNADOES, TSTM WIND, HAIL','THUNDERSTORM WIND/ TREES','THUNDERSTORM WINDS HEAVY RAIN',
-                                  'Heavy Wind','THUNDERSTORM WINDS/FLASH FLOOD','THUNDERSTORM WINDS/ FLOOD',
-                                  'THUNDERSTORM WINDS/HEAVY RAIN','THUNDERSTORM WIND/ TREE','THUNDERSTORM WINDS FUNNEL CLOU',
-                                  'THUNDERSTORM WINDS/FLOODING')
+                                  'THUNDERSTORM WIND/ TREES','THUNDERSTORM WINDS HEAVY RAIN',
+                                  'Heavy Wind',
+                                  'THUNDERSTORM WINDS/HEAVY RAIN','THUNDERSTORM WIND/ TREE','THUNDERSTORM WINDS FUNNEL CLOU'
+                                  )
                 THEN 'wind'
               WHEN event_type IN ('Wildfire')
                 THEN 'wildfire'
@@ -34,7 +34,7 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
                 THEN 'tsunami'
               WHEN event_type IN ('Tornado','TORNADOES, TSTM WIND, HAIL','TORNADO/WATERSPOUT','Funnel Cloud','Waterspout')
                 THEN 'tornado'
-              WHEN event_type IN ('Flood','Flash Flood','THUNDERSTORM WINDS/FLASH FLOOD','THUNDERSTORM WINDS/ FLOOD','Lakeshore Flood')
+              WHEN event_type IN ('Flood','Flash Flood','THUNDERSTORM WINDS/FLASH FLOOD','THUNDERSTORM WINDS/ FLOOD','THUNDERSTORM WINDS/FLOODING', 'Lakeshore Flood')
                 THEN 'riverine'
               WHEN event_type IN ('Lightning','Marine Lightning')
                 THEN 'lightning'
@@ -42,11 +42,12 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
                 THEN 'landslide'
               WHEN event_type IN ('Ice Storm','Sleet')
                 THEN 'icestorm'
-              WHEN event_type IN ('Hurricane','Hurricane (Typhoon)','Marine Hurricane/Typhoon','Marine Tropical Storm','Tropical Storm','Tropical Depression','Marine Tropical Depression','Hurricane Flood')
+              WHEN event_type IN ('Hurricane','Hurricane (Typhoon)','Marine Hurricane/Typhoon','Marine Tropical Storm',
+                                  'Tropical Storm','Tropical Depression','Marine Tropical Depression','Hurricane Flood')
                 THEN 'hurricane'
               WHEN event_type IN ('Heat','Excessive Heat')
                 THEN 'heatwave'
-              WHEN event_type IN ('Hail','Marine Hail','TORNADOES, TSTM WIND, HAIL','HAIL/ICY ROADS','HAIL FLOODING')
+              WHEN event_type IN ('Hail','Marine Hail', 'HAIL/ICY ROADS','HAIL FLOODING')
                 THEN 'hail'
               WHEN event_type IN ('Drought')
                 THEN 'drought'
@@ -59,11 +60,12 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
               WHEN event_type IN ('Volcanic Ash','Volcanic Ashfall')
                 THEN 'volcano'
               WHEN event_type IN ('Coastal Flood', 'High Surf','Sneakerwave',
---                                   'Storm Surge/Tide',
+                                  'Storm Surge/Tide',
                                   'Rip Current')
                 THEN 'coastal'
               END;
 `
+  console.log(query)
     return ctx.call("dama_db.query", {
       text: query,
     });
