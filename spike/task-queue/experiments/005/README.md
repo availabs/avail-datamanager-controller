@@ -40,12 +40,10 @@ detached processes.
 The public interface that pg-boss provides to keep track of a task's status
 requires the process in which pg-boss started the task to outlive the task.
 
-pg-boss keeps track of task status via the handler function that starts a task.
-There is no public interface for tasks to self-report their status.
-
 The problem this design creates is that out-of-the-box pg-boss is not robust
-across parent process restarts. If we restart the DamaController to deploy new code,
-pg-boss handler functions will lose track of the tasks they are monitoring.
+across pg-boss process restarts. If we restart the DamaController to deploy new code,
+pg-boss handler functions will lose track of the tasks they are monitoring
+and assume they failed or expired and require restarting.
 
 More specifically, pg-boss' public interface uses an async
 [handler](https://github.com/timgit/pg-boss/blob/HEAD/docs/readme.md#workname--options-handler)
@@ -53,6 +51,9 @@ function to keep track of task progress. If the handler successfully completes,
 the task is marked as complete. If the handler throws an error, the task is
 marked as failed. If the handler exceeds the configured timeout, the job is
 marked as expired.
+
+There is no public interface for tasks to self-report their status.
+Their handler reports their status for them.
 
 See:
 
@@ -71,7 +72,7 @@ will eventually try to "restart" the task. Unless we implement idempotency,
 this "restart" would result in multiple instances of the same task running
 concurrently and potentially corrupting each other's data.
 
-We implement idempotency with the following rules:
+We implement idempotency with the following two rules:
 
 1. **ALL tasks MUST acquire a FOR UPDATE lock on their EtlContext's :INITIAL
    event.**
@@ -166,7 +167,7 @@ Some tasks will be short-running, others long-running.
 Some tasks we will want to auto-retry, others perhaps not.
 
 Allowing Services to register queues will allow services to configure queues
-accordning to the nature of the Tasks they create.
+according to the nature of the Tasks they create.
 
 ---
 
