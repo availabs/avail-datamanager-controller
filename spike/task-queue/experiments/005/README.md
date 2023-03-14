@@ -34,11 +34,11 @@ the DamaController can be restarted without killing the task processes.
 #### pg-boss does not provide a public interface for tasks to self-report their status
 
 The problem that pg-boss' design creates is that out-of-the-box it would not
-be robust across DamaTaskController server restarts. The public interface that that
-pg-boss uses to keep track of a task's status requires the process in which
+be robust across DamaTaskController server restarts. The public interface that
+pg-boss provides to keep track of a task's status requires the process in which
 pg-boss started the task to outlive the task's process.
 
-pg-boss' interface uses an async
+More specifically, pg-boss' public interface uses an async
 [handler](https://github.com/timgit/pg-boss/blob/HEAD/docs/readme.md#workname--options-handler)
 function to keep track of task progress. If the handler successfully completes,
 the task is marked as complete. If the handler throws an error, the task is
@@ -52,29 +52,31 @@ See:
 
 ##### pg-boss with detached processes work-around
 
-A duplicate task is a task started by pg-boss while that task is already
-running in another process. This can happen when the TaskController process
-exits before the running task process exits. As the pg-boss worker handler ends
-before the task process, pg-boss loses track of the running task process.
-Consequently, pg-boss will eventually try to "restart" the task. Unless we
-implement idempotency, this "restart" would result in multiple instances of the
-same task running concurrently and potentially corrupting each other's data.
+We shall define a duplicate task as a task started by pg-boss while that task
+is already running in another process. Duplicate tasks can happen when the
+TaskController process exits before the running task process exits. As the
+pg-boss worker handler ends before the task process, pg-boss loses track of the
+running task process. Consequently, pg-boss will eventually try to "restart"
+the task. Unless we implement idempotency, this "restart" would result in
+multiple instances of the same task running concurrently and potentially
+corrupting each other's data.
 
 We implement idempotency with the following rules:
 
 1. **ALL tasks MUST acquire a FOR UPDATE lock on their EtlContext's :INITIAL
    event.**
 2. **Any task that fails to aquire the :INTIAL event lock MUST exit IMMEDIATELY
-   with a specific exit code.**
+   with a [specific exit
+   code](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/types.ts#L42).**
 
 Because duplicate tasks fail with a specific exit code, if a pg-boss worker
-handler encounters this exit code while starting a worker process, we KNOW that
+handler encounters this exit code while starting a worker process we KNOW that
 the handler tried to create a duplicate task. This condition would have
-occurred because the running task's pg-boss handler is no longer running and
-pg-boss lost sight of the running task process that does have the :INITIAL
-event lock. To integrate the running task back into pg-boss' queue management
-logic, the handler that tried to run the duplicate task MUST then "adopt" the
-running task and become responsible for updating pg-boss on the state of the task.
+occurred because the running task's pg-boss handler is no longer executing and
+pg-boss lost sight of the running task process with the :INITIAL event lock. To
+integrate the running task back into pg-boss' queue management logic, the
+handler that tried to run the duplicate task MUST then "adopt" the running task
+and task responsibility for updating pg-boss on the state of the task.
 
 More specifically, pg-boss worker handlers that tried to create duplicate tasks
 MUST implement the following algorithm:
@@ -85,18 +87,18 @@ MUST implement the following algorithm:
     event lock.
     -   The pg-boss worker handler for the duplicate task repeatedly tries to
         aquire a lock on the :INITIAL event.
-        -   If the original DamaTask process is still running, the handler will
-            fail to aquire the lock.
-        -   Once the original DamaTask process exits, the handler can aquire
-            the lock.
+        -   While the DamaTask process with the :INITIAL event lock is running,
+            the handler will fail to aquire the lock.
+        -   Once the DamaTask process with the :INITAL event lock exits, the
+            handler can aquire the lock.
     -   Once the :INITIAL event lock is aquired by the handler, the handler
-        checks data_manager.etl_contexts.etl_status for the DamaTask.
+        checks data_manager.etl_contexts.etl_status of the DamaTask.
         -   If the etl_status is 'DONE', the handler successfully returns,
-            notifying pg-boss that the task is "complete".
+            thereby notifying pg-boss that the task is "complete".
         -   If the etl_status is not 'DONE', the handler throws an Error,
-            notifying pg-boss that the task "failed".
+            thereby notifying pg-boss that the task "failed".
 
-This should ensure pg-boss' job_status for the Task is accurate.
+This should ensure pg-boss' job_status for the DamaTask is accurate.
 
 ---
 
@@ -112,7 +114,8 @@ This will allow:
 
 -   Safe retries of DamaTasks running in detached processes (idempotency)
 -   Safe resume with snapshots (picking up where a task left off)
--   Simpler API support for requesting DamaTask status
+-   Simpler API support for requesting DamaTask queue status because the data
+    remains in the larger Dama domain model.
 
 ### When to dispatch the :INITIAL event?
 
