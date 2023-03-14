@@ -249,7 +249,6 @@ process is holding onto a an advisory lock for the EtlContextId.
 This would enable the view to work but would require care to ensure
 we don't have id collisions if we use advisory locks elsewhere.
 
--   https://www.postgresql.org/docs/9.1/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
 -   https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
 -   https://vladmihalcea.com/how-do-postgresql-advisory-locks-work/
 -   https://stackoverflow.com/questions/44381090/advisory-locks-scope-in-postgresql
