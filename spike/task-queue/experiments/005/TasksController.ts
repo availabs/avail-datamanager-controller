@@ -237,7 +237,7 @@ export default class TasksController {
     return etl_context_exists && unable_to_select_initial_event;
   }
 
-  async handleDuplicateTask(etl_context_id: number) {
+  private async handleDuplicateTask(etl_context_id: number) {
     await this.ready;
 
     // poll the :INITIAL event lock until the running DamaTask releases it.

@@ -133,6 +133,7 @@ This will allow:
 -   Safe resume with snapshots (picking up where a task left off)
 -   Simpler API support for requesting DamaTask queue status because the data
     remains in the larger Dama domain model.
+-   pg-boss can change it's data model and database schema at any time.
 
 ### When to dispatch the :INITIAL event?
 
