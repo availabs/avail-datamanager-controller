@@ -81,6 +81,11 @@ We implement idempotency with the following two rules:
    with a [specific exit
    code](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/types.ts#L42).**
 
+NOTE: Theses rules are enforced in the
+[TaskManager](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/TaskManager.ts#L77-L93).
+So long as DamaTask code imports the TaskManager, the rest of the task code can
+remain oblivious to the duplicate task problem.
+
 Because duplicate task processes fail with a specific exit code, if a pg-boss
 worker handler encounters this exit code while starting a worker process we
 KNOW that the handler tried to create a duplicate task. This condition would
@@ -114,8 +119,8 @@ MUST implement the following algorithm:
 NOTE: This algorithm is implemented
 [here](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/TasksController.ts#L240-L266).
 It is within the TaskController's black-box. DamaController Services and
-Actions will be oblivious to it so long as they adhere to the two rules listed
-above.
+Actions will be oblivious to it so long as the DamaTasks they queue
+import the TaskManager.
 
 ---
 
