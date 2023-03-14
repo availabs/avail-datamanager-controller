@@ -88,7 +88,8 @@ have occurred because the running task's pg-boss handler is no longer executing,
 pg-boss lost the ability to monitor it, and thus tried to "restart" it. To
 integrate the running task back into pg-boss' queue management logic, the
 handler that tried to run the duplicate task MUST "adopt" the running task
-and task responsibility for updating pg-boss on the state of the task.
+and take responsibility for updating pg-boss on the state of the task.
+This should ensure pg-boss' job_status for the DamaTask is accurate.
 
 More specifically, pg-boss worker handlers that tried to create duplicate tasks
 MUST implement the following algorithm:
@@ -110,7 +111,11 @@ MUST implement the following algorithm:
         -   If the etl_status is not 'DONE', the handler throws an Error,
             thereby notifying pg-boss that the task "failed".
 
-This should ensure pg-boss' job_status for the DamaTask is accurate.
+NOTE: This algorithm is implemented
+[here](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/TasksController.ts#L240-L266).
+It is within the TaskController's black-box. DamaController Services and
+Actions will be oblivious to it so long as they adhere to the two rules listed
+above.
 
 ---
 
