@@ -117,10 +117,9 @@ MUST implement the following algorithm:
             thereby notifying pg-boss that the task "failed".
 
 NOTE: This algorithm is implemented
-[here](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/TasksController.ts#L240-L266).
-It is within the TaskController's black-box. DamaController Services and
-Actions will be oblivious to it so long as the DamaTasks they queue
-import the TaskManager.
+[here](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/TasksController.ts#L240-L266),
+within the TaskController's black-box. DamaController Services and Actions will
+be oblivious to it.
 
 ---
 
