@@ -13,15 +13,15 @@
 
 ### pg-boss' design and AVAIL's requirements
 
-#### AVAIL requires DamaTasks run in [detached](https://nodejs.org/docs/latest-v14.x/api/child_process.html#child_process_options_detached) child processes.
+#### DamaTasks MUST run in [detached](https://nodejs.org/docs/latest-v14.x/api/child_process.html#child_process_options_detached) processes.
 
 Why?
 
 1. AVAIL will need to restart that DamaController process to deploy updates.
 1. The TaskController will need to be a Service in the DamaController.
-1. Some AVAIL tasks can take multiple days to complete.
+1. Some DamaTasks can take multiple days to complete (conflation, congestion, ...).
 
-If all worker processes are attached to the DamaController process, they will
+If all task processes are attached to the DamaController process, they will
 need to be killed to restart the DamaController.
 
 On the otherhand, if we must wait until all long-running tasks complete before
@@ -40,10 +40,10 @@ detached processes.
 The public interface that pg-boss provides to keep track of a task's status
 requires the process in which pg-boss started the task to outlive the task.
 
-The problem this design creates is that out-of-the-box pg-boss is not robust
-across pg-boss process restarts. If we restart the DamaController to deploy new code,
-pg-boss handler functions will lose track of the tasks they are monitoring
-and assume they failed or expired and require restarting.
+The problem this design creates is that out-of-the-box pg-boss tasks are not
+robust across pg-boss process restarts. If we restart the DamaController to
+deploy new code, pg-boss handler functions will lose track of the tasks they
+are monitoring and assume they failed/expired and require a restart.
 
 More specifically, pg-boss' public interface uses an async
 [handler](https://github.com/timgit/pg-boss/blob/HEAD/docs/readme.md#workname--options-handler)
@@ -57,6 +57,7 @@ Their handler reports their status for them.
 
 See:
 
+-   [pg-boss docs](https://github.com/timgit/pg-boss/blob/HEAD/docs/readme.md)
 -   [Spawn child processes for each job out of one worker](https://github.com/timgit/pg-boss/issues/280)
 -   [Failing jobs on server shutdown](https://github.com/timgit/pg-boss/issues/102)
 
