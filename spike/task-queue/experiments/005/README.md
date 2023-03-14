@@ -18,25 +18,34 @@
 Why?
 
 1. AVAIL will need to restart that DamaController process to deploy updates.
-2. Some AVAIL tasks can take multiple days to complete.
+1. The TaskController will need to be a Service in the DamaController.
+1. Some AVAIL tasks can take multiple days to complete.
 
 If all worker processes are attached to the DamaController process, they will
-need to be killed to restart the DamaController. In some cases, all work would
-be lost.
+need to be killed to restart the DamaController.
 
 On the otherhand, if we must wait until all long-running tasks complete before
 deploying new DamaController code, delivery of new DamaSources or DamaViews
 must be scheduled in between long-running Tasks.
 
-If DamaTask processes run independently of the DamaController process,
-the DamaController can be restarted without killing the task processes.
+If DamaTask processes run independently of the DamaController process, the
+DamaController can be restarted without killing the task processes.
+
+Therefore, to allow long-running tasks to continue across DamaController
+restarts, we use [execa](https://github.com/sindresorhus/execa) to run tasks in
+detached processes.
 
 #### pg-boss does not provide a public interface for tasks to self-report their status
 
-The problem that pg-boss' design creates is that out-of-the-box it would not
-be robust across DamaTaskController server restarts. The public interface that
-pg-boss provides to keep track of a task's status requires the process in which
-pg-boss started the task to outlive the task's process.
+The public interface that pg-boss provides to keep track of a task's status
+requires the process in which pg-boss started the task to outlive the task.
+
+pg-boss keeps track of task status via the handler function that starts a task.
+There is no public interface for tasks to self-report their status.
+
+The problem this design creates is that out-of-the-box pg-boss is not robust
+across parent process restarts. If we restart the DamaController to deploy new code,
+pg-boss handler functions will lose track of the tasks they are monitoring.
 
 More specifically, pg-boss' public interface uses an async
 [handler](https://github.com/timgit/pg-boss/blob/HEAD/docs/readme.md#workname--options-handler)
@@ -52,14 +61,15 @@ See:
 
 ##### pg-boss with detached processes work-around
 
-We shall define a duplicate task as a task started by pg-boss while that task
-is already running in another process. Duplicate tasks can happen when the
-TaskController process exits before the running task process exits. As the
-pg-boss worker handler ends before the task process, pg-boss loses track of the
-running task process. Consequently, pg-boss will eventually try to "restart"
-the task. Unless we implement idempotency, this "restart" would result in
-multiple instances of the same task running concurrently and potentially
-corrupting each other's data.
+We shall define a "duplicate task" as an instance of a task started while
+another instance of that task is already running.
+
+Duplicate tasks can happen when the TaskController process exits before the
+running task process exits. As the pg-boss worker handler ends before the task
+process, pg-boss loses track of the running task process. Consequently, pg-boss
+will eventually try to "restart" the task. Unless we implement idempotency,
+this "restart" would result in multiple instances of the same task running
+concurrently and potentially corrupting each other's data.
 
 We implement idempotency with the following rules:
 
@@ -69,13 +79,13 @@ We implement idempotency with the following rules:
    with a [specific exit
    code](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/spike/task-queue/experiments/005/types.ts#L42).**
 
-Because duplicate tasks fail with a specific exit code, if a pg-boss worker
-handler encounters this exit code while starting a worker process we KNOW that
-the handler tried to create a duplicate task. This condition would have
-occurred because the running task's pg-boss handler is no longer executing and
-pg-boss lost sight of the running task process with the :INITIAL event lock. To
+Because duplicate task processes fail with a specific exit code, if a pg-boss
+worker handler encounters this exit code while starting a worker process we
+KNOW that the handler tried to create a duplicate task. This condition would
+have occurred because the running task's pg-boss handler is no longer executing,
+pg-boss lost the ability to monitor it, and thus tried to "restart" it. To
 integrate the running task back into pg-boss' queue management logic, the
-handler that tried to run the duplicate task MUST then "adopt" the running task
+handler that tried to run the duplicate task MUST "adopt" the running task
 and task responsibility for updating pg-boss on the state of the task.
 
 More specifically, pg-boss worker handlers that tried to create duplicate tasks
