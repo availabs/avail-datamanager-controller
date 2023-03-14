@@ -226,6 +226,8 @@ This would work but it would require full table scans of the
 data_manager.event_store table, which will likely get very large.
 This would very likely result in a considerable performance issue.
 
+##### Using SKIP LOCKED in the VIEW
+
 To use SKIP LOCKED in this VIEW, we would have to try to aquire a lock.
 Even the weakest lock would block the DamaTasks from aquiring a lock.
 If the VIEW was used in a long-running transaction, all tasks would be blocked.
