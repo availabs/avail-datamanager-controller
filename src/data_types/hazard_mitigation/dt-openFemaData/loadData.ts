@@ -1,7 +1,7 @@
 import { Context } from "moleculer";
 import {chunk} from "lodash";
 import sql from "sql";
-import Promise from "bluebird";
+import BBPromise from "bluebird";
 import fetch from "node-fetch";
 import tables from "./tables";
 import {err, fin, init, update_view} from "../utils/macros";
@@ -9,7 +9,6 @@ import {err, fin, init, update_view} from "../utils/macros";
 sql.setDialect("postgres");
 
 // mol $ call "dama/data_source_integrator.testUploadAction" --table_name details --#pgEnv dama_dev_1
-const url = "https://www.fema.gov/api/open/v1/OpenFemaDataSets"
 const camelToSnakeCase = (str = "") => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 
 
@@ -68,6 +67,8 @@ const createSchema = async (sqlLog, ctx) => {
 }
 
 const upload = async (ctx, view_id, table_name, dbConnection) => {
+  const url = "https://www.fema.gov/api/open/v1/OpenFemaDataSets";
+
   return fetch(url)
     .then(res => res.json())
     .then(data => {
@@ -111,7 +112,7 @@ const upload = async (ctx, view_id, table_name, dbConnection) => {
         }
       })
 
-      return Promise.all(
+      return BBPromise.all(
         datasets
           .filter(k => k === table_name)
           .map(k => {
@@ -132,100 +133,100 @@ const upload = async (ctx, view_id, table_name, dbConnection) => {
             });
         })
       ).then(async (values) => {
-        return values.reduce(async (out, table) => {
-          await out;
+        let table = values[0];
+        const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery();
+        await ctx.call("dama_db.query", {text: createSql.text});
+        return updateChunks(inserts[0], ctx, view_id, dbConnection);
 
-          const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery();
-
-          await ctx.call("dama_db.query", {text: createSql.text});
-
-          table.name = `${table.name}_${view_id}`;
-          out[table.name] = table;
-
-          return updateChunks(inserts[0], ctx, table.columns, view_id, dbConnection);
-        }, {});
+        // return values.reduce(async (out, table) => {
+        //   await out;
+        //
+        //   const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery();
+        //
+        //   await ctx.call("dama_db.query", {text: createSql.text});
+        //
+        //   table.name = `${table.name}_${view_id}`;
+        //   out[table.name] = table;
+        //
+        //   return updateChunks(inserts[0], ctx, table.columns, view_id, dbConnection);
+        // }, {});
       });
     });
 };
 
-const updateChunks = async (source, ctx, cols, view_id, dbConnection) => {
+const updateChunks = async (source, ctx, view_id, dbConnection) => {
   let skips = [];
   let progress = 0;
-  let skipSize = 10000;
+  let skipSize = 1_000;
 
-  const [schema,table] = source.table.split('.');
+  const [schema, table] = source.table.split('.');
   const sql_table = sql.define(tables[table](view_id));
-  //   const sql_table = sql.define(Object.assign({}, tables[table](view_id), {columns: cols}));
+
   console.log('total', source.record_count, 'records')
   for(let i=0; i < source.record_count; i+=skipSize){
     skips.push(i)
   }
   console.log('skips', skips)
-  return Promise.map(skips,(skip =>{
-    return new Promise((resolve,reject) => {
-      console.time(`fetch top ${skip}`);
-      console.log(`${source.data_url}?$skip=${skip}&&$top=${skipSize}`)
-      try{
-        fetch(`${source.data_url}?$skip=${skip}&&$top=${skipSize}`)
-          .then(res => {
-            return res.json();
-          })
-          .then(res => {
-            console.timeEnd(`fetch top ${skip}`);
-            let dataKey = source.data_url.split('/')[source.data_url.split('/').length-1]
-            let data = res[dataKey]
-            let notNullCols = [
-              ...tables[table](view_id).columns.filter(c => c.dataType === 'numeric').map(c => c.name),
-              'project_size' // PA specific
-            ]
-            const newData = data.map((curr) => {
-              return Object.keys(curr)
-                .filter(col => sql_table.columns.map(c => c.name).includes(camelToSnakeCase(col)))
-                .reduce((snake, col) => {
-                  if(notNullCols.includes(camelToSnakeCase(col)) && !curr[col]){
-                    snake[camelToSnakeCase(col)] = 0; // nulls in numeric
-                  }else{
-                    snake[camelToSnakeCase(col)] = curr[col]
-                  }
-                  return snake
-                },{})
 
-            },{})
+  return skips.reduce(async (acc, skip) => {
+    await acc;
 
-            Promise.all(
-              chunk(newData,500)
-                //.filter((k,i) => i < 1)
-                .map(chunk =>{
-                  let query = sql_table
-                    .insert(Object.values(chunk)) // upsert datasources
-                    .onConflict({
-                      columns: tables[table](view_id).columns.filter(k => k.primaryKey).map(d => d.name),
-                      update: tables[table](view_id).columns.filter(k => !k.primaryKey).map(d => d.name)
-                    })
-                    .toQuery()
+    console.time(`fetch ${skip.toLocaleString()} / ${source.record_count.toLocaleString()}`);
+    console.log(`${source.data_url}?$skip=${skip}`)
 
-                  return ctx.call("dama_db.query", query).then(() => dbConnection.query("COMMIT;"));
-                })
-            )
-              .then(ins => {
-                let rows = ins.reduce((a,b)=> {
-                  if(b.rowCount && !isNaN(+b.rowCount)){
-                    a += b.rowCount
-                  }
-                  return a
-                },0)
-                progress += rows
-                console.log(progress, ((progress / source.record_count) * 100 ).toFixed(1), '%')
-                resolve(rows)
+    try {
+      let res = await fetch(`${source.data_url}?$skip=${skip}`);
+      res = await res.json();
+      console.timeEnd(`fetch ${skip.toLocaleString()} / ${source.record_count.toLocaleString()}`);
+
+      let dataKey = source.data_url.split('/')[source.data_url.split('/').length - 1]
+      let data = res[dataKey]
+      let notNullCols = [
+        ...tables[table](view_id).columns.filter(c => c.dataType === 'numeric').map(c => c.name),
+        'project_size' // PA specific
+      ]
+
+      console.time(`processing for skip ${skip}`);
+      const newData = data.map((curr) => {
+        return Object.keys(curr)
+          .filter(col => sql_table.columns.map(c => c.name).includes(camelToSnakeCase(col)))
+          .reduce((snake, col) => {
+            if (notNullCols.includes(camelToSnakeCase(col)) && !curr[col]) {
+              snake[camelToSnakeCase(col)] = 0; // nulls in numeric
+            } else {
+              snake[camelToSnakeCase(col)] = curr[col]
+            }
+            return snake
+          }, {})
+
+      }, {})
+      console.timeEnd(`processing for skip ${skip}`);
+
+      // return Promise.resolve();
+      return chunk(newData, 500)
+        .reduce(async (acc, chunk, chunkI) => {
+          await acc;
+
+          await ctx.call(
+            "dama_db.query",
+            sql_table
+              .insert(Object.values(chunk)) // upsert datasources
+              .onConflict({
+                columns: tables[table](view_id).columns.filter(k => k.primaryKey).map(d => d.name),
+                update: tables[table](view_id).columns.filter(k => !k.primaryKey).map(d => d.name)
               })
+              .toQuery()
+            )
 
-          })
-      }catch (e){
-        console.error('error:', e)
-        reject(e)
-      }
-    })
-  }),{concurrency: 3})
+          console.log('committing for skip', skip, 'chunk', chunkI, '/', parseInt(newData.length / 500));
+          await dbConnection.query("COMMIT;")
+
+          return Promise.resolve();
+        }, Promise.resolve())
+    } catch (e) {
+      console.error('error:', e)
+    }
+  }, {})
 }
 
 export default async function publish(ctx: Context) {
@@ -239,6 +240,7 @@ export default async function publish(ctx: Context) {
   try {
 
     await createSchema(sqlLog, ctx);
+    // await upload(ctx, 0, table_name, {});
     await upload(ctx, view_id, table_name, dbConnection);
     await update_view({table_schema: 'open_fema_data', table_name, view_id, dbConnection, sqlLog});
 
