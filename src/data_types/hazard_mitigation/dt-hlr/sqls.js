@@ -218,12 +218,15 @@ SELECT
            FROM (select distinct substring(geoid, 1, 5) geoid from ${ncei_schema}.${ncei_table} where geoid is not null) s
            where geoid is not null
 `
-export const hlr = (table_name, view_id,
-                    state_schema, state_table,
-                    county_schema, county_table,
-                    ncei_schema, ncei_table,
-                    pb_schema, pb_table,
-                    nri_schema, nri_table
+export const hlr = ({
+                      table_name, view_id,
+                      state_schema, state_table,
+                      county_schema, county_table,
+                      ncei_schema, ncei_table,
+                      pb_schema, pb_table,
+                      nri_schema, nri_table,
+                      startYear, endYear
+                    }
 ) => `
 ${grid_fn()}
 
@@ -351,6 +354,8 @@ with grid as (${grid(state_schema, state_table)}),
     FROM ${pb_schema}.${pb_table}  pb
              JOIN ${nri_schema}.${nri_table} nri
                   ON pb.geoid = nri.stcofips
+                  and EXTRACT(YEAR from pb.event_day_date) >= ${startYear}
+                  and EXTRACT(YEAR from pb.event_day_date) <= ${endYear}
 -- \tWHERE nri_category = 'hurricane' and geoid = '37013' and event_day_date = '1996-07-12 10:00:00'
 ),
        national as (

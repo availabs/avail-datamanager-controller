@@ -542,9 +542,12 @@ export default {
               where source_id IN (select source_id from data_manager.views where view_id = ${ctx.params.view_id})
               and view_id != ${ctx.params.view_id};`;
 
-        await ctx.call("dama_db.query", makeViewAuthSql);
-        await ctx.call("dama_db.query", invalidateOtherViewsSql);
-
+        await ctx.call("dama_db.query", [
+          "BEGIN;",
+          makeViewAuthSql,
+          invalidateOtherViewsSql,
+          "COMMIT;",
+        ]);
         return "success";
       },
     },

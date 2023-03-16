@@ -149,73 +149,81 @@ const upload = async (ctx, view_id, table_name, dbConnection) => {
 };
 
 const updateChunks = async (source, ctx, cols, view_id, dbConnection) => {
-  let skips = []
-  let progress = 0
+  let skips = [];
+  let progress = 0;
+  let skipSize = 10000;
 
   const [schema,table] = source.table.split('.');
   const sql_table = sql.define(tables[table](view_id));
   //   const sql_table = sql.define(Object.assign({}, tables[table](view_id), {columns: cols}));
   console.log('total', source.record_count, 'records')
-  for(let i=0; i < source.record_count; i+=1000){
+  for(let i=0; i < source.record_count; i+=skipSize){
     skips.push(i)
   }
   console.log('skips', skips)
   return Promise.map(skips,(skip =>{
     return new Promise((resolve,reject) => {
-      console.time(`fetch skip ${skip}`);
-      console.log(`${source.data_url}?$skip=${skip}`)
-      fetch(`${source.data_url}?$skip=${skip}`)
-        .then(res => res.json())
-        .then(res => {
-          console.timeEnd(`fetch skip ${skip}`);
-          let dataKey = source.data_url.split('/')[source.data_url.split('/').length-1]
-          let data = res[dataKey]
-          let notNullCols = [
-            ...tables[table](view_id).columns.filter(c => c.dataType === 'numeric').map(c => c.name),
-            'project_size' // PA specific
-          ]
-          const newData = data.map((curr) => {
-            return Object.keys(curr)
-              .filter(col => sql_table.columns.map(c => c.name).includes(camelToSnakeCase(col)))
-              .reduce((snake, col) => {
-              if(notNullCols.includes(camelToSnakeCase(col)) && !curr[col]){
-                snake[camelToSnakeCase(col)] = 0; // nulls in numeric
-              }else{
-                snake[camelToSnakeCase(col)] = curr[col]
-              }
-              return snake
+      console.time(`fetch top ${skip}`);
+      console.log(`${source.data_url}?$skip=${skip}&&$top=${skipSize}`)
+      try{
+        fetch(`${source.data_url}?$skip=${skip}&&$top=${skipSize}`)
+          .then(res => {
+            return res.json();
+          })
+          .then(res => {
+            console.timeEnd(`fetch top ${skip}`);
+            let dataKey = source.data_url.split('/')[source.data_url.split('/').length-1]
+            let data = res[dataKey]
+            let notNullCols = [
+              ...tables[table](view_id).columns.filter(c => c.dataType === 'numeric').map(c => c.name),
+              'project_size' // PA specific
+            ]
+            const newData = data.map((curr) => {
+              return Object.keys(curr)
+                .filter(col => sql_table.columns.map(c => c.name).includes(camelToSnakeCase(col)))
+                .reduce((snake, col) => {
+                  if(notNullCols.includes(camelToSnakeCase(col)) && !curr[col]){
+                    snake[camelToSnakeCase(col)] = 0; // nulls in numeric
+                  }else{
+                    snake[camelToSnakeCase(col)] = curr[col]
+                  }
+                  return snake
+                },{})
+
             },{})
 
-          },{})
+            Promise.all(
+              chunk(newData,500)
+                //.filter((k,i) => i < 1)
+                .map(chunk =>{
+                  let query = sql_table
+                    .insert(Object.values(chunk)) // upsert datasources
+                    .onConflict({
+                      columns: tables[table](view_id).columns.filter(k => k.primaryKey).map(d => d.name),
+                      update: tables[table](view_id).columns.filter(k => !k.primaryKey).map(d => d.name)
+                    })
+                    .toQuery()
 
-          Promise.all(
-            chunk(newData,500)
-              //.filter((k,i) => i < 1)
-              .map(chunk =>{
-                let query = sql_table
-                  .insert(Object.values(chunk)) // upsert datasources
-                  .onConflict({
-                    columns: tables[table](view_id).columns.filter(k => k.primaryKey).map(d => d.name),
-                    update: tables[table](view_id).columns.filter(k => !k.primaryKey).map(d => d.name)
-                  })
-                  .toQuery()
-
-                return ctx.call("dama_db.query", query).then(() => dbConnection.query("COMMIT;"));
+                  return ctx.call("dama_db.query", query).then(() => dbConnection.query("COMMIT;"));
+                })
+            )
+              .then(ins => {
+                let rows = ins.reduce((a,b)=> {
+                  if(b.rowCount && !isNaN(+b.rowCount)){
+                    a += b.rowCount
+                  }
+                  return a
+                },0)
+                progress += rows
+                console.log(progress, ((progress / source.record_count) * 100 ).toFixed(1), '%')
+                resolve(rows)
               })
-          )
-            .then(ins => {
-              let rows = ins.reduce((a,b)=> {
-                if(b.rowCount && !isNaN(+b.rowCount)){
-                  a += b.rowCount
-                }
-                return a
-              },0)
-              progress += rows
-              console.log(progress, ((progress / source.record_count) * 100 ).toFixed(1), '%')
-              resolve(rows)
-            })
 
-        })
+          })
+      }catch (e){
+        console.error('error:', e)
+        reject(e)
+      }
     })
   }),{concurrency: 3})
 }

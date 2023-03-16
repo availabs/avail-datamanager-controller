@@ -11,23 +11,24 @@ def intersection(lst1, lst2):
 def process():
     print 'cleaning data...'
 
-    path = './data/sba/'
+    path = 'tmp-etl/sba/'
     files = [f for f in listdir(path) if (isfile(join(path, f)) and f.endswith("xlsx") or f.endswith("xls"))]
-    years = [f.split("FY")[1].split(".")[0].split("_")[0] for f in listdir(path) if (isfile(join(path, f)) and f.endswith("xlsx") or f.endswith("xls"))]
+    years = [f.split("FY")[1][0:2] for f in listdir(path) if (isfile(join(path, f)) and f.endswith("xlsx") or f.endswith("xls"))]
+
     columns = ['sbaphysicaldeclarationnumber', 'sbaeidldeclarationnumber', 'femadisasternumber', 'sbadisasternumber',
                'damagedpropertycityname', 'damagedpropertyzipcode', 'damagedpropertycounty/parishname', 'damagedpropertystatecode',
                'totalverifiedloss', 'verifiedlossrealestate', 'verifiedlosscontent', 'totalapprovedloanamount', 'approvedamountrealestate',
                'approvedamountcontent', 'approvedamounteidl']
 
     for fileNameI, fileName in enumerate(files):
-        print str(fileNameI * 100 / len(files)) + '%'
+        print(str(fileNameI * 100 / len(files)) + '%')
 
         xls = pd.ExcelFile(path + fileName)
 
         home = [f for f in xls.sheet_names if 'fy' in f.lower() and 'home' in f.lower()][0]
         business = [f for f in xls.sheet_names if 'fy' in f.lower() and 'business' in f.lower()][0]
         year = [int('20' + f) for f in years if f in home]
-        print(year)
+        print(year, fileName)
         year = year[0]
         for loan_type in [home, business]:
             suffix = ('_H' if loan_type is home else '_B')
@@ -45,7 +46,7 @@ def process():
             # set meta
             df['year'] = year
             df['loan_type'] = 'Business' if loan_type is business else 'Home'
-
+            df['entry_id'] = df.reset_index().index
             df.to_csv(path_or_buf=path + fileName + suffix + 'clean.csv', sep='|', index=False, encoding='utf-8')
 
 

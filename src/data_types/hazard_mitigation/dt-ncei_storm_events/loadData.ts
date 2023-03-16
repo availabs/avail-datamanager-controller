@@ -23,7 +23,10 @@ const fetchFileList = (fileName, currTable) => {
   }
 
   if(!fs.existsSync("data/" + currTable)){
-    fs.mkdirSync("data/" + currTable)
+    fs.mkdirSync("data/" + currTable);
+  }else{
+    fs.rmdirSync("data/" + currTable);
+    fs.mkdirSync("data/" + currTable);
   }
 
   const file_path = "data/" + currTable + "/" + fileName;

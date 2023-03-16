@@ -4,13 +4,13 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
         'buildings' ctype,
         event_id,
         substring(geoid, 1, 5) geoid,
-        event_type_formatted nri_category,
+        nri_category,
         min(begin_date_time)::date     swd_begin_date,
         max(end_date_time)  ::date      swd_end_date,
         coalesce(sum(property_damage), 0)     damage
     FROM ${ncei_schema}.${ncei_table}
     WHERE year >= 1996 and year <= 2019
-      AND event_type_formatted not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
+      AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
       AND geoid is not null
     GROUP BY 1, 2, 3, 4
 ),
@@ -19,13 +19,13 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
                'crop' ctype,
                event_id,
                substring(geoid, 1, 5) geoid,
-               event_type_formatted nri_category,
+               nri_category,
                min(begin_date_time)::date      swd_begin_date,
                max(end_date_time)::date        swd_end_date,
                coalesce(sum(crop_damage), 0)         damage
            FROM ${ncei_schema}.${ncei_table}
            WHERE year >= 1996 and year <= 2019
-             AND event_type_formatted not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
+             AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
              AND geoid is not null
            GROUP BY 1, 2, 3, 4
        ),
@@ -34,7 +34,7 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
                'population' ctype,
                event_id,
                substring(geoid, 1, 5) geoid,
-               event_type_formatted nri_category,
+               nri_category,
                min(begin_date_time)::date      swd_begin_date,
                max(end_date_time)::date        swd_end_date,
                coalesce(sum(
@@ -49,7 +49,7 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
                             ), 0) * 7600000   damage
            FROM ${ncei_schema}.${ncei_table}
            WHERE year >= 1996 and year <= 2019
-             AND event_type_formatted not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
+             AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
              AND geoid is not null
            GROUP BY 1, 2, 3, 4
        ), alldata as (
