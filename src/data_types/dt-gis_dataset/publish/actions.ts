@@ -76,8 +76,6 @@ export async function createSource(ctx, source_values) {
       type = 'gis_dataset',
       update_interval =  '',
       description = '',
-      statistics = {},
-      metadata = {},
   } = source_values
   // create source
   let damaSource = await ctx.call(
@@ -87,8 +85,6 @@ export async function createSource(ctx, source_values) {
         type,
         update_interval,
         description,
-        statistics,
-        metadata
       }
   )
   return damaSource
