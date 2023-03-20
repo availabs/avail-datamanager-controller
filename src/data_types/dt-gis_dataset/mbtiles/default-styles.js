@@ -13,13 +13,13 @@ const mbtilesStyles = {
         "paint": {
            "line-color": "black",
            "line-width": 1
-    	}
+    		}
     },
     circle: { 
          "type": "circle",
       	"paint": {
         	   "circle-color": "#B42222",
-         	"circle-radius": 6
+         	"circle-radius": 4
       	}
     },
     fill: {
@@ -32,6 +32,5 @@ const mbtilesStyles = {
 }
 
 export function getStyleFromJsonType(jsonType) {
-	console.log('getStyleFromJsonType', jsonType, geojsonToMapbox[geojsonToMapbox])
 	return mbtilesStyles[geojsonToMapbox[jsonType] || 'line']
 }
