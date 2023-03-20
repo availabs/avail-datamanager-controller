@@ -3,8 +3,14 @@ import {chunk} from "lodash";
 import sql from "sql";
 import BBPromise from "bluebird";
 import fetch from "node-fetch";
+import axios from "axios";
 import tables from "./tables";
 import {err, fin, init, update_view} from "../utils/macros";
+import { setFlagsFromString } from 'v8';
+import { runInNewContext } from 'vm';
+
+setFlagsFromString('--expose_gc');
+const gc = runInNewContext('gc'); // nocommit
 
 sql.setDialect("postgres");
 
@@ -137,97 +143,98 @@ const upload = async (ctx, view_id, table_name, dbConnection) => {
         const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery();
         await ctx.call("dama_db.query", {text: createSql.text});
         return updateChunks(inserts[0], ctx, view_id, dbConnection);
-
-        // return values.reduce(async (out, table) => {
-        //   await out;
-        //
-        //   const createSql = sql.define(tables[table.name](view_id)).create().ifNotExists().toQuery();
-        //
-        //   await ctx.call("dama_db.query", {text: createSql.text});
-        //
-        //   table.name = `${table.name}_${view_id}`;
-        //   out[table.name] = table;
-        //
-        //   return updateChunks(inserts[0], ctx, table.columns, view_id, dbConnection);
-        // }, {});
       });
     });
 };
 
+const processData = async ({skip, table, view_id, source, skipSize, totalRecords, dataKey, notNullCols, ctx, dbConnection}) => {
+  // if (skip >= totalRecords) {
+  //   return Promise.resolve();
+  // }
+
+  const sql_table = sql.define(tables[table](view_id));
+  // // skips.push(skip)
+  // gc();
+  // console.time(`fetch ${skip.toLocaleString()} / ${source.record_count.toLocaleString()}`);
+  // console.log(`${source.data_url}?$skip=${skip}&$top=${skipSize}`)
+  //
+  try {
+    let res = await axios.get(`${source.data_url}?$skip=${skip}&$top=${skipSize}`);
+    //   // res = await res.json();
+    //   console.timeEnd(`fetch ${skip.toLocaleString()} / ${source.record_count.toLocaleString()}`);
+    //
+    let data = res.data[dataKey].map((curr) => {
+      return Object.keys(curr)
+        .filter(col => sql_table.columns.map(c => c.name).includes(camelToSnakeCase(col)))
+        .reduce((snake, col) => {
+          if (notNullCols.includes(camelToSnakeCase(col)) && !curr[col]) {
+            snake[camelToSnakeCase(col)] = 0; // nulls in numeric
+          } else {
+            snake[camelToSnakeCase(col)] = curr[col]
+          }
+          return snake
+        }, {})
+
+    }, {});
+
+    let queryRes = await dbConnection.query(
+      sql_table.insert(
+        data
+      ) // upsert datasources
+        .onConflict({
+          columns: tables[table](view_id).columns.filter(k => k.primaryKey).map(d => d.name),
+          update: tables[table](view_id).columns.filter(k => !k.primaryKey).map(d => d.name)
+        })
+        .toQuery()
+    );
+
+    console.log('committing for skip', skip.toLocaleString());
+    data = null;
+    res = null;
+    queryRes = null;
+
+    console.log(`The script uses approximately ${Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 100) / 100} MB. Total ${Math.round((process.memoryUsage().rss / 1024 / 1024) * 100) / 100} MB`);
+
+    await dbConnection.query("COMMIT;");
+
+    // if(skip < totalRecords){
+    //   console.time(`skip ${skip+skipSize}: `);
+    //   await processData({skip: skip+skipSize, table, view_id, source, skipSize, totalRecords, dataKey, notNullCols, ctx, dbConnection});
+    //   console.timeEnd(`skip ${skip+skipSize}: `);
+    // }
+  } catch (e) {
+    console.error('error:', e)
+  }
+}
 const updateChunks = async (source, ctx, view_id, dbConnection) => {
   let skips = [];
   let progress = 0;
-  let skipSize = 1_000;
+  let skipSize = 500;
 
   const [schema, table] = source.table.split('.');
-  const sql_table = sql.define(tables[table](view_id));
-
   console.log('total', source.record_count, 'records')
+
+  const dataKey = source.data_url.split('/')[source.data_url.split('/').length - 1]
+  // console.log(dataKey, res
+  const notNullCols = [
+    ...tables[table](view_id).columns.filter(c => c.dataType === 'numeric').map(c => c.name),
+    'project_size' // PA specific
+  ]
+
   for(let i=0; i < source.record_count; i+=skipSize){
     skips.push(i)
   }
-  console.log('skips', skips)
 
-  return skips.reduce(async (acc, skip) => {
-    await acc;
-
-    console.time(`fetch ${skip.toLocaleString()} / ${source.record_count.toLocaleString()}`);
-    console.log(`${source.data_url}?$skip=${skip}`)
-
-    try {
-      let res = await fetch(`${source.data_url}?$skip=${skip}`);
-      res = await res.json();
-      console.timeEnd(`fetch ${skip.toLocaleString()} / ${source.record_count.toLocaleString()}`);
-
-      let dataKey = source.data_url.split('/')[source.data_url.split('/').length - 1]
-      let data = res[dataKey]
-      let notNullCols = [
-        ...tables[table](view_id).columns.filter(c => c.dataType === 'numeric').map(c => c.name),
-        'project_size' // PA specific
-      ]
-
-      console.time(`processing for skip ${skip}`);
-      const newData = data.map((curr) => {
-        return Object.keys(curr)
-          .filter(col => sql_table.columns.map(c => c.name).includes(camelToSnakeCase(col)))
-          .reduce((snake, col) => {
-            if (notNullCols.includes(camelToSnakeCase(col)) && !curr[col]) {
-              snake[camelToSnakeCase(col)] = 0; // nulls in numeric
-            } else {
-              snake[camelToSnakeCase(col)] = curr[col]
-            }
-            return snake
-          }, {})
-
-      }, {})
-      console.timeEnd(`processing for skip ${skip}`);
-
-      // return Promise.resolve();
-      return chunk(newData, 500)
-        .reduce(async (acc, chunk, chunkI) => {
-          await acc;
-
-          await ctx.call(
-            "dama_db.query",
-            sql_table
-              .insert(Object.values(chunk)) // upsert datasources
-              .onConflict({
-                columns: tables[table](view_id).columns.filter(k => k.primaryKey).map(d => d.name),
-                update: tables[table](view_id).columns.filter(k => !k.primaryKey).map(d => d.name)
-              })
-              .toQuery()
-            )
-
-          console.log('committing for skip', skip, 'chunk', chunkI, '/', parseInt(newData.length / 500));
-          await dbConnection.query("COMMIT;")
-
-          return Promise.resolve();
-        }, Promise.resolve())
-    } catch (e) {
-      console.error('error:', e)
-    }
-  }, {})
+  await BBPromise.map(skips, (skip) =>
+    processData({
+      skip, table, view_id, source, skipSize,
+      totalRecords: source.record_count,
+      dataKey, notNullCols, ctx, dbConnection}),
+    {concurrency: 6})
 }
+// committing for skip 347,000 1
+// The script uses approximately
+// 755.39 MB. Total 1123.84 MB
 
 export default async function publish(ctx: Context) {
   let {
@@ -239,7 +246,7 @@ export default async function publish(ctx: Context) {
 
   try {
 
-    await createSchema(sqlLog, ctx);
+    // await createSchema(sqlLog, ctx);
     // await upload(ctx, 0, table_name, {});
     await upload(ctx, view_id, table_name, dbConnection);
     await update_view({table_schema: 'open_fema_data', table_name, view_id, dbConnection, sqlLog});
