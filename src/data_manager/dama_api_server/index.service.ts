@@ -319,6 +319,9 @@ export default class ApiService extends Service {
               "/hazard_mitigation/disasterLossSummaryLoader":
                 "hazard_mitigation.disasterLossSummaryLoader.load",
 
+              "/hazard_mitigation/fusionLoader":
+                "hazard_mitigation.fusionLoader.load",
+
               "data-types/npmrds/getToposortedDamaSourcesMeta":
                 "dama/data_types/npmrds.getToposortedDamaSourcesMeta",
 

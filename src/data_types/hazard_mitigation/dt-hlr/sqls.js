@@ -354,8 +354,10 @@ with grid as (${grid(state_schema, state_table)}),
     FROM ${pb_schema}.${pb_table}  pb
              JOIN ${nri_schema}.${nri_table} nri
                   ON pb.geoid = nri.stcofips
-                  and EXTRACT(YEAR from pb.event_day_date) >= ${startYear}
-                  and EXTRACT(YEAR from pb.event_day_date) <= ${endYear}
+                  and ((EXTRACT(YEAR from pb.event_day_date) >= ${startYear}
+                        and EXTRACT(YEAR from pb.event_day_date) <= ${endYear})
+                        OR event_day_date is null)
+
 -- \tWHERE nri_category = 'hurricane' and geoid = '37013' and event_day_date = '1996-07-12 10:00:00'
 ),
        national as (
