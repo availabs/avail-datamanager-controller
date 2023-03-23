@@ -242,3 +242,36 @@ CREATE OR REPLACE FUNCTION data_manager.dama_db_short_id()
   $$
 ;
 
+CREATE OR REPLACE VIEW data_manager.views_primary_keys
+  AS
+    SELECT
+        v.view_id,
+        MAX(v.source_id) AS source_id,
+        MAX(v.table_schema) AS table_schema,
+        MAX(v.table_name) AS table_name,
+        array_agg(a.attname ORDER BY t.attridx) AS primary_key_cols,
+        array_agg(x.typname ORDER BY t.attridx) AS primary_key_cols_types
+      FROM pg_catalog.pg_index AS i
+        CROSS JOIN LATERAL UNNEST(i.indkey) AS t(attridx)
+        INNER JOIN pg_catalog.pg_attribute AS a
+          ON (
+            ( i.indisprimary )
+            AND
+            ( a.attrelid = i.indrelid )
+            AND
+            ( a.attnum = t.attridx )
+          )
+        INNER JOIN pg_catalog.pg_type AS x
+          ON (
+            ( a.atttypid = x.oid )
+          )
+        INNER JOIN data_manager.views AS v
+          ON (
+            ( table_schema IS NOT NULL )
+            AND
+            ( table_name IS NOT NULL )
+            AND
+            ( i.indrelid = ( format('%I.%I', table_schema, table_name) )::regclass )
+          )
+      GROUP BY 1
+;

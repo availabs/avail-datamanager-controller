@@ -178,6 +178,39 @@ export const getPostgresConnectionString = (pgEnv: PgEnv) => {
   return connStr;
 };
 
+// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+export const getPostgresConnectionUri = (pgEnv: PgEnv) => {
+  const {
+    user = null,
+    host = "localhost",
+    database = null,
+    password = null,
+    port = 5432,
+  } = getNodePgCredentials(pgEnv);
+
+  let url = "postgresql://";
+
+  // add the userspec
+  if (user) {
+    url = `${url}${user}`;
+
+    if (password) {
+      url = `${url}:${password}`;
+    }
+
+    url = `${url}@`;
+  }
+
+  // add the hostspec
+  url = `${url}${host}:${port}`;
+
+  if (database) {
+    url = `${url}/${database}`;
+  }
+
+  return url;
+};
+
 // Make sure to call db.end() or Node will hang.
 export async function getConnectedNodePgClient(
   pgEnv: PgEnv

@@ -231,8 +231,8 @@ export default {
         `);
 
         const {
-          rows: [{ root_etl_context }],
           // @ts-ignore
+          rows: [{ root_etl_context }],
         } = await ctx.call("dama_db.query", {
           text: sql,
           values: [etl_context_id],

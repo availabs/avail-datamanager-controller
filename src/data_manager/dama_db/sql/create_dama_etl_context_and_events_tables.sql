@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS data_manager.etl_contexts (
   parent_context_id         INTEGER,
 
   source_id                 INTEGER,
+
+  etl_task_id               TEXT,
   etl_status                TEXT,
 
   initial_event_id          INTEGER,
