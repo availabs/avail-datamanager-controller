@@ -441,8 +441,6 @@ export default abstract class AbstractTasksController {
 
       const query = { text: sql, values: [etl_context_id] };
 
-      console.log(JSON.stringify({ query }, null, 4));
-
       const { rows } = await db.query(query);
 
       if (!rows.length) {
