@@ -1,3 +1,4 @@
 *
 !postgres.template.env
 !.gitignore
+dama_host_id

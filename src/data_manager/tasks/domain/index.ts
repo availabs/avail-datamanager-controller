@@ -1,10 +1,11 @@
 import { ExecaChildProcess } from "execa";
-import { Job } from "pg-boss";
+import { Job, Worker } from "pg-boss";
 
+export type DamaTaskQueueName = Worker["name"];
 export type DamaTaskId = Job["id"];
 
 export type DamaTaskDescriptor = {
-  dama_task_queue_name?: string;
+  dama_task_queue_name?: DamaTaskQueueName;
   parent_context_id?: number | null;
   source_id?: number | null;
   initial_event: {
@@ -39,6 +40,8 @@ export type DamaTask = {
 };
 
 export enum DamaTaskExitCodes {
+  DONE = 0,
   COULD_NOT_ACQUIRE_INITIAL_EVENT_LOCK = 100,
-  TASK_ALREADY_DONE = 101,
+  WORKER_THREW_ERROR = 101,
+  WORKER_DID_NOT_RETURN_FINAL_EVENT = 102,
 }

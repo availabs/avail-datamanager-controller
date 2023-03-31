@@ -12,6 +12,7 @@ import {
   NodePgPoolClient,
   NodePgQueryConfig,
   NodePgQueryResult,
+  listAllPgEnvs,
   getConnectedNodePgPool,
 } from "./postgres/PostgreSQL";
 
@@ -60,8 +61,6 @@ async function initializeDamaTables(dbConnection: NodePgPoolClient) {
   dbConnection.query("COMMIT ;");
 }
 
-// export type Query = string | NodePgQueryConfig;
-
 class DamaDb extends DamaContextAttachedResource {
   private readonly _local_: LocalVariables;
 
@@ -74,7 +73,11 @@ class DamaDb extends DamaContextAttachedResource {
     };
   }
 
-  async getDb(): Promise<NodePgPool> {
+  listAllPgEnvs() {
+    return listAllPgEnvs();
+  }
+
+  private async getDb(pg_env = this.pg_env): Promise<NodePgPool> {
     if (!this._local_.dbs[this.pg_env]) {
       let resolve: Function;
 
@@ -82,7 +85,7 @@ class DamaDb extends DamaContextAttachedResource {
         resolve = res;
       });
 
-      const db = await getConnectedNodePgPool(this.pg_env);
+      const db = await getConnectedNodePgPool(pg_env);
       const dbConnection = await db.connect();
 
       try {
@@ -113,8 +116,8 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   // Make sure to release the connection
-  async getDbConnection() {
-    const db = await this.getDb();
+  async getDbConnection(pg_env = this.pg_env) {
+    const db = await this.getDb(pg_env);
 
     const connection = await db.connect();
 

@@ -1,6 +1,8 @@
 import { Context } from "moleculer";
 
-import AttachedTasksController from "./AttachedTasksController";
+import TasksControllerWithWorkers from "./TasksControllerWithWorkers";
+
+const dama_task_controller = new TasksControllerWithWorkers();
 
 export default {
   name: "dama/tasks",
@@ -13,14 +15,11 @@ export default {
         const {
           // @ts-ignore
           params: { dama_task_queue_name, options } = {},
-          // @ts-ignore
-          meta: { pgEnv },
         } = ctx;
 
-        await this.dama_task_controller.registerTaskQueue(
-          pgEnv,
-          dama_task_queue_name
-          // options
+        await dama_task_controller.registerTaskQueue(
+          dama_task_queue_name,
+          options
         );
       },
     },
@@ -32,17 +31,11 @@ export default {
         const {
           // @ts-ignore
           params: { dama_task_descr, options },
-          // @ts-ignore
-          meta: { pgEnv },
         } = ctx;
 
         console.log(JSON.stringify({ options }, null, 4));
 
-        await this.dama_task_controller.queueDamaTask(
-          pgEnv,
-          dama_task_descr,
-          options
-        );
+        await dama_task_controller.queueDamaTask(dama_task_descr, options);
       },
     },
 
@@ -65,9 +58,5 @@ export default {
         return status;
       },
     },
-  },
-
-  created() {
-    this.dama_task_controller = new AttachedTasksController(this);
   },
 };

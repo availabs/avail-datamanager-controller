@@ -1,6 +1,7 @@
 /* eslint-disable max-len */
 
 import { readFileSync } from "fs";
+import { readdir as readdirAsync } from "fs/promises";
 import { join } from "path";
 
 import dotenv from "dotenv";
@@ -71,6 +72,7 @@ export const getPostgresConfigurationFilePath = (pgEnv: PgEnv) => {
   return join(configDir, `postgres.${pgEnv}.env`);
 };
 
+// See: https://www.postgresql.org/docs/current/libpq-envars.html
 export const postgresEnvVariables = {
   PGHOST: "the host connection parameter",
 
@@ -138,6 +140,11 @@ export const postgresEnvVariables = {
   PGLOCALEDIR:
     "sets the directory containing the locale files for message localization",
 };
+
+export const listAllPgEnvs = async () =>
+  (await readdirAsync(configDir))
+    .filter((fname) => /^postgres\..*\.env$/.test(fname))
+    .map((fname) => fname.replace(/^postgres\./, "").replace(/\.env$/, ""));
 
 export const getPsqlCredentials = (pgEnv: PgEnv): PsqlConfig => {
   const configPath = getPostgresConfigurationFilePath(pgEnv);

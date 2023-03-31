@@ -2,11 +2,13 @@ import { AsyncLocalStorage } from "async_hooks";
 
 import { PgEnv } from "../dama_db/postgres/PostgreSQL";
 
-const async_local_storage = new AsyncLocalStorage<Record<string, any>>();
+export type EtlContext = Record<string, any>;
+
+const dama_context_async_local_storage = new AsyncLocalStorage<EtlContext>();
 
 export default class DamaContextAttachedResource {
   get pg_env(): PgEnv {
-    const ctx = async_local_storage.getStore();
+    const ctx = dama_context_async_local_storage.getStore();
 
     if (!ctx) {
       throw new Error("Unable to get context from dama_local_storage.");
@@ -27,7 +29,7 @@ export default class DamaContextAttachedResource {
   }
 
   get etl_context_id(): number {
-    const ctx = async_local_storage.getStore();
+    const ctx = dama_context_async_local_storage.getStore();
 
     if (!ctx) {
       throw new Error("Unable to get context from dama_local_storage.");
@@ -38,13 +40,9 @@ export default class DamaContextAttachedResource {
       meta: { etl_context_id },
     } = ctx;
 
-    if (!etl_context_id) {
-      throw new Error("dama_local_storage.meta.etl_context_id is not set");
-    }
-
     return etl_context_id;
   }
 }
 
-export const runInDamaContext = (store: Map<any, any>, fn: () => unknown) =>
-  async_local_storage.run(store, fn);
+export const runInDamaContext = (store: EtlContext, fn: () => unknown) =>
+  dama_context_async_local_storage.run(store, fn);
