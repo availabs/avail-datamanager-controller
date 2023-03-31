@@ -1,8 +1,8 @@
 import { Context } from "moleculer";
 
-import TasksControllerWithWorkers from "./TasksControllerWithWorkers";
+import TasksController from "./TasksController";
 
-const dama_task_controller = new TasksControllerWithWorkers();
+const dama_task_controller = new TasksController();
 
 export default {
   name: "dama/tasks",

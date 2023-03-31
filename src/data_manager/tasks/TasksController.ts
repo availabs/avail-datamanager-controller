@@ -25,7 +25,7 @@ import {
   DamaTaskExitCodes,
 } from "./domain";
 
-import TasksControllerWithoutWorkers from "./TasksControllerWithoutWorkers";
+import QueuelessTasksController from "./QueuelessTasksController";
 
 const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 
@@ -33,7 +33,7 @@ const ts_node_path = join(__dirname, "../../../node_modules/.bin/ts-node");
 const task_runner_path = join(__dirname, "./TaskRunner.ts");
 
 // This class should be used in the main DamaController server to queue and execute DamaTasks.
-export default class TasksControllerWithWorkers extends TasksControllerWithoutWorkers {
+export default class TasksControllerWithWorkers extends QueuelessTasksController {
   private pgboss_worker_configs_by_queue_name: Record<
     DamaTaskQueueName,
     PgBossWorkOptions
@@ -229,10 +229,10 @@ export default class TasksControllerWithWorkers extends TasksControllerWithoutWo
 
     // When running in debug mode, the Task processes stdout/stderr
     // will be piped to the the  TasksController's stdout/stderr.
-    // const run_in_debug_mode = true;
-    const run_in_debug_mode =
-      process.env.AVAIL_DAMA_TASKS_DEBUG_MODE === "1" ||
-      process.env.AVAIL_DAMA_TASKS_DEBUG_MODE === "true";
+    const run_in_debug_mode = true;
+    // const run_in_debug_mode =
+    // process.env.AVAIL_DAMA_TASKS_DEBUG_MODE === "1" ||
+    // process.env.AVAIL_DAMA_TASKS_DEBUG_MODE === "true";
 
     const detached = run_in_debug_mode;
     const stdio = run_in_debug_mode ? "inherit" : "ignore";

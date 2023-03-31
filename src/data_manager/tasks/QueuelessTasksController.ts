@@ -24,7 +24,7 @@ const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 
 // This class should be used in DamaTasks to queue DamaSubTasks.
 // Executing tasks will be handled by the DamaController process.
-export default class TasksControllerWithoutWorkers extends DamaContextAttachedResource {
+export default class QueuelessTasksController extends DamaContextAttachedResource {
   protected pgboss_by_pgenv: Record<PgEnv, Promise<PgBoss> | undefined>;
 
   constructor() {
@@ -61,7 +61,7 @@ export default class TasksControllerWithoutWorkers extends DamaContextAttachedRe
       fail = reject;
     });
 
-    const db = await dama_db.getDbConnection();
+    const db = await dama_db.getDbConnection(pg_env);
 
     try {
       await db.query("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
