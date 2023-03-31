@@ -1,5 +1,19 @@
 /* eslint-disable no-unused-expressions */
 
+/*
+  Running a DamaTask for debugging.
+
+    1. Do not start any queue workers.
+    2. Queue the task.
+    3. Start the TaskRunner yourself:
+
+        $ AVAIL_DAMA_PG_ENV=dama_dev_1 \
+          AVAIL_DAMA_ETL_CONTEXT_ID=386 \
+          node \
+            --require ts-node/register \
+            src/data_manager/tasks/TaskRunner.ts
+*/
+
 import { appendFileSync } from "fs";
 
 import dedent from "dedent";

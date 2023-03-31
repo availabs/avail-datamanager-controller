@@ -24,7 +24,7 @@ const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 
 // This class should be used in DamaTasks to queue DamaSubTasks.
 // Executing tasks will be handled by the DamaController process.
-export default class QueuelessTasksController extends DamaContextAttachedResource {
+export default class BaseTasksController extends DamaContextAttachedResource {
   protected pgboss_by_pgenv: Record<PgEnv, Promise<PgBoss> | undefined>;
 
   constructor() {
@@ -109,6 +109,7 @@ export default class QueuelessTasksController extends DamaContextAttachedResourc
       source_id = null,
       initial_event,
       worker_path,
+      debug_mode,
     } = dama_task_descr;
 
     if (!worker_path) {
@@ -155,6 +156,7 @@ export default class QueuelessTasksController extends DamaContextAttachedResourc
           dama_host_id,
           dama_task_queue_name: prefixed_dama_task_queue_name,
           pgboss_send_options,
+          debug_mode,
         },
       };
 
@@ -180,6 +182,7 @@ export default class QueuelessTasksController extends DamaContextAttachedResourc
         {
           etl_context_id,
           worker_path,
+          debug_mode,
         },
         pgboss_send_options
       );
@@ -194,6 +197,10 @@ export default class QueuelessTasksController extends DamaContextAttachedResourc
           values: [etl_task_id, etl_context_id],
         });
       }
+
+      console.log("===== QUEUED TASK =====");
+      console.table({ etl_context_id, pg_env });
+      console.log("=======================");
 
       return { etl_context_id, etl_task_id };
     } catch (err) {

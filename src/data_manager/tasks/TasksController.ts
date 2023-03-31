@@ -25,15 +25,14 @@ import {
   DamaTaskExitCodes,
 } from "./domain";
 
-import QueuelessTasksController from "./QueuelessTasksController";
+import BaseTasksController from "./BaseTasksController";
 
 const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 
-const ts_node_path = join(__dirname, "../../../node_modules/.bin/ts-node");
 const task_runner_path = join(__dirname, "./TaskRunner.ts");
 
 // This class should be used in the main DamaController server to queue and execute DamaTasks.
-export default class TasksControllerWithWorkers extends QueuelessTasksController {
+export default class TasksControllerWithWorkers extends BaseTasksController {
   private pgboss_worker_configs_by_queue_name: Record<
     DamaTaskQueueName,
     PgBossWorkOptions
@@ -150,17 +149,17 @@ export default class TasksControllerWithWorkers extends QueuelessTasksController
 
         if (queue_exists) {
           await this.startDamaQueueWorker(
-            pg_env,
-            prefixed_dama_task_queue_name
+            prefixed_dama_task_queue_name,
+            pg_env
           );
         }
       })
     );
   }
 
-  private async startDamaQueueWorker(
-    pg_env: PgEnv,
-    dama_task_queue_name: DamaTaskQueueName
+  async startDamaQueueWorker(
+    dama_task_queue_name: DamaTaskQueueName,
+    pg_env = this.pg_env
   ) {
     const prefixed_dama_task_queue_name =
       this.prefixDamaTaskQueueNameWithHostId(dama_task_queue_name);
@@ -227,26 +226,15 @@ export default class TasksControllerWithWorkers extends QueuelessTasksController
 
     const AVAIL_DAMA_ETL_CONTEXT_ID = `${etl_context_id}`;
 
-    // When running in debug mode, the Task processes stdout/stderr
-    // will be piped to the the  TasksController's stdout/stderr.
-    const run_in_debug_mode = true;
-    // const run_in_debug_mode =
-    // process.env.AVAIL_DAMA_TASKS_DEBUG_MODE === "1" ||
-    // process.env.AVAIL_DAMA_TASKS_DEBUG_MODE === "true";
-
-    const detached = run_in_debug_mode;
-    const stdio = run_in_debug_mode ? "inherit" : "ignore";
-
     try {
-      await execa(ts_node_path, [task_runner_path], {
+      await execa("node", ["--require", "ts-node/register", task_runner_path], {
         env: {
           ...process.env,
           AVAIL_DAMA_PG_ENV: this.pg_env,
           AVAIL_DAMA_ETL_CONTEXT_ID,
         },
-
-        detached,
-        stdio,
+        detached: true,
+        stdio: "ignore",
       });
 
       return;
@@ -363,6 +351,12 @@ export default class TasksControllerWithWorkers extends QueuelessTasksController
     pgboss_send_options: PgBossSendOptions,
     pg_env = this.pg_env
   ) {
+    const d = await super.queueDamaTask(
+      dama_task_descr,
+      pgboss_send_options,
+      pg_env
+    );
+
     const { dama_task_queue_name = DEFAULT_QUEUE_NAME } = dama_task_descr;
 
     const prefixed_dama_task_queue_name =
@@ -372,14 +366,33 @@ export default class TasksControllerWithWorkers extends QueuelessTasksController
       if (prefixed_dama_task_queue_name === DEFAULT_QUEUE_NAME) {
         await this.registerTaskQueue(prefixed_dama_task_queue_name);
       } else {
-        throw new Error(
-          "Non-default DataManager TaskQueues MUST be registered before tasks can be queued."
+        const msg = dedent(
+          `
+            WARNING:  TaskQueue ${dama_task_queue_name} has not been registered. The queued task for
+                          pg_env                  ${pg_env}
+                          dama_task_queue_name    ${dama_task_queue_name}
+                          etl_context_id          ${this.etl_context_id}
+                        will not start until the TaskQueue has been registered and started.
+          `
         );
+
+        console.warn(msg);
       }
+    } else if (
+      !this.pgboss_worker_id_by_queue_name_by_pgenv[pg_env]?.[
+        prefixed_dama_task_queue_name
+      ]
+    ) {
+      const msg = dedent(
+        `
+          WARNING: The queued task for etl_context_id ${this.etl_context_id} will not start until
+                   the TaskQueue ${dama_task_queue_name} for pg_env ${pg_env} has not been started.
+        `
+      );
+
+      console.warn(msg);
     }
 
-    await this.startDamaQueueWorker(pg_env, dama_task_queue_name);
-
-    return super.queueDamaTask(dama_task_descr, pgboss_send_options, pg_env);
+    return d;
   }
 }

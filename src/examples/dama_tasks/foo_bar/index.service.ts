@@ -14,24 +14,10 @@ export default {
   dependencies: ["dama/tasks"],
 
   actions: {
-    sendIt: {
+    startDamaTaskQueue: {
       visibility: "public",
 
       async handler(ctx: Context) {
-        const {
-          // @ts-ignore
-          meta: { pgEnv },
-        } = ctx;
-
-        const dama_task_descr = {
-          dama_task_queue_name,
-          initial_event: {
-            type: ":INITIAL",
-            payload: { delay: 5000, msg: "Hello, World!." },
-          },
-          worker_path,
-        };
-
         await ctx.call("dama/tasks.registerTaskQueue", {
           dama_task_queue_name,
           options: {
@@ -41,6 +27,25 @@ export default {
             // batchSize: 3,
           },
         });
+
+        await ctx.call("dama/tasks.startDamaQueueWorker", {
+          dama_task_queue_name,
+        });
+      },
+    },
+
+    sendIt: {
+      visibility: "public",
+
+      async handler(ctx: Context) {
+        const dama_task_descr = {
+          dama_task_queue_name,
+          initial_event: {
+            type: ":INITIAL",
+            payload: { delay: 5000, msg: "Hello, World!." },
+          },
+          worker_path,
+        };
 
         const options = { retryLimit: 2, expireInSeconds: 30 };
 

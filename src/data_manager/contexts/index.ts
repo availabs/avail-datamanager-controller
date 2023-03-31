@@ -23,7 +23,7 @@ export default class DamaContextAttachedResource {
       throw new Error("dama_local_storage.meta.pgEnv is not set");
     }
 
-    console.log("==> Got pgEnv from DamaContext:", pgEnv);
+    // console.log("==> Got pgEnv from DamaContext:", pgEnv);
 
     return pgEnv;
   }

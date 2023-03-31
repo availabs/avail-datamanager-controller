@@ -5,6 +5,7 @@ export type DamaTaskQueueName = Worker["name"];
 export type DamaTaskId = Job["id"];
 
 export type DamaTaskDescriptor = {
+  worker_path: string;
   dama_task_queue_name?: DamaTaskQueueName;
   parent_context_id?: number | null;
   source_id?: number | null;
@@ -13,7 +14,6 @@ export type DamaTaskDescriptor = {
     payload: any;
     meta?: any | null;
   };
-  worker_path: string;
 };
 
 export type DamaTaskMetadata = DamaTaskDescriptor & {
