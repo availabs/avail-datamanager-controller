@@ -24,6 +24,24 @@ export default {
       },
     },
 
+    startDamaQueueWorker: {
+      visibility: "protected",
+
+      async handler(ctx: Context) {
+        const {
+          // @ts-ignore
+          params: { dama_task_queue_name } = {},
+          // @ts-ignore
+          meta: { pgEnv },
+        } = ctx;
+
+        await dama_task_controller.startDamaQueueWorker(
+          dama_task_queue_name,
+          pgEnv
+        );
+      },
+    },
+
     queueDamaTask: {
       visibility: "protected",
 
