@@ -14,10 +14,9 @@
             src/data_manager/tasks/TaskRunner.ts
 */
 
-import { appendFileSync } from "fs";
-
 import dedent from "dedent";
 
+import { Logger } from "winston";
 import { FSA } from "flux-standard-action";
 
 import dama_host_id from "../../constants/damaHostId";
@@ -29,6 +28,7 @@ import {
 
 import dama_db from "../dama_db";
 import dama_events, { DamaEvent } from "../events";
+import logger, { default_console_logger } from "../logger";
 
 import { runInDamaContext } from "../contexts";
 
@@ -53,18 +53,17 @@ if (!AVAIL_DAMA_ETL_CONTEXT_ID || !Number.isFinite(ETL_CONTEXT_ID)) {
   );
 }
 
-import LOG_FILE_PATH from "./detached/constants/log_file_path";
-
-appendFileSync(
-  LOG_FILE_PATH,
-  `${new Date().toISOString()}: TaskManager boot\n`
-);
-
-console.log("TaskRunner reporting.");
-
 class TaskRunner {
   private _ctx_lock_cxn!: NodePgClient;
   private readonly initial_event!: DamaEvent;
+  private logger: Logger;
+
+  constructor() {
+    //  We start out with the default_console_logger because
+    //    the worker has not yet been imported and therefore
+    //    has not yet configured its logger.
+    this.logger = default_console_logger;
+  }
 
   async shutdown(exit_code = 0) {
     try {
@@ -78,7 +77,8 @@ class TaskRunner {
   }
 
   async run() {
-    console.log("==> TaskRunner.run()");
+    this.logger.debug("==> TaskRunner.run()");
+
     try {
       // @ts-ignore
       this.initial_event = await this.getLockedInitalEvent();
@@ -100,6 +100,10 @@ class TaskRunner {
         default: main,
       }: { default: (initial_event: FSA) => FSA | Promise<FSA> | unknown } =
         await import(worker_path);
+
+      // Switch the logger from the default console logger to the logger configured by the worker.
+      // @ts-ignore
+      this.logger = logger;
 
       const final_event = await main(this.initial_event);
 
@@ -146,6 +150,7 @@ class TaskRunner {
   //    therefore safely preventing a duplicate task from corrupting the work
   //    of the SINGLETON instance.
   private async getLockedInitalEvent() {
+    this.logger.debug("Aquiring :INITIAL lock");
     this._ctx_lock_cxn = await getConnectedNodePgClient(PG_ENV);
 
     await this._ctx_lock_cxn.query("BEGIN ;");
@@ -177,10 +182,14 @@ class TaskRunner {
     } = await this._ctx_lock_cxn.query(sql, [ETL_CONTEXT_ID, dama_host_id]);
 
     if (!initial_event) {
+      this.logger.error("Unable to aquire :INITIAL event lock.");
+
       await this.shutdown(
         DamaTaskExitCodes.COULD_NOT_ACQUIRE_INITIAL_EVENT_LOCK
       );
     }
+
+    this.logger.debug("Aquired :INITIAL lock");
 
     // NOTE: exit handlers don't support async. The results of this will be non-determinant.
     process.on("exit", this.shutdown.bind(this));
@@ -190,6 +199,8 @@ class TaskRunner {
 
   // Release the :INITIAL event lock, close database connections, and prevent further work.
   private async releaseInitialEventLock() {
+    this.logger.debug("Releasing :INITIAL lock");
+
     await this._ctx_lock_cxn?.query("ROLLBACK;");
 
     // NOTE: Not sync. https://github.com/brianc/node-pg-native#example-4
@@ -217,6 +228,7 @@ class TaskRunner {
       rows: [{ is_done }],
     } = await dama_db.query({ text: sql, values: [ETL_CONTEXT_ID] });
 
+    this.logger.debug("Task is done");
     return is_done;
   }
 
@@ -231,6 +243,7 @@ class TaskRunner {
 
 runInDamaContext(
   {
+    logger,
     meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID },
   },
   () => new TaskRunner().run()

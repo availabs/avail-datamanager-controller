@@ -4,6 +4,7 @@ import { join, isAbsolute } from "path";
 import PgBoss, { SendOptions as PgBossSendOptions } from "pg-boss";
 
 import _ from "lodash";
+import { table } from "table";
 
 import dedent from "dedent";
 
@@ -109,7 +110,6 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       source_id = null,
       initial_event,
       worker_path,
-      debug_mode,
     } = dama_task_descr;
 
     if (!worker_path) {
@@ -156,7 +156,6 @@ export default class BaseTasksController extends DamaContextAttachedResource {
           dama_host_id,
           dama_task_queue_name: prefixed_dama_task_queue_name,
           pgboss_send_options,
-          debug_mode,
         },
       };
 
@@ -182,7 +181,6 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         {
           etl_context_id,
           worker_path,
-          debug_mode,
         },
         pgboss_send_options
       );
@@ -198,9 +196,14 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         });
       }
 
-      console.log("===== QUEUED TASK =====");
-      console.table({ etl_context_id, pg_env });
-      console.log("=======================");
+      const header = "===== QUEUED TASK =====";
+      const d = table([
+        ["etl_context_id", "pg_env"],
+        [etl_context_id, pg_env],
+      ]);
+      const footer = "=======================";
+
+      this.logger.info(`\n${header}\n${d}${footer}`);
 
       return { etl_context_id, etl_task_id };
     } catch (err) {

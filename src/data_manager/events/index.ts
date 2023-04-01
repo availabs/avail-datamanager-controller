@@ -92,6 +92,10 @@ class DamaEvents extends DamaContextAttachedResource {
       values,
     });
 
+    this.logger.debug(
+      `dama_events dispatched event: ${JSON.stringify(dama_event)}`
+    );
+
     return dama_event;
   }
 

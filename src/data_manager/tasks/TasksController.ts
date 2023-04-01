@@ -11,6 +11,7 @@ import _ from "lodash";
 
 import dedent from "dedent";
 import pgFormat from "pg-format";
+import { table } from "table";
 
 import dama_db from "../dama_db";
 
@@ -351,7 +352,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     pgboss_send_options: PgBossSendOptions,
     pg_env = this.pg_env
   ) {
-    const d = await super.queueDamaTask(
+    const task_meta = await super.queueDamaTask(
       dama_task_descr,
       pgboss_send_options,
       pg_env
@@ -366,17 +367,22 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
       if (prefixed_dama_task_queue_name === DEFAULT_QUEUE_NAME) {
         await this.registerTaskQueue(prefixed_dama_task_queue_name);
       } else {
-        const msg = dedent(
-          `
-            WARNING:  TaskQueue ${dama_task_queue_name} has not been registered. The queued task for
-                          pg_env                  ${pg_env}
-                          dama_task_queue_name    ${dama_task_queue_name}
-                          etl_context_id          ${this.etl_context_id}
-                        will not start until the TaskQueue has been registered and started.
-          `
-        );
+        const header = "WARNING: Unregistered TaskQueue.";
 
-        console.warn(msg);
+        const t = table([
+          ["pg_env", "dama_task_queue_name"],
+          [pg_env, dama_task_queue_name],
+        ])
+          .split(/\n/)
+          .filter(Boolean)
+          .map((s) => `\t${s}`)
+          .join("\n");
+
+        const footer =
+          "\n  Queued tasks will not start until the TaskQueue has been registered and Workers started.";
+
+        const msg = `\n${header}\n${t}${footer}`;
+        this.logger.warn(msg);
       }
     } else if (
       !this.pgboss_worker_id_by_queue_name_by_pgenv[pg_env]?.[
@@ -393,6 +399,6 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
       console.warn(msg);
     }
 
-    return d;
+    return task_meta;
   }
 }
