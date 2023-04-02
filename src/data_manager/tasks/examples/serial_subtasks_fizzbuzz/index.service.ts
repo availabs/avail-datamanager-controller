@@ -1,11 +1,10 @@
 import { join } from "path";
 
 import { Context } from "moleculer";
-import { FSA } from "flux-standard-action";
 
 import dama_events from "../../../events";
 
-export const service_name = "data_manager/tasks/examples/simple_foo_bar";
+export const service_name = "data_manager/dama_tasks/examples/fizzbuzz";
 
 const dama_task_queue_name = service_name;
 
@@ -19,7 +18,7 @@ export default {
   dependencies: ["dama/tasks"],
 
   actions: {
-    startDamaTaskQueue: {
+    startTaskQueue: {
       visibility: "public",
 
       async handler(ctx: Context) {
@@ -28,7 +27,7 @@ export default {
           options: {
             teamSize: 10,
             teamConcurrency: 10,
-            temRefil: true,
+            teamRefill: true,
             // batchSize: 3,
           },
         });
@@ -47,12 +46,12 @@ export default {
           dama_task_queue_name,
           initial_event: {
             type: ":INITIAL",
-            payload: { delay: 5000, msg: "Hello, World!." },
+            payload: { n: 1 },
           },
           worker_path,
         };
 
-        const options = { retryLimit: 2, expireInSeconds: 30 };
+        const options = { retryLimit: 3, expireInMinutes: 30 };
 
         // @ts-ignore
         const { etl_context_id } = await ctx.call("dama/tasks.queueDamaTask", {
@@ -68,48 +67,6 @@ export default {
             console.log("==========================");
           }
         );
-      },
-    },
-
-    // mol $ call data_manager/tasks/examples/simple_foo_bar.runWorkerOutsideDamaQueue --#pgEnv dama_dev_1 --#etl_context_id 496
-    runWorkerOutsideDamaQueue: {
-      visibility: "public",
-
-      async handler() {
-        console.warn(
-          "WARNING: runWorkerOutsideDamaQueue bypasses idempotency checks and therefore should ONLY be used in development."
-        );
-        const initial_event = await dama_events.getInitialEvent();
-
-        let final_event: FSA | null = null;
-
-        try {
-          final_event = await dama_events.getEtlContextFinalEvent();
-        } catch (err) {
-          //
-        }
-
-        try {
-          // NOTE: no need for runInDamaContext because this Action is within the EtlContext.
-          const {
-            default: main,
-          }: {
-            default: (initial_event: FSA) => FSA | Promise<FSA> | unknown;
-          } = await import(worker_path);
-
-          final_event = <FSA>await main(initial_event);
-
-          await dama_events.dispatch(<FSA>final_event);
-        } catch (err) {
-          const payload = {
-            // @ts-ignore
-            err_msg: err.message,
-            timestamp: new Date().toISOString(),
-          };
-
-          // @ts-ignore
-          dama_events.dispatch({ type: ":ERROR", payload, error: true });
-        }
       },
     },
   },

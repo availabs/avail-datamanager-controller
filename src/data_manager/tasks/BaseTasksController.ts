@@ -104,7 +104,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
   // Subclass's queueDamaTask throws if queue not registered, then hands off to super.queueDamaTask
   async queueDamaTask(
     dama_task_descr: DamaTaskDescriptor,
-    pgboss_send_options: PgBossSendOptions,
+    pgboss_send_options: PgBossSendOptions = {},
     pg_env = this.pg_env
   ) {
     const {

@@ -6,6 +6,8 @@ import {
   ServiceBroker,
 } from "moleculer";
 
+import dama_ctx_middleware from "./src/data_manager/contexts/moleculer_middleware";
+
 /**
  * Moleculer ServiceBroker configuration file
  *
@@ -222,7 +224,7 @@ const brokerConfig: BrokerOptions = {
   },
 
   // Register custom middlewares
-  middlewares: [],
+  middlewares: [dama_ctx_middleware],
 
   // Register custom REPL commands.
   // @ts-ignore

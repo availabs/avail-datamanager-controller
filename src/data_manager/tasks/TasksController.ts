@@ -240,14 +240,16 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
 
       return;
     } catch (err) {
-      console.error(err);
-      console.error(`ExecaErrorCode: ${(<ExecaError>err).exitCode}`);
-
       // @ts-ignore
       switch (err.exitCode) {
         case DamaTaskExitCodes.COULD_NOT_ACQUIRE_INITIAL_EVENT_LOCK:
+          this.logger.info(
+            "Duplicate Task. PgBoss handler adopting orphaned task process."
+          );
           return await this.handleDuplicateTask(pg_env, etl_context_id);
         default:
+          this.logger.error(err);
+          this.logger.error(`ExecaErrorCode: ${(<ExecaError>err).exitCode}`);
           throw err;
       }
     }
@@ -316,12 +318,28 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
   // FIXME: This method may unnecessarily hold onto a connection for a long time.
   //        It would be better to have a simple query method.
   private async handleDuplicateTask(pg_env: PgEnv, etl_context_id: number) {
+    this.logger.debug(
+      `TasksController handleDuplicateTask pg_env=${pg_env} etl_context_id=${etl_context_id} start`
+    );
+
+    let locked_msg_level = "debug";
+
     // poll the :INITIAL event lock until the running DamaTask releases it.
     while (
       await this.damaTaskInitialEventLockIsLocked(pg_env, etl_context_id)
     ) {
+      this.logger[locked_msg_level](
+        `TasksController handleDuplicateTask pg_env=${pg_env} etl_context_id=${etl_context_id} :INITIAL event is locked`
+      );
+
+      locked_msg_level = "silly";
+
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+
+    this.logger.debug(
+      `TasksController handleDuplicateTask pg_env=${pg_env} etl_context_id=${etl_context_id} :INITIAL event is NOT locked`
+    );
 
     const db = await dama_db.getDbConnection(pg_env);
 

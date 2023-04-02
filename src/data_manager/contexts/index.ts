@@ -15,7 +15,7 @@ export type EtlContext = Record<string, any> & {
 
 const dama_context_async_local_storage = new AsyncLocalStorage<EtlContext>();
 
-export function getContext() {
+export function getContext(): EtlContext {
   const ctx = dama_context_async_local_storage.getStore();
 
   if (!ctx) {
@@ -70,5 +70,6 @@ export default class DamaContextAttachedResource {
   }
 }
 
+// NOTE: Can use getContext to get the parent_context.
 export const runInDamaContext = (store: EtlContext, fn: () => unknown) =>
   dama_context_async_local_storage.run(store, fn);

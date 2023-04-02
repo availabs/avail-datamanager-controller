@@ -86,7 +86,8 @@ class DamaEvents extends DamaContextAttachedResource {
 
   async dispatch(
     event: FSA,
-    etl_context_id = this.etl_context_id
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
   ): Promise<DamaEvent> {
     const { type, meta = null, error = null } = event;
 
@@ -120,10 +121,13 @@ class DamaEvents extends DamaContextAttachedResource {
 
     const {
       rows: [dama_event],
-    } = await dama_db.query({
-      text: sql,
-      values,
-    });
+    } = await dama_db.query(
+      {
+        text: sql,
+        values,
+      },
+      pg_env
+    );
 
     this.logger.debug(
       `dama_events dispatched event: ${JSON.stringify(dama_event)}`
