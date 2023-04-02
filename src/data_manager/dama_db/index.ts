@@ -130,7 +130,8 @@ class DamaDb extends DamaContextAttachedResource {
 
   // https://node-postgres.com/features/queries#query-config-object
   async query<T extends DamaDbQueryParamType>(
-    queries: T
+    queries: T,
+    pg_env = this.pg_env
   ): Promise<DamaDbQueryReturnType<T>> {
     this.logger.silly(`dama_db.query\n${JSON.stringify(queries, null, 4)}`);
 
@@ -138,7 +139,7 @@ class DamaDb extends DamaContextAttachedResource {
 
     const sql_arr = multi_queries ? queries : [queries];
 
-    const db = <NodePgPoolClient>await this.getDbConnection();
+    const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
 
     try {
       const results: NodePgQueryResult[] = [];

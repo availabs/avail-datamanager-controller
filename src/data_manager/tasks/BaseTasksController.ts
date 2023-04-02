@@ -26,7 +26,10 @@ const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 // This class should be used in DamaTasks to queue DamaSubTasks.
 // Executing tasks will be handled by the DamaController process.
 export default class BaseTasksController extends DamaContextAttachedResource {
-  protected pgboss_by_pgenv: Record<PgEnv, Promise<PgBoss> | undefined>;
+  protected readonly pgboss_by_pgenv: Record<
+    PgEnv,
+    Promise<PgBoss> | undefined
+  >;
 
   constructor() {
     super();

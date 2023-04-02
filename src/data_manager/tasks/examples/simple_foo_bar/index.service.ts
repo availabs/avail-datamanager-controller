@@ -2,7 +2,9 @@ import { join } from "path";
 
 import { Context } from "moleculer";
 
-export const service_name = "dama_tasks/examples/simple_foo_bar";
+import dama_events from "../../../events";
+
+export const service_name = "data_manager/tasks/examples/simple_foo_bar";
 
 const dama_task_queue_name = service_name;
 
@@ -49,10 +51,20 @@ export default {
 
         const options = { retryLimit: 2, expireInSeconds: 30 };
 
-        await ctx.call("dama/tasks.queueDamaTask", {
+        // @ts-ignore
+        const { etl_context_id } = await ctx.call("dama/tasks.queueDamaTask", {
           dama_task_descr,
           options,
         });
+
+        dama_events.registerEtlContextFinalEventListener(
+          etl_context_id,
+          (final_event) => {
+            console.log("===== Dama Task Done =====");
+            console.log(JSON.stringify({ final_event }, null, 4));
+            console.log("==========================");
+          }
+        );
       },
     },
   },

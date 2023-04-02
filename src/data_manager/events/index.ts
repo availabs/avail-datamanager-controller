@@ -2,11 +2,20 @@ import dedent from "dedent";
 import pgFormat from "pg-format";
 import _ from "lodash";
 
+import createPostgresSubscriber, {
+  Subscriber as PgListenSubscriber,
+} from "pg-listen";
+
 import { FSA } from "flux-standard-action";
 
 import DamaContextAttachedResource from "../contexts";
 
 import dama_db from "../dama_db";
+
+import {
+  PgEnv,
+  getPostgresConnectionUri,
+} from "../dama_db/postgres/PostgreSQL";
 
 export type DamaEvent = FSA & {
   event_id: number;
@@ -15,6 +24,22 @@ export type DamaEvent = FSA & {
 };
 
 class DamaEvents extends DamaContextAttachedResource {
+  protected readonly pglisten_subscribers_by_pgenv: Record<
+    PgEnv,
+    Promise<PgListenSubscriber> | undefined
+  >;
+
+  protected readonly final_event_listeners_by_etl_context_by_pg_env: Record<
+    PgEnv,
+    Record<number, Array<(final_event: DamaEvent) => any>>
+  >;
+
+  constructor() {
+    super();
+    this.pglisten_subscribers_by_pgenv = {};
+    this.final_event_listeners_by_etl_context_by_pg_env = {};
+  }
+
   async spawnEtlContext(
     source_id: number | null = null,
     parent_context_id: number | null = null
@@ -161,7 +186,10 @@ class DamaEvents extends DamaContextAttachedResource {
     return dama_events;
   }
 
-  async getInitialEvent(etl_context_id = this.etl_context_id) {
+  async getInitialEvent(
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
+  ) {
     const text = dedent(`
       SELECT
           b.*
@@ -174,16 +202,214 @@ class DamaEvents extends DamaContextAttachedResource {
 
     const {
       rows: [initial_event],
-    } = await dama_db.query({
-      text,
-      values: [etl_context_id],
-    });
+    } = await dama_db.query(
+      {
+        text,
+        values: [etl_context_id],
+      },
+      pg_env
+    );
 
     if (!initial_event) {
       throw new Error(`No :INITIAL event for EtlContext ${etl_context_id}`);
     }
 
     return initial_event;
+  }
+
+  async getEtlContextFinalEvent(
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
+  ) {
+    const text = dedent(`
+      SELECT
+          b.*
+        FROM data_manager.etl_contexts AS a
+          INNER JOIN data_manager.event_store AS b
+            ON ( a.latest_event_id = b.event_id )
+        WHERE (
+          ( a.etl_context_id = $1 )
+          AND
+          ( a.etl_status = 'DONE' )
+        )
+      ;
+    `);
+
+    const {
+      rows: [final_event],
+    } = await dama_db.query(
+      {
+        text,
+        values: [etl_context_id],
+      },
+      pg_env
+    );
+
+    if (!final_event) {
+      throw new Error(`No :FINAL event for EtlContext ${etl_context_id}`);
+    }
+
+    return final_event;
+  }
+
+  async registerEtlContextFinalEventListener(
+    etl_context_id: number,
+    fn: (final_event: DamaEvent) => any,
+    pg_env = this.pg_env
+  ) {
+    try {
+      // If the EtlContext is already done, there will be no new NOTIFY.
+      // Therefore, we must immediately call with the :FINAL event.
+      const final_event = await this.getEtlContextFinalEvent(
+        etl_context_id,
+        pg_env
+      );
+
+      process.nextTick(() => fn(final_event));
+    } catch (err) {
+      // Note:  registering the listener happens synchronously so no race condition
+      //        even if the listener already exists.
+      this.final_event_listeners_by_etl_context_by_pg_env[pg_env] =
+        this.final_event_listeners_by_etl_context_by_pg_env[pg_env] || {};
+
+      this.final_event_listeners_by_etl_context_by_pg_env[pg_env][
+        etl_context_id
+      ] =
+        this.final_event_listeners_by_etl_context_by_pg_env[pg_env][
+          etl_context_id
+        ] || [];
+
+      this.final_event_listeners_by_etl_context_by_pg_env[pg_env][
+        etl_context_id
+      ].push(fn);
+
+      await this.addPgListenSubscriber(pg_env);
+    }
+  }
+
+  protected async addPgListenSubscriber(
+    pg_env = this.pg_env
+  ): Promise<PgListenSubscriber> {
+    // IDEMPOTENCY: If there is Promise assigned for this PgEnv, we've already started initialization.
+    if (this.pglisten_subscribers_by_pgenv[pg_env]) {
+      return <Promise<PgListenSubscriber>>(
+        this.pglisten_subscribers_by_pgenv[pg_env]
+      );
+    }
+
+    let done: (subscriber: PgListenSubscriber) => PgListenSubscriber;
+    let fail: Function;
+
+    this.pglisten_subscribers_by_pgenv[pg_env] = new Promise(
+      (resolve, reject) => {
+        // @ts-ignore
+        done = resolve;
+        fail = reject;
+      }
+    );
+
+    const notifyListeners = async (etl_context_id: number | string) => {
+      this.logger.silly(
+        `dama_events.notifyListeners etl_context_id=${etl_context_id} start`
+      );
+
+      etl_context_id = +etl_context_id;
+
+      try {
+        let listeners =
+          this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
+            etl_context_id
+          ];
+
+        if (!listeners) {
+          this.logger.silly(
+            `dama_events.notifyListeners etl_context_id=${etl_context_id} has no listeners`
+          );
+
+          return;
+        }
+
+        // Throws if no :FINAL event.
+        const final_event = await this.getEtlContextFinalEvent(
+          etl_context_id,
+          pg_env
+        );
+
+        this.logger.silly(
+          `dama_events.notifyListeners etl_context_id=${etl_context_id} final_event=${JSON.stringify(
+            final_event,
+            null,
+            4
+          )}`
+        );
+
+        // NOTE:  At this point, if a new listener is registered,
+        //        the registerEtlContextDoneListener method calls that listener.
+        listeners =
+          this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
+            etl_context_id
+          ];
+
+        // deleting the listeners array (?SHOULD?) guarantee listeners called ONLY ONCE.
+        delete this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
+          etl_context_id
+        ];
+
+        if (listeners) {
+          this.logger.silly(
+            `dama_events.notifyListeners etl_context_id=${etl_context_id} notifying listeners`
+          );
+          await Promise.all(listeners.map((fn) => fn(final_event)));
+        }
+      } catch (err) {
+        if (/^No :FINAL event for EtlContext/.test(err.message)) {
+          this.logger.silly(
+            `dama_events.notifyListeners etl_context_id=${etl_context_id} no :FINAL event`
+          );
+        } else {
+          this.logger.error(err.message);
+        }
+      }
+    };
+
+    try {
+      const subscriber = createPostgresSubscriber({
+        connectionString: getPostgresConnectionUri(pg_env),
+      });
+
+      subscriber.notifications.on("ETL_CONTEXT_FINAL_EVENT", notifyListeners);
+
+      //  NOTE: The following sequence will cause a missed :FINAL event
+      //
+      //    t0       t1        t2     t3
+      //    connect, register, event, listen
+      //
+      await subscriber.connect();
+      await subscriber.listenTo("ETL_CONTEXT_FINAL_EVENT");
+
+      // Handle the potentially missed :FINAL event case described above.
+      process.nextTick(async () => {
+        if (!this.final_event_listeners_by_etl_context_by_pg_env[pg_env]) {
+          return;
+        }
+
+        const final_event_listeners_by_etl_context =
+          this.final_event_listeners_by_etl_context_by_pg_env[pg_env];
+
+        const etl_context_ids = Object.keys(
+          final_event_listeners_by_etl_context
+        );
+
+        await Promise.all(etl_context_ids.map(notifyListeners));
+      });
+
+      process.nextTick(() => done(subscriber));
+
+      return subscriber;
+    } catch (err) {
+      process.nextTick(() => fail(err));
+      throw err;
+    }
   }
 
   async getAllEtlContextEvents(etl_context_id = this.etl_context_id) {

@@ -53,7 +53,7 @@ export default {
 
         console.log(JSON.stringify({ options }, null, 4));
 
-        await dama_task_controller.queueDamaTask(dama_task_descr, options);
+        return dama_task_controller.queueDamaTask(dama_task_descr, options);
       },
     },
 
