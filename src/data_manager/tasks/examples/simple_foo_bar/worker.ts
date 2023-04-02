@@ -1,5 +1,12 @@
+import { inspect } from "util";
+
 import { FSA } from "flux-standard-action";
-import dama_events from "../../../data_manager/events";
+import dama_events from "../../../events";
+
+import { getLoggerForContext, LoggingLevel } from "../../../logger";
+
+const logger = getLoggerForContext();
+logger.level = LoggingLevel.debug;
 
 const CHAOS_FACTOR = 0;
 // const CHAOS_FACTOR = 0.1;
@@ -8,7 +15,7 @@ const CHAOS_FACTOR = 0;
 function injectChaos() {
   if (Math.random() < CHAOS_FACTOR) {
     if (Math.random() < 0.5) {
-      console.error("Chaos kill.");
+      logger.error("Chaos kill.");
       process.exit(111);
     }
 
@@ -33,12 +40,14 @@ const baz = doTask.bind(null, ":BAZ");
 const workflow = [foo, bar, baz];
 
 export default async function main(initial_event: FSA): Promise<FSA> {
+  logger.info(`tasks/examples/simple_foo_bar/worker.ts ${new Date()}: start`);
+
+  logger.debug(inspect(initial_event));
+
   const {
     // @ts-ignore
     payload: { msg, delay },
   } = initial_event;
-
-  console.log(`${new Date()}: start`);
 
   injectChaos();
 

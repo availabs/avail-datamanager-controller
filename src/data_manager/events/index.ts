@@ -19,6 +19,10 @@ class DamaEvents extends DamaContextAttachedResource {
     source_id: number | null = null,
     parent_context_id: number | null = null
   ): Promise<number> {
+    this.logger.silly(
+      `dama_events.spawnEtlContext: source_id=${source_id}, parent_context_id=${parent_context_id}`
+    );
+
     const sql = `
       INSERT INTO data_manager.etl_contexts (
         parent_context_id,
@@ -39,6 +43,10 @@ class DamaEvents extends DamaContextAttachedResource {
   }
 
   async setEtlContextSourceId(etl_context_id: number, source_id: number) {
+    this.logger.silly(
+      `dama_events.setEtlContextSourceId: etl_context_id=${etl_context_id}, source_id=${source_id}`
+    );
+
     const sql = `
       UPDATE data_manager.etl_contexts
         SET source_id = $1

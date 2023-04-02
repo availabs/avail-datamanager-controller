@@ -2,60 +2,56 @@ import { AsyncLocalStorage } from "async_hooks";
 
 import { Logger } from "winston";
 
-import { default_console_logger } from "../logger";
+import { getLoggerForProcess } from "../logger";
 import { PgEnv } from "../dama_db/postgres/PostgreSQL";
 
-export type EtlContext = Record<string, any>;
+export type EtlContext = Record<string, any> & {
+  logger?: Logger;
+  meta: {
+    pgEnv: PgEnv;
+    etl_context_id?: number | null;
+  };
+};
 
 const dama_context_async_local_storage = new AsyncLocalStorage<EtlContext>();
 
-export function getPgEnv(): PgEnv {
+export function getContext() {
   const ctx = dama_context_async_local_storage.getStore();
 
   if (!ctx) {
     throw new Error("Unable to get context from dama_local_storage.");
   }
 
+  return ctx;
+}
+
+export function getPgEnv(): PgEnv {
   const {
     // @ts-ignore
-    meta: { pgEnv },
-  } = ctx;
+    meta: { pgEnv } = {},
+  } = getContext();
 
   if (!pgEnv) {
     throw new Error("dama_local_storage.meta.pgEnv is not set");
   }
 
-  // console.log("==> Got pgEnv from DamaContext:", pgEnv);
-
   return pgEnv;
 }
 
-export function getEtlContextId(): number {
-  const ctx = dama_context_async_local_storage.getStore();
-
-  if (!ctx) {
-    throw new Error("Unable to get context from dama_local_storage.");
-  }
-
+export function getEtlContextId(): number | null {
   const {
     // @ts-ignore
-    meta: { etl_context_id },
-  } = ctx;
+    meta: { etl_context_id } = {},
+  } = getContext();
 
   return etl_context_id || null;
 }
 
 export function getLogger(): Logger {
-  const ctx = dama_context_async_local_storage.getStore();
-
-  if (!ctx) {
-    throw new Error("Unable to get context from dama_local_storage.");
-  }
-
   const {
     // @ts-ignore
-    logger = default_console_logger,
-  } = ctx;
+    logger = getLoggerForProcess(),
+  } = getContext();
 
   return logger;
 }
@@ -65,7 +61,7 @@ export default class DamaContextAttachedResource {
     return getPgEnv();
   }
 
-  get etl_context_id(): number {
+  get etl_context_id(): number | null {
     return getEtlContextId();
   }
 

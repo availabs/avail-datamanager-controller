@@ -208,7 +208,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       return { etl_context_id, etl_task_id };
     } catch (err) {
       console.error(err);
-      await db.query("ROLLACK ;");
+      await db.query("ROLLBACK ;");
     } finally {
       db.release();
     }

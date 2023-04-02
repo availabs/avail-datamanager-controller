@@ -1,63 +1,84 @@
-// Should each context should have a logger?
-
 import { join } from "path";
-
-import winston from "winston";
 import memoize from "memoize-one";
+
+import winston, { Logger } from "winston";
+
+import { getTimestamp } from "../..//data_utils/time";
 
 import log_dir from "../../constants/logsDir";
 
 import { getPgEnv, getEtlContextId } from "../contexts";
 
-const getDefaultFileTransport = memoize(() => {
-  const fname = `task.${getPgEnv()}.elt_context_${getEtlContextId()}.log`;
-  const fpath = join(log_dir, fname);
-
-  return new winston.transports.File({
-    filename: fpath,
-    format: winston.format.simple(),
-  });
-});
-
 export enum LoggingLevel {
   error = "error",
   warn = "warn",
   info = "info",
-  // http = "http",
   verbose = "verbose",
   debug = "debug",
   silly = "silly",
 }
 
-export function setLoggingLevel(level = LoggingLevel.info) {
-  winston.level = level;
-}
-
-export function addFileTransport(file = getDefaultFileTransport()) {
-  winston.add(file);
-}
-
-export function removeFileTransport(file = getDefaultFileTransport()) {
-  winston.remove(file);
-}
-
-const default_console_transport = new winston.transports.Console({
+const console_transport = new winston.transports.Console({
   format: winston.format.cli(),
 });
 
-export function addConsoleTransport(console = default_console_transport) {
-  winston.add(console);
-}
+// ========== Process-Level Logger ===========
 
-export function removeConsoleTransport(console = default_console_transport) {
-  winston.remove(console);
-}
+export const getLoggerForProcess = memoize(() => {
+  const file_transport = new winston.transports.File({
+    filename: join(log_dir, `dama-process.${getTimestamp()}.log`),
+    format: winston.format.simple(),
+  });
 
-export const default_console_logger = winston.createLogger({
-  transports: [
-    new winston.transports.Console({ format: winston.format.cli() }),
-  ],
-  level: process.env.AVAIL_LOGGING_LEVEL || "info",
+  return winston.createLogger({
+    transports: [console_transport, file_transport],
+    level: process.env.AVAIL_LOGGING_LEVEL || "info",
+  });
 });
 
-export default winston;
+// ========== Context-Level Loggers ===========
+
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef
+// https://v8.dev/features/weak-references
+const etl_context_loggers: Record<string, WeakRef<Logger>> = {};
+
+// Deletes entry from the etl_context_loggers object after Logger is garbage collected.
+setInterval(() => {
+  for (const k of Object.keys(etl_context_loggers)) {
+    if (!etl_context_loggers[k]?.deref()) {
+      delete etl_context_loggers[k];
+    }
+  }
+}, 60000);
+
+export function getLoggerForContext(
+  etl_context_id = getEtlContextId(),
+  pg_env = getPgEnv()
+) {
+  const k = `pg_env=${pg_env}::etl_context_id=${etl_context_id}`;
+
+  const existing_logger = etl_context_loggers[k]?.deref();
+
+  if (existing_logger) {
+    return existing_logger;
+  }
+
+  const file_transport = new winston.transports.File({
+    filename: join(
+      log_dir,
+      `dama-context.pg_env.${pg_env}.elt_context.${etl_context_id}.log`
+    ),
+    format: winston.format.simple(),
+  });
+
+  const logger = winston.createLogger({
+    transports: [console_transport, file_transport],
+    level: "debug",
+  });
+
+  const logger_weak_ref = new WeakRef(logger);
+
+  etl_context_loggers[k] = logger_weak_ref;
+
+  return logger;
+}

@@ -78,10 +78,12 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   private async getDb(pg_env = this.pg_env): Promise<NodePgPool> {
-    if (!this._local_.dbs[this.pg_env]) {
+    this.logger.silly(`dama_db.getDb ${pg_env}`);
+
+    if (!this._local_.dbs[pg_env]) {
       let resolve: Function;
 
-      this._local_.dbs[this.pg_env] = new Promise((res) => {
+      this._local_.dbs[pg_env] = new Promise((res) => {
         resolve = res;
       });
 
@@ -95,7 +97,7 @@ class DamaDb extends DamaContextAttachedResource {
       } catch (err) {
         // FIXME CONSIDER:  Should reject if error rather than resolving null?
         //                  That would break the idempotency check.
-        this._local_.dbs[this.pg_env] = null;
+        this._local_.dbs[pg_env] = null;
 
         console.error(err);
 
@@ -112,11 +114,13 @@ class DamaDb extends DamaContextAttachedResource {
     }
 
     // @ts-ignore
-    return this._local_.dbs[this.pg_env];
+    return this._local_.dbs[pg_env];
   }
 
   // Make sure to release the connection
   async getDbConnection(pg_env = this.pg_env) {
+    this.logger.silly(`dama_db.getDbConnection ${pg_env}`);
+
     const db = await this.getDb(pg_env);
 
     const connection = await db.connect();
@@ -128,27 +132,31 @@ class DamaDb extends DamaContextAttachedResource {
   async query<T extends DamaDbQueryParamType>(
     queries: T
   ): Promise<DamaDbQueryReturnType<T>> {
+    this.logger.silly(`dama_db.query\n${JSON.stringify(queries, null, 4)}`);
+
     const multi_queries = Array.isArray(queries);
 
     const sql_arr = multi_queries ? queries : [queries];
 
-    const dbconn = <NodePgPoolClient>await this.getDbConnection();
+    const db = <NodePgPoolClient>await this.getDbConnection();
 
     try {
       const results: NodePgQueryResult[] = [];
 
       // @ts-ignore
       for (const q of sql_arr) {
-        results.push(await dbconn.query(q));
+        results.push(await db.query(q));
       }
 
       return (multi_queries ? results : results[0]) as DamaDbQueryReturnType<T>;
     } finally {
-      dbconn.release();
+      db.release();
     }
   }
 
   async executeSqlFile(sqlFilePath: string) {
+    this.logger.silly(`dama_db.executeSqlFile ${sqlFilePath}`);
+
     const sql = await readFileAsync(sqlFilePath, { encoding: "utf8" });
 
     const { rows } = await this.query(sql);
@@ -157,14 +165,18 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   async *makeIterator(query: string | NodePgQueryConfig, config = {}) {
+    this.logger.silly(
+      `\ndama_db.makeIterator query=\n${JSON.stringify(query, null, 4)}`
+    );
+
     // @ts-ignore
     const { rowCount = 500 } = config;
 
     // @ts-ignore
     const cursorRequest = new Cursor(query);
 
-    const dbconn = <NodePgPoolClient>await this.getDbConnection();
-    const cursor = dbconn.query(cursorRequest);
+    const db = <NodePgPoolClient>await this.getDbConnection();
+    const cursor = db.query(cursorRequest);
 
     try {
       const fn = (resolve: Function, reject: Function) => {
@@ -193,14 +205,14 @@ class DamaDb extends DamaContextAttachedResource {
       throw err;
     } finally {
       await cursor.close();
-      dbconn.release();
+      db.release();
     }
   }
 
   async runDatabaseInitializationDDL() {
-    const dbconn = <NodePgPoolClient>await this.getDbConnection();
+    const db = <NodePgPoolClient>await this.getDbConnection();
 
-    await initializeDamaTables(dbconn);
+    await initializeDamaTables(db);
   }
 
   async shutdown() {

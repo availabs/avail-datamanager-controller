@@ -2,14 +2,14 @@ import { join } from "path";
 
 import { Context } from "moleculer";
 
-export const serviceName = "examples/dama_tasks/foo_bar";
+export const service_name = "dama_tasks/examples/simple_foo_bar";
+
+const dama_task_queue_name = service_name;
 
 const worker_path = join(__dirname, "./worker.ts");
 
-const dama_task_queue_name = serviceName;
-
 export default {
-  name: serviceName,
+  name: service_name,
 
   dependencies: ["dama/tasks"],
 
