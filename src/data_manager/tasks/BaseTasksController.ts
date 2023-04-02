@@ -196,14 +196,15 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         });
       }
 
-      const header = "===== QUEUED TASK =====";
-      const d = table([
-        ["etl_context_id", "pg_env"],
-        [etl_context_id, pg_env],
-      ]);
-      const footer = "=======================";
+      const d = table(
+        [
+          ["etl_context_id", "pg_env"],
+          [etl_context_id, pg_env],
+        ],
+        { header: { alignment: "center", content: "Queued Task" } }
+      );
 
-      this.logger.info(`\n${header}\n${d}${footer}`);
+      this.logger.info(`\n${d}\n`);
 
       return { etl_context_id, etl_task_id };
     } catch (err) {

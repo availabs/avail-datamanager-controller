@@ -338,11 +338,17 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
 
     db.release();
 
-    console.log("==> EtlContext", etl_context_id, "etl_status =", etl_status);
-
     if (etl_status !== "DONE") {
-      throw new Error("DamaTask failed.");
+      const err_msg = `dama_tasks.handleDuplicateTask: FAILED Task for etl_context_id=${etl_context_id}.`;
+
+      this.logger.error(err_msg);
+
+      throw new Error(err_msg);
     }
+
+    this.logger.debug(
+      `dama_tasks.handleDuplicateTask: Task DONE etl_context_id=${etl_context_id}, etl_status =${etl_status}`
+    );
 
     return null;
   }
@@ -367,21 +373,23 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
       if (prefixed_dama_task_queue_name === DEFAULT_QUEUE_NAME) {
         await this.registerTaskQueue(prefixed_dama_task_queue_name);
       } else {
-        const header = "WARNING: Unregistered TaskQueue.";
+        const warning =
+          "WARNING: Queued tasks will not start until the TaskQueue is registered and Workers started.";
 
-        const t = table([
-          ["pg_env", "dama_task_queue_name"],
-          [pg_env, dama_task_queue_name],
-        ])
-          .split(/\n/)
-          .filter(Boolean)
-          .map((s) => `\t${s}`)
-          .join("\n");
+        const t = table(
+          [
+            ["pg_env", "dama_task_queue_name", "etl_context_id"],
+            [pg_env, dama_task_queue_name, task_meta?.etl_context_id],
+          ],
+          {
+            header: {
+              alignment: "center",
+              content: "Task sent to unregistered queue",
+            },
+          }
+        );
 
-        const footer =
-          "\n  Queued tasks will not start until the TaskQueue has been registered and Workers started.";
-
-        const msg = `\n${header}\n${t}${footer}`;
+        const msg = `${warning}\n${t}`;
         this.logger.warn(msg);
       }
     } else if (
@@ -396,7 +404,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
         `
       );
 
-      console.warn(msg);
+      this.logger.warn(msg);
     }
 
     return task_meta;
