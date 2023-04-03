@@ -21,6 +21,9 @@
       * started from the command line
         * debuggable using the [Chrome Debugger](https://nodejs.org/en/docs/guides/debugging-getting-started)
 
+For deeper explanation of the DamaTasks, see the experiment
+[notes](https://github.com/availabs/avail-data-manager-controller/tree/dev-task-queue-integration/spike/task-queue/experiments/005).
+
 ### DamaTaskWorker Interface
 
 Simple DamaTaskWorker
