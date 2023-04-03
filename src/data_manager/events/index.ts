@@ -42,7 +42,8 @@ class DamaEvents extends DamaContextAttachedResource {
 
   async spawnEtlContext(
     source_id: number | null = null,
-    parent_context_id: number | null = null
+    parent_context_id: number | null = null,
+    pg_env = this.pg_env
   ): Promise<number> {
     this.logger.silly(
       `dama_events.spawnEtlContext: source_id=${source_id}, parent_context_id=${parent_context_id}`
@@ -59,10 +60,13 @@ class DamaEvents extends DamaContextAttachedResource {
     const {
       // @ts-ignore
       rows: [{ etl_context_id: new_etl_context_id }],
-    } = await dama_db.query({
-      text: sql,
-      values: [parent_context_id, source_id],
-    });
+    } = await dama_db.query(
+      {
+        text: sql,
+        values: [parent_context_id, source_id],
+      },
+      pg_env
+    );
 
     return new_etl_context_id;
   }

@@ -3,8 +3,10 @@ import { join, isAbsolute } from "path";
 
 import PgBoss, { SendOptions as PgBossSendOptions } from "pg-boss";
 
+import { v4 as uuid } from "uuid";
 import _ from "lodash";
 import { table } from "table";
+import { Lock } from "semaphore-async-await";
 
 import dedent from "dedent";
 
@@ -31,9 +33,12 @@ export default class BaseTasksController extends DamaContextAttachedResource {
     Promise<PgBoss> | undefined
   >;
 
+  private readonly queue_lock: Lock;
+
   constructor() {
     super();
     this.pgboss_by_pgenv = {};
+    this.queue_lock = new Lock();
   }
 
   //  By prefixing task queue names with the host_id,
@@ -98,15 +103,21 @@ export default class BaseTasksController extends DamaContextAttachedResource {
     }
   }
 
-  // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-  // This needs to allow queuing without starting workers
-  // so Tasks can queue SubTasks and let the DamaController's workers execute them.
-  // Subclass's queueDamaTask throws if queue not registered, then hands off to super.queueDamaTask
   async queueDamaTask(
     dama_task_descr: DamaTaskDescriptor,
     pgboss_send_options: PgBossSendOptions = {},
     pg_env = this.pg_env
   ) {
+    await this.queue_lock.acquire();
+
+    const trace_id = uuid();
+
+    this.logger.debug(
+      `dama_queue.queueDamaTask trace_id=${trace_id} ${JSON.stringify({
+        dama_task_descr,
+      })}`
+    );
+
     const {
       dama_task_queue_name = DEFAULT_QUEUE_NAME,
       parent_context_id = null,
@@ -137,6 +148,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
     try {
       await db.query("BEGIN ;");
 
+      // NOTE: duplicating dama_event.spawnEtlContext so we can run in TRANSACTION.
       const {
         rows: [{ etl_context_id }],
       } = await db.query({
@@ -162,6 +174,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         },
       };
 
+      // NOTE: duplicating dama_event.dispatch so we can run in TRANSACTION.
       await db.query({
         text: dedent(`
           INSERT INTO data_manager.event_store (
@@ -175,6 +188,10 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         values: [etl_context_id, type, payload, task_meta],
       });
 
+      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+      // It is possible to dispatch an :INITIAL event but pg-boss fails to queue task.
+      // ??? Fix using pg-boss newoptions.db ???
+      //    See https://github.com/timgit/pg-boss/blob/master/docs/readme.md#newoptions
       await db.query("COMMIT ;");
 
       const pgboss = await this.getPgBoss(pg_env);
@@ -197,6 +214,14 @@ export default class BaseTasksController extends DamaContextAttachedResource {
           `),
           values: [etl_task_id, etl_context_id],
         });
+      } else {
+        this.logger.warn(
+          `pg-boss failed to queue the task ${JSON.stringify(
+            dama_task_descr,
+            null,
+            4
+          )}`
+        );
       }
 
       const d = table(
@@ -208,6 +233,19 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       );
 
       this.logger.info(`\n${d}\n`);
+      this.logger.debug(
+        `dama_tasks queueing ${JSON.stringify(
+          { dama_task_descr, etl_context_id, etl_task_id },
+          null,
+          4
+        )}`
+      );
+
+      // ??? I think pg-boss drops Jobs due to throttling ???
+      // https://github.com/timgit/pg-boss/blob/master/docs/readme.md#send
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      this.queue_lock.release();
 
       return { etl_context_id, etl_task_id };
     } catch (err) {

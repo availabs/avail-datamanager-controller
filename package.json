@@ -93,6 +93,7 @@
     "pg-native": "^3.0.1",
     "pg-query-stream": "^4.2.4",
     "save": "^2.9.0",
+    "semaphore-async-await": "^1.5.1",
     "serve-static": "^1.15.0",
     "shapefile-to-geojson": "^1.0.1",
     "sql": "^0.78.0",

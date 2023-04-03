@@ -225,6 +225,8 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
       data: { etl_context_id },
     } = dama_job;
 
+    this.logger.debug(`Starting DamaTask ${JSON.stringify(dama_job, null, 4)}`);
+
     const AVAIL_DAMA_ETL_CONTEXT_ID = `${etl_context_id}`;
 
     try {
@@ -244,7 +246,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
       switch (err.exitCode) {
         case DamaTaskExitCodes.COULD_NOT_ACQUIRE_INITIAL_EVENT_LOCK:
           this.logger.info(
-            "Duplicate Task. PgBoss handler adopting orphaned task process."
+            `Duplicate task: PgBoss handler adopting orphaned task process for etl_context_id ${etl_context_id}.`
           );
           return await this.handleDuplicateTask(pg_env, etl_context_id);
         default:
