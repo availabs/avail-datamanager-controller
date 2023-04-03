@@ -194,7 +194,7 @@ class DamaEvents extends DamaContextAttachedResource {
     return dama_events;
   }
 
-  async getInitialEvent(
+  async getEtlContextInitialEvent(
     etl_context_id = this.etl_context_id,
     pg_env = this.pg_env
   ) {
