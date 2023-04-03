@@ -90,7 +90,6 @@
     "pg-cursor": "^2.7.4",
     "pg-format": "^1.0.4",
     "pg-listen": "^1.7.0",
-    "pg-native": "^3.0.1",
     "pg-query-stream": "^4.2.4",
     "save": "^2.9.0",
     "semaphore-async-await": "^1.5.1",
