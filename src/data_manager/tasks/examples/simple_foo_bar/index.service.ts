@@ -3,6 +3,8 @@ import { join } from "path";
 import { Context } from "moleculer";
 import { FSA } from "flux-standard-action";
 
+import dama_host_id from "../../../../constants/damaHostId";
+
 import dama_events from "../../../events";
 import { getPgEnv, runInDamaContext } from "../../../contexts";
 import { getLoggerForContext } from "../../../logger";
@@ -92,6 +94,13 @@ export default {
             const initial_event = {
               type: ":INITIAL",
               payload: { delay: 5000, msg: "Hello, World!." },
+              meta: {
+                // By adding this, we can later restart the Task using the TaskRunner.
+                __dama_task_manager__: {
+                  dama_host_id,
+                  worker_path,
+                },
+              },
             };
 
             // @ts-ignore

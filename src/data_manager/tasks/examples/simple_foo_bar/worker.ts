@@ -51,6 +51,8 @@ export default async function main(initial_event: FSA): Promise<FSA> {
 
   injectChaos();
 
+  //  This worker gets pg_env and etl_context_id from DamaEtlContext.
+  //    Could alternatively get them from initial_event.
   const events = await dama_events.getAllEtlContextEvents();
 
   injectChaos();
