@@ -61,3 +61,48 @@ enable developers to write DamaTask code within a simpler mental model, obliviou
 
 * the many-to-many relationship between DamaTasks and Databases
 * the one-to-many relationship between DamaTask code and concurrently running DamaTask instances
+
+### Demo
+
+#### Simple Single-Task Pipeline
+
+```sh
+mol $ call data_manager/tasks/examples/simple_foo_bar.sendIt --#pgEnv dama_dev_1
+```
+
+You can have start the pg-boss queue workers to start the task:
+
+```sh
+mol $ call data_manager/tasks/examples/simple_foo_bar.startTaskQueue --#pgEnv dama_dev_1
+```
+
+Or, you can use the etl_context_id output from the sendIt command to launch the DamaTask
+manually via the command line:
+
+```sh
+$ AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=333 node --require ts-node/register src/data_manager/tasks/TaskRunner.ts
+```
+
+#### Complex Multi-SubTask Workflow (with chaos)
+
+```sh
+mol $ call data_manager/dama_tasks/examples/chaotic_concurrent_subtasks_fizzbuzz.sendIt --#pgEnv dama_dev_1
+```
+
+```sh
+mol $ call data_manager/dama_tasks/examples/chaotic_concurrent_subtasks_fizzbuzz.startTaskQueue --#pgEnv dama_dev_1
+```
+
+or
+
+```
+$ AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=333 node --require ts-node/register src/data_manager/tasks/TaskRunner.ts
+```
+
+Monitoring the task in psql:
+
+```sql
+dama_dev_1=# select * from etl_contexts where etl_context_id = :ECI or parent_context_id = :ECI order by 1;
+dama_dev_1=# \set ECI 1343
+```
+
