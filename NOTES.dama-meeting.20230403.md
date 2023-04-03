@@ -3,11 +3,14 @@
 ## Big Changes
 
 * DamaController core modules broken out from Moleculer.
-  * Much more [SOLID](https://en.wikipedia.org/wiki/SOLID)
-    * Core business logic is oblivious to whether it is running behind
-      * Moleculer
-      * A plain Express server
-      * A CLI
+  * [dama_db](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/src/data_manager/dama_db/index.ts)
+  * [dama_events](https://github.com/availabs/avail-data-manager-controller/blob/dev-task-queue-integration/src/data_manager/events/index.ts)
+
+ This makes the DamaController much more [SOLID](https://en.wikipedia.org/wiki/SOLID)
+  * Core business logic is oblivious to whether it is running behind
+    * Moleculer
+    * A plain Express server
+    * A CLI
 
 * DamaTasks
 
