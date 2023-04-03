@@ -5,14 +5,23 @@ import { FSA } from "flux-standard-action";
 import dama_db from "../../../dama_db";
 import dama_events from "../../../events";
 import { getEtlContextId } from "../../../contexts";
+import { getLoggerForContext, LoggingLevel } from "../../../logger";
 
 import { injectChaos } from "./chaos";
+
+const logger = getLoggerForContext();
+logger.level = process.env.AVAIL_LOGGING_LEVEL || LoggingLevel.debug;
 
 export default async function main(initial_event: FSA): Promise<FSA> {
   const {
     // @ts-ignore
     payload: { n, chaos_factor },
   } = initial_event;
+
+  const heartbeat_interval = setInterval(
+    () => logger.debug(`HEARTBEAT: ${new Date().toISOString()}`),
+    2000
+  );
 
   injectChaos(chaos_factor);
 
@@ -51,6 +60,8 @@ export default async function main(initial_event: FSA): Promise<FSA> {
   }
 
   injectChaos(chaos_factor);
+
+  clearInterval(heartbeat_interval);
 
   return {
     type: ":FINAL",

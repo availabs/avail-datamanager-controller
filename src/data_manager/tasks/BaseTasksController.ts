@@ -108,6 +108,10 @@ export default class BaseTasksController extends DamaContextAttachedResource {
     pgboss_send_options: PgBossSendOptions = {},
     pg_env = this.pg_env
   ) {
+    //  pg-boss drops jobs. ??? Due to throttling ???
+    //    https://github.com/timgit/pg-boss/blob/master/docs/readme.md#send
+    //  This seems to fix the problem, here.
+    //    If put immediately around pgboss.send, it does not.
     await this.queue_lock.acquire();
 
     const trace_id = uuid();
@@ -188,10 +192,18 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         values: [etl_context_id, type, payload, task_meta],
       });
 
-      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-      // It is possible to dispatch an :INITIAL event but pg-boss fails to queue task.
-      // ??? Fix using pg-boss newoptions.db ???
-      //    See https://github.com/timgit/pg-boss/blob/master/docs/readme.md#newoptions
+      //  FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+      //    It is possible to dispatch an :INITIAL event but pg-boss fails to queue task.
+      //      The problem is the :INITIAL event MUST be available when the Job started,
+      //      therefore we cannot wait until after pgboss.send success to dispatch :INITIAL.
+      //
+      //  ??? Possible fixes
+      //        * Retry send, and if it fails after N retries, delete the new EtlContext.
+      //          * https://github.com/timgit/pg-boss/blob/master/src/plans.js
+      //        * Using pg-boss newoptions.db so inserting :INITIAL and pg-boss share a transaction?
+      //          * See https://github.com/timgit/pg-boss/blob/master/docs/readme.md#newoptions
+      //          * Draw back is we don't know if pg-boss will issue a BEGIN statement.
+      //            * Currently, I don't see any BEGIN statement in the pg-boss SQL for queueing tasks.
       await db.query("COMMIT ;");
 
       const pgboss = await this.getPgBoss(pg_env);
@@ -241,8 +253,6 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         )}`
       );
 
-      // ??? I think pg-boss drops Jobs due to throttling ???
-      // https://github.com/timgit/pg-boss/blob/master/docs/readme.md#send
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       this.queue_lock.release();

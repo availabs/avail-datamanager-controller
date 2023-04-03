@@ -1,8 +1,12 @@
 import { join } from "path";
 
 import { Context } from "moleculer";
+import { FSA } from "flux-standard-action";
 
 import dama_events from "../../../events";
+
+import { getPgEnv, runInDamaContext } from "../../../contexts";
+import { getLoggerForContext } from "../../../logger";
 
 export const service_name =
   "data_manager/dama_tasks/examples/chaotic_concurrent_subtasks_fizzbuzz";
@@ -72,6 +76,67 @@ export default {
             console.log("==========================");
           }
         );
+      },
+    },
+
+    runWorkerOutsideDamaQueue: {
+      visibility: "public",
+
+      async handler() {
+        try {
+          const etl_context_id = await dama_events.spawnEtlContext();
+
+          dama_events.registerEtlContextFinalEventListener(
+            etl_context_id,
+            (final_event) => {
+              console.log("===== Dama Task Done =====");
+              console.log(JSON.stringify({ final_event }, null, 4));
+              console.log("==========================");
+            }
+          );
+
+          const pgEnv = getPgEnv();
+          const logger = getLoggerForContext(etl_context_id);
+
+          const ctx = {
+            logger,
+            meta: {
+              pgEnv,
+              etl_context_id,
+            },
+          };
+
+          await runInDamaContext(ctx, async () => {
+            const initial_event = {
+              type: ":INITIAL",
+              payload: {
+                n: 1,
+                iterations: 30,
+                chaos_factor: 0,
+              },
+            };
+
+            // @ts-ignore
+            await dama_events.dispatch(initial_event);
+
+            const {
+              default: main,
+            }: {
+              default: (initial_event: FSA) => FSA | Promise<FSA> | unknown;
+            } = await import(worker_path);
+
+            // @ts-ignore
+            const final_event = <FSA>await main(initial_event);
+
+            await dama_events.dispatch(<FSA>final_event);
+
+            logger.debug(
+              `chaotic_concurrent_subtasks_fizzbuzz pg_env=${pgEnv} etl_context_id=${etl_context_id} DONE`
+            );
+          });
+        } catch (err) {
+          console.error(err);
+        }
       },
     },
   },

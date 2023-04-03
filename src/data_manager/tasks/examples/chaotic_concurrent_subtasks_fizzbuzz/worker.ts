@@ -28,6 +28,11 @@ const worker_path = join(__dirname, "./subtask_worker.ts");
 export default async function main(initial_event: FSA): Promise<FSA> {
   logger.debug("subtasks_workflow worker main start");
 
+  const heartbeat_interval = setInterval(
+    () => logger.debug(`HEARTBEAT: ${new Date().toISOString()}`),
+    2000
+  );
+
   await dama_events.dispatch({ type: ":TASK_STARTED" });
 
   let {
@@ -49,12 +54,10 @@ export default async function main(initial_event: FSA): Promise<FSA> {
       parent_context_id,
       initial_event: {
         type: ":INITIAL",
-        payload: { n, chaos_factor: Math.random() * 0.9 },
+        payload: { n, chaos_factor: Math.random() / 3 },
         meta: { idempotency_key: `subtask_${n}` },
       },
     };
-
-    injectChaos(chaos_factor);
 
     subtask_promises.push(
       new Promise(async (resolve) => {
@@ -103,6 +106,7 @@ export default async function main(initial_event: FSA): Promise<FSA> {
             ).etl_context_id;
           } catch (err) {
             console.error(err);
+            // @ts-ignore
             logger.error(err.message);
           }
 
@@ -160,6 +164,8 @@ export default async function main(initial_event: FSA): Promise<FSA> {
   });
 
   injectChaos(chaos_factor);
+
+  clearInterval(heartbeat_interval);
 
   return {
     type: ":FINAL",
