@@ -55,7 +55,8 @@ export default {
             payload: {
               n: 1,
               iterations: 30,
-              chaos_factor: Math.random() * 0.1,
+              chaos_factor: 0,
+              // chaos_factor: Math.random() * 0.1,
             },
           },
           worker_path,

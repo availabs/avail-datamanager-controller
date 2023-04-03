@@ -23,7 +23,7 @@ export default {
   dependencies: ["dama/tasks"],
 
   actions: {
-    startDamaTaskQueue: {
+    startTaskQueue: {
       visibility: "public",
 
       async handler(ctx: Context) {
@@ -50,6 +50,17 @@ export default {
         const dama_task_descr = {
           dama_task_queue_name,
           worker_path,
+          initial_event: {
+            type: ":INITIAL",
+            payload: { delay: 5000, msg: "Hello, World!." },
+            meta: {
+              // By adding this, we can later restart the Task using the TaskRunner.
+              __dama_task_manager__: {
+                dama_host_id,
+                worker_path,
+              },
+            },
+          },
         };
 
         const options = { retryLimit: 2, expireInSeconds: 30 };
