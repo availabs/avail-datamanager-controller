@@ -23,6 +23,8 @@ export default async function main(initial_event: FSA): Promise<FSA> {
     2000
   );
 
+  await dama_events.dispatch({ type: ":TASK_STARTED" });
+
   injectChaos(chaos_factor);
 
   let type = n % 3 === 0 ? "FIZZ" : "";
@@ -53,7 +55,7 @@ export default async function main(initial_event: FSA): Promise<FSA> {
       rows: [{ not_yet_dispatched }],
     } = await dama_db.query({
       text: idempotency_sql,
-      values: [etl_context_id],
+      values: [etl_context_id, type],
     });
 
     injectChaos(chaos_factor);

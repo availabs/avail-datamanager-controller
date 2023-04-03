@@ -54,7 +54,7 @@ export default async function main(initial_event: FSA): Promise<FSA> {
       parent_context_id,
       initial_event: {
         type: ":INITIAL",
-        payload: { n, chaos_factor: Math.random() / 3 },
+        payload: { n, chaos_factor: Math.random() * 0.1 },
         meta: { idempotency_key: `subtask_${n}` },
       },
     };

@@ -3,6 +3,7 @@ import { join } from "path";
 import { Context } from "moleculer";
 import { FSA } from "flux-standard-action";
 
+import dama_host_id from "../../../../constants/damaHostId";
 import dama_events from "../../../events";
 
 import { getPgEnv, runInDamaContext } from "../../../contexts";
@@ -112,7 +113,14 @@ export default {
               payload: {
                 n: 1,
                 iterations: 30,
-                chaos_factor: 0,
+                chaos_factor: 0, // We don't get retries since bypassing pg-boss.
+              },
+              meta: {
+                // By adding this, we can later restart the Task using the TaskRunner.
+                __dama_task_manager__: {
+                  dama_host_id,
+                  worker_path,
+                },
               },
             };
 
