@@ -316,6 +316,9 @@ export default class ApiService extends Service {
               "/hazard_mitigation/pbSWDLoader":
                 "hazard_mitigation.pbSWDLoader.load",
 
+              "/hazard_mitigation/pbFusionLoader":
+                "hazard_mitigation.pbFusionLoader.load",
+
               "/hazard_mitigation/disasterLossSummaryLoader":
                 "hazard_mitigation.disasterLossSummaryLoader.load",
 

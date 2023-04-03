@@ -43,7 +43,7 @@ export default async function publish(ctx: Context) {
     await dbConnection.query("COMMIT;");
 
     // update view meta
-    await update_view({table_schema: ncei_schema, table_name, view_id, dbConnection, sqlLog});
+    await update_view({table_schema: pb_schema, table_name, view_id, dbConnection, sqlLog});
 
     return fin({etl_context_id, ctx, dbConnection, payload: {
         view_id,

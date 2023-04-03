@@ -257,7 +257,7 @@ with grid as (${grid(state_schema, state_table)}),
                WHEN ctype = 'buildings'
                    THEN
                    coalesce(CASE
-                                WHEN nri_category IN ('wind')
+                                WHEN nri_category IN ('wind') -- NRI uses old data for exposure, so EXPB should only be used until the year NRI pulls data for. After that year, damage_adjusted should be used if it's > expb
                                     THEN (CASE WHEN damage_adjusted > SWND_EXPB THEN SWND_EXPB ELSE damage_adjusted END):: double precision / NULLIF (SWND_EXPB, 0)
                                 WHEN nri_category IN ('wildfire')
                                     THEN (CASE WHEN damage_adjusted > WFIR_EXPB THEN WFIR_EXPB ELSE damage_adjusted END):: double precision / NULLIF (WFIR_EXPB, 0)

@@ -34,11 +34,11 @@ def process():
             suffix = ('_H' if loan_type is home else '_B')
 
             df = pd.read_excel(path + fileName, sheet_name=loan_type, header=None)#.iloc[:, 0:(14 if loan_type is home else 15)]
-            df = df.dropna(thresh=3) # drop any row with less tan 3 values. cleaning up comments.
+            # df = df.dropna(thresh=3) # drop any row with less tan 3 values. cleaning up comments.
 
             # set header
-            new_header = df.iloc[0]
-            df = df[1:]
+            new_header = df.iloc[4]
+            df = df[5:]
 
 
             df.columns = new_header  # [f for f in new_header if f.lower().replace(' ', '') in columns]

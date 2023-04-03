@@ -14,7 +14,7 @@ export default async function publish(ctx: Context) {
     }
   } = ctx;
 
-  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ofd'});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'disaster_loss_summary'});
 
   try {
     let res: QueryResult;

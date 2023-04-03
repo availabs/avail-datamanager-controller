@@ -41,6 +41,12 @@ export default async function publish(ctx: Context) {
     // update view meta
     await update_view({table_schema: dl_schema, table_name, view_id, dbConnection, sqlLog});
 
+    // update NCEI Enhanced table to add disaster_numbers
+    // await ctx.call("dama_db.query", {
+    //   text: updateNCEIEnhanced({
+    //     fusion_schema: dl_schema, fusion_table: `${table_name}_${view_id}`, nceie_schema, nceie_table
+    //   })});
+
     return fin({etl_context_id, ctx, dbConnection, payload: {
         view_id,
         source_id
