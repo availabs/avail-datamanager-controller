@@ -86,10 +86,11 @@ export async function createViewMbtiles(ctx) {
 
   await ctx.call("data_manager/events.dispatch", initialEvent);
 
+  
   const featuresAsyncIterator = (
     await ctx.call(
       "gis-dataset.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator",
-      ctx.params
+      { ...ctx.params, config: { properties: ['ogc_fid'] } } 
     )
   );
 
@@ -114,6 +115,8 @@ export async function createViewMbtiles(ctx) {
     const geojson_type = await ctx.call("dama/metadata.getDamaViewProperties", {
       damaViewId, properties: ["geojson_type"]
     })
+
+    //console.log
 
 
     // const newRow = {
@@ -150,12 +153,11 @@ export async function createViewMbtiles(ctx) {
       }
     }
 
-    console.log('tiles', tiles, damaViewId)
+    // console.log('tiles', tiles, damaViewId)
     let results = await ctx.call("dama_db.query", {
       text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(tiles)}'::jsonb WHERE view_id = $1;`,
       values: [damaViewId],
     });
-    console.log('mbtiles ')
     
     // const {
     //   rows: [{ mbtiles_id }],
@@ -401,6 +403,8 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
     params: { damaViewId, config = {} },
   } = ctx;
 
+  console.log('generateGisDatasetViewGeoJsonSqlQuery', config, ctx.params)
+
   let { properties } = config;
 
   if (properties && properties !== "*" && !Array.isArray(properties)) {
@@ -495,6 +499,8 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
     tableName
   );
 
+  console.log('feature generator sql', sql)
+
   return sql;
 }
 
@@ -505,10 +511,10 @@ export const makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator = {
       params: { config = {} },
     } = ctx;
 
-    const sql = await ctx.call('gis-dataset.generateGisDatasetViewGeoJsonSqlQuery',{
-      ...ctx.params,
-      parentCtx: ctx
-    });
+    console.log('makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator', config, ctx.params)
+    const sql = await ctx.call('gis-dataset.generateGisDatasetViewGeoJsonSqlQuery',
+      ctx.params
+    );
 
     const iter = <AsyncGenerator<any>>await ctx.call(
       "dama_db.makeIterator",
