@@ -35,14 +35,22 @@ export default async function main(initial_event: FSA): Promise<FSA> {
     const etl_context_id = getEtlContextId();
 
     const idempotency_sql = dedent(`
-      SELECT
-          ( initial_event_id = latest_event_id ) AS only_initial_event
-        FROM data_manager.etl_contexts
-        WHERE ( etl_context_id = $1 )
+      SELECT NOT EXISTS (
+        SELECT
+            1
+          FROM data_manager.etl_contexts AS a
+            INNER JOIN data_manager.event_store AS b
+              USING ( etl_context_id )
+          WHERE (
+            ( etl_context_id = $1 )
+            AND
+            ( type = $2 )
+          )
+      ) AS event_already_emitted
     `);
 
     const {
-      rows: [{ only_initial_event }],
+      rows: [{ not_yet_dispatched }],
     } = await dama_db.query({
       text: idempotency_sql,
       values: [etl_context_id],
@@ -50,7 +58,7 @@ export default async function main(initial_event: FSA): Promise<FSA> {
 
     injectChaos(chaos_factor);
 
-    if (only_initial_event) {
+    if (not_yet_dispatched) {
       dama_events.dispatch({
         type: `:${type}`,
       });
