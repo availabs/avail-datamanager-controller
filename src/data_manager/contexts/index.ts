@@ -49,6 +49,8 @@ export function getEtlContextId(): number | null {
 
 export function getLogger(): Logger {
   const {
+    // NOTE:  We could get the context-level logger using getPgEnv and getEtlContextId,
+    //          but we want to allow developer choice.
     // @ts-ignore
     logger = getLoggerForProcess(),
   } = getContext();
