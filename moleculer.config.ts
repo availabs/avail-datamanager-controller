@@ -1,9 +1,8 @@
-"use strict";
 import {
   BrokerOptions,
   Errors,
   MetricRegistry,
-  ServiceBroker,
+  // ServiceBroker,
 } from "moleculer";
 
 import dama_ctx_middleware from "./src/data_manager/contexts/moleculer_middleware";
@@ -162,7 +161,7 @@ const brokerConfig: BrokerOptions = {
   async errorHandler(err: Error, info: any) {
     const { service, action, ctx } = info;
 
-    if (ctx.params.etl_context_id) {
+    if (ctx.params?.etl_context_id) {
       try {
         const errEvnt = {
           type: "UNCAUGHT_ERROR",

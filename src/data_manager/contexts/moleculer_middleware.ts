@@ -1,24 +1,28 @@
-import { inspect } from "util";
-
 import Moleculer from "moleculer";
+import { NextFunction } from "express";
 
 import { runInDamaContext } from ".";
 
-const dama_ctx_middleware: Moleculer.Middleware = {
-  name: "Run REPL called actions in async_local_storage",
-
-  localAction(next: any, action: any) {
+export default {
+  // @ts-ignore
+  localAction(next: NextFunction) {
     return function (ctx: Moleculer.Context) {
-      const { meta: $repl } = ctx;
+      const { meta } = ctx;
 
-      if ($repl) {
-        // @ts-ignore
-        return runInDamaContext(ctx, () => next(ctx));
+      // @ts-ignore
+      if (meta?.pgEnv) {
+        try {
+          // @ts-ignore
+          return runInDamaContext({ meta }, () => {
+            return next(ctx);
+          });
+        } catch (err) {
+          console.error(err);
+          throw err;
+        }
       }
 
       return next(ctx);
     };
   },
 };
-
-export default dama_ctx_middleware;

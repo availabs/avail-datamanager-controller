@@ -6,12 +6,6 @@ export default {
   name: "dama_db",
 
   actions: {
-    getDb: {
-      visibility: "protected", // can be called only from local services
-
-      handler: dama_db.getDb.bind(dama_db),
-    },
-
     //  NOTE: MUST release the connection when done.
     //        See: https://node-postgres.com/api/pool#releasecallback
     getDbConnection: {

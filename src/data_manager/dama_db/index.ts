@@ -2,10 +2,15 @@ import { readFile as readFileAsync } from "fs/promises";
 import { join } from "path";
 
 import _ from "lodash";
+import { v4 as uuid } from "uuid";
 
 import Cursor from "pg-cursor";
 
-import DamaContextAttachedResource from "../contexts/index";
+import DamaContextAttachedResource, {
+  EtlContext,
+  getContext,
+  runInDamaContext,
+} from "../contexts/index";
 
 import {
   NodePgPool,
@@ -119,6 +124,20 @@ class DamaDb extends DamaContextAttachedResource {
 
   // Make sure to release the connection
   async getDbConnection(pg_env = this.pg_env) {
+    try {
+      const ctx = getContext();
+
+      // TODO TODO:TODO TODO: Make sure not switching pg_env
+
+      // @ts-ignore
+      if (ctx.meta.__dama_db__?.txn_cxn) {
+        // @ts-ignore
+        return ctx.meta.__dama_db__?.txn_cxn;
+      }
+    } catch (err) {
+      //
+    }
+
     this.logger.silly(`dama_db.getDbConnection ${pg_env}`);
 
     const db = await this.getDb(pg_env);
@@ -126,6 +145,83 @@ class DamaDb extends DamaContextAttachedResource {
     const connection = await db.connect();
 
     return connection;
+  }
+
+  get isInTransactionContext() {
+    try {
+      const ctx = getContext();
+
+      // TODO TODO:TODO TODO: Make sure not switching pg_env
+
+      // @ts-ignore
+      if (ctx.meta.__dama_db__) {
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#transactionfunction---function
+  // https://github.com/golergka/pg-tx
+  // https://stackoverflow.com/a/65588782
+  // NOTE:  If code executing in a TransactionContext calls getDbConnection,
+  //          then releases the connection, this will break.
+  async runInTransactionContext(fn: () => unknown, pg_env = this.pg_env) {
+    let current_context: EtlContext;
+
+    try {
+      current_context = getContext();
+    } catch (err) {
+      current_context = { meta: { pgEnv: pg_env } };
+    }
+
+    //  TODO: Implement SAVEPOINTs
+    //        See: https://github.com/golergka/pg-tx/blob/master/src/transaction.ts
+    if (current_context.__dama_db__) {
+      throw new Error("Transaction contexts cannot be nested.");
+    }
+
+    const txn_id = uuid();
+    const txn_cxn = await this.getDbConnection(pg_env);
+
+    const meta = {
+      ...current_context.meta,
+      pgEnv: pg_env,
+      __dama_db__: { txn_id, txn_cxn },
+    };
+
+    const txn_context = {
+      ...current_context,
+      meta,
+    };
+
+    try {
+      await txn_cxn.query("BEGIN ;");
+
+      const result = await runInDamaContext(txn_context, fn);
+
+      await txn_cxn.query("COMMIT ;");
+
+      return result;
+    } catch (err) {
+      // @ts-ignore
+      this.logger.error(err.message);
+      console.error(err);
+      try {
+        this.logger.warn(`ROLLBACK TRANSACTION for txn_id=${txn_id}`);
+        await txn_cxn.query("ROLLBACK ;");
+        throw err;
+      } catch (err2) {
+        // @ts-ignore
+        this.logger.error(err2.message);
+        throw err2;
+      }
+    } finally {
+      await txn_cxn.release();
+    }
   }
 
   // https://node-postgres.com/features/queries#query-config-object
@@ -151,7 +247,9 @@ class DamaDb extends DamaContextAttachedResource {
 
       return (multi_queries ? results : results[0]) as DamaDbQueryReturnType<T>;
     } finally {
-      db.release();
+      if (!this.isInTransactionContext) {
+        db.release();
+      }
     }
   }
 
@@ -165,6 +263,7 @@ class DamaDb extends DamaContextAttachedResource {
     return rows;
   }
 
+  // TODO: Test if this works in a transaction context.
   async *makeIterator(query: string | NodePgQueryConfig, config = {}) {
     this.logger.silly(
       `\ndama_db.makeIterator query=\n${JSON.stringify(query, null, 4)}`
@@ -206,7 +305,10 @@ class DamaDb extends DamaContextAttachedResource {
       throw err;
     } finally {
       await cursor.close();
-      db.release();
+
+      if (!this.isInTransactionContext) {
+        db.release();
+      }
     }
   }
 

@@ -21,6 +21,19 @@ export default {
       },
     },
 
+    insertNewRow: {
+      visibility: "public",
+
+      handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { tableSchema, tableName, newRow },
+        } = ctx;
+
+        return dama_meta.insertNewRow(tableSchema, tableName, newRow);
+      },
+    },
+
     getDamaSourceIdForName: {
       visibility: "public",
 

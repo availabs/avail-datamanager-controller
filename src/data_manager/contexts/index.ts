@@ -75,3 +75,23 @@ export default class DamaContextAttachedResource {
 // NOTE: Can use getContext to get the parent_context.
 export const runInDamaContext = (store: EtlContext, fn: () => unknown) =>
   dama_context_async_local_storage.run(store, fn);
+
+/*
+// NOTE: Can use getContext to get the parent_context.
+export const runInDamaContext = (store: EtlContext, fn: () => unknown) => {
+  const _store_ = _.cloneDeep(store);
+  // console.log(inspect({ _store_, store }));
+
+  _store_.meta = _store_.meta || {};
+
+  if (!_store_.meta.pgEnv) {
+    try {
+      _store_.meta.pgEnv = getPgEnv();
+    } catch (err) {
+      throw new Error("All EtlContexts MUST have a meta.pgEnv");
+    }
+  }
+
+  return dama_context_async_local_storage.run(_store_, fn);
+};
+*/

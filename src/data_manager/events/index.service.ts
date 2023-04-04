@@ -40,7 +40,11 @@ export default {
       handler(ctx: Context & { params: FSA }) {
         const { params } = ctx;
 
-        return dama_events.dispatch(params);
+        const etl_context_id =
+          // @ts-ignore
+          +params.meta?.etl_context_id || +ctx.meta?.etl_context_id;
+
+        return dama_events.dispatch(params, etl_context_id);
       },
     },
 

@@ -1,5 +1,4 @@
 import { Readable } from "stream";
-import { join } from "path";
 
 import { Context, Service, ServiceBroker } from "moleculer";
 import ApiGateway from "moleculer-web";
@@ -110,23 +109,6 @@ export default class ApiService extends Service {
 
             //  https://moleculer.services/docs/0.14/moleculer-web.html#Aliases
             aliases: {
-              /* For when the CRA is built and served static.
-                "GET admin/ui"(_req, res) {
-                  if (process.env.NODE_ENV === "production") {
-                    const fpath = join(__dirname, "./admin-ui.html");
-                    const rs = createReadStream(fpath);
-
-                    return rs.pipe(res);
-                  }
-                },
-              */
-              // async "OPTIONS events/dispatch"(
-              // _req: IncomingRequest,
-              // res: GatewayResponse
-              // ) {
-              // res.end();
-              // },
-
               // NOTE: Requires an etlContextId query parameter: ?etlContextId=n
               "/getEtlProcessFinalEvent":
                 "data_manager/events.queryEtlContextFinalEvent",
@@ -155,17 +137,7 @@ export default class ApiService extends Service {
                 res.end(JSON.stringify(columns));
               },
 
-              async "GET dama-data-sources"(
-                req: IncomingRequest,
-                res: GatewayResponse
-              ) {
-                const dataSources = await req.$ctx.call(
-                  "dama/metadata.getDamaDataSources",
-                  req.$params
-                );
-
-                res.end(JSON.stringify(dataSources));
-              },
+              "GET dama-data-sources": "dama/metadata.getDamaDataSources",
 
               // No idea why this isnt' working
               // "GET events/query": "data_manager/events.queryEvents",
