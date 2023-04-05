@@ -1,0 +1,23 @@
+#!/bin/bash -l
+
+
+set -e
+
+pushd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null
+
+mkdir -p logs
+
+# /usr/local/n/versions/node/14.19.1/bin/node \
+  # ./run transcom_events_aggregate_update \
+  # --start_timestamp '2022-12-01 00:00:00' \
+  # --end_timestamp '2022-12-01 06:00:00' \
+  # --pg_env development \
+# &> logs/test_etl.$(date +%s)
+
+/usr/local/n/versions/node/14.19.1/bin/node \
+  ./run transcom_events_aggregate_update \
+  --end_timestamp '2022-10-31 23:59:59' \
+  --pg_env production \
+&> logs/chunked_etl.$(date +%s)
+
+popd >/dev/null
