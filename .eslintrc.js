@@ -82,7 +82,7 @@ module.exports = {
     "guard-for-in": "error",
     "id-blacklist": "off",
     "id-match": "error",
-    "import/order": "error",
+    "import/order": "off",
     "max-classes-per-file": ["error", 1],
     "max-len": [
       "error",
