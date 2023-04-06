@@ -1,22 +1,15 @@
 import { mkdirSync } from "fs";
 
 import { join } from "path";
-import { pipeline } from "stream";
-import { promisify } from "util";
 
 import fetch from "node-fetch";
 import BetterSQLite, { Database as SQLiteDB } from "better-sqlite3";
 
-import { format as csvFormat, CsvFormatterStream } from "fast-csv";
-
 import _ from "lodash";
-import pgFormat from "pg-format";
-import { from as copyFrom } from "pg-copy-streams";
 
 import dama_host_id from "constants/damaHostId";
 import etl_dir from "constants/etlDir";
 
-import dama_db from "data_manager/dama_db";
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
@@ -35,11 +28,9 @@ import {
 
 import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
 
-import { RawTranscomEvent, ProtoTranscomEvent } from "../../../domain";
+import { RawTranscomEvent } from "../../../domain";
 
-import { url, apiResponsePropsToDbCols, dbCols } from "./data_schema";
-
-const pipelineAsync = promisify(pipeline);
+import { url } from "./data_schema";
 
 const DEFAULT_SLEEP_MS = 10 * 1000; // 10 seconds
 
@@ -139,92 +130,6 @@ export async function* makeRawTranscomEventIterator(
   }
 
   await tokenCollector.close();
-}
-
-export function transformRawTranscomEventToProtoTranscomEvent(
-  rawTranscomEvent: RawTranscomEvent
-): ProtoTranscomEvent {
-  const d = _(rawTranscomEvent)
-    .mapKeys((_v, k) => apiResponsePropsToDbCols[k])
-    .mapValues((v) => (v === "" ? null : v))
-    .value();
-
-  d.event_type =
-    typeof d.event_type === "string"
-      ? d.event_type?.toLowerCase()
-      : d.event_type;
-
-  d.direction =
-    typeof d.direction === "string" ? d.direction?.toLowerCase() : d.direction;
-
-  d.event_status =
-    typeof d.event_status === "string"
-      ? d.event_status?.toLowerCase()
-      : d.event_status;
-
-  return <ProtoTranscomEvent>d;
-}
-
-export async function* transformRawTranscomEventIteratorToProtoTranscomEventIterator(
-  rawTranscomEventIter: AsyncGenerator<RawTranscomEvent>
-): AsyncGenerator<ProtoTranscomEvent> {
-  for await (const data of rawTranscomEventIter) {
-    yield transformRawTranscomEventToProtoTranscomEvent(data);
-  }
-}
-
-export function protoTranscomEventIteratorToCsvStream(
-  protoTranscomEventIter: AsyncGenerator<ProtoTranscomEvent>
-): CsvFormatterStream<ProtoTranscomEvent, any> {
-  const csvStream = csvFormat({
-    headers: dbCols,
-    quoteHeaders: false,
-    quote: '"',
-  });
-
-  process.nextTick(async () => {
-    for await (const event of protoTranscomEventIter) {
-      const ready = csvStream.write(event);
-
-      if (!ready) {
-        await new Promise((resolve) => csvStream.once("drain", resolve));
-        console.error("drain event");
-      }
-    }
-
-    csvStream.end();
-  });
-
-  return csvStream;
-}
-
-export async function loadProtoTranscomEventsIntoDatabase(
-  protoTranscomEventIter: AsyncGenerator<ProtoTranscomEvent>,
-  schemaName: string,
-  tableName: string
-) {
-  // NOTE: using the transcomEventsDatabaseTableColumns array
-  //       keeps column order consistent with transcomEventsCsvStream
-  const colIdentifiers = dbCols.slice().fill("%I").join();
-
-  const sql = pgFormat(
-    `COPY %I.%I (${colIdentifiers}) FROM STDIN WITH CSV HEADER ;`,
-    schemaName,
-    tableName,
-    ...dbCols
-  );
-
-  const db = await dama_db.getDbConnection();
-
-  const pgCopyStream = db.query(copyFrom(sql));
-
-  const csvStream = protoTranscomEventIteratorToCsvStream(
-    protoTranscomEventIter
-  );
-
-  await pipelineAsync(csvStream, pgCopyStream);
-
-  db.release();
 }
 
 export async function insertTranscomEventsIdsForDateRangeIntoSqliteDb(
