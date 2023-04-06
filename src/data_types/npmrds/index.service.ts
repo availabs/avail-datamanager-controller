@@ -1,5 +1,9 @@
 import { Context } from "moleculer";
 
+import dama_meta from "data_manager/meta";
+import dama_events from "data_manager/events";
+import logger from "data_manager/logger";
+
 import {
   npmrdsDataSourcesInitialMetadataByName,
   toposortedSourceNames,
@@ -12,16 +16,22 @@ export default {
   name: serviceName,
 
   actions: {
-    async getToposortedDamaSourcesMeta(ctx: Context) {
-      const metaByName: Record<string, object> = await ctx.call(
-        "dama/metadata.getDamaSourceMetadataByName",
-        { damaSourceNames: toposortedSourceNames }
-      );
+    async getToposortedDamaSourcesMeta() {
+      const metaByName: Record<string, object> =
+        await dama_meta.getDamaSourceMetadataByName(toposortedSourceNames);
 
       const toposortedMeta = toposortedSourceNames.map(
         (name) =>
           // NOTE: if not in metaByName, will not have a source_id
           metaByName[name] || npmrdsDataSourcesInitialMetadataByName[name]
+      );
+
+      logger.silly(
+        `==> ${serviceName} getToposortedDamaSourcesMeta ${JSON.stringify(
+          toposortedMeta,
+          null,
+          4
+        )}`
       );
 
       return toposortedMeta;
@@ -32,51 +42,47 @@ export default {
         `${serviceName}.getToposortedDamaSourcesMeta`
       );
 
-      // @ts-ignore
       if (
         toposortedDamaSrcMeta.every(({ source_id: id }) => Number.isFinite(id))
       ) {
+        logger.info(
+          `==> ${serviceName} initializeDamaSources: All NPMRDS DataSources already created.`
+        );
+
         return toposortedDamaSrcMeta;
       }
 
-      const etl_context_id = await ctx.call(
-        "data_manager/events.spawnEtlContext"
-      );
+      const etl_context_id = await dama_events.spawnEtlContext();
 
       const initialEvent = {
         type: `${serviceName}.initializeDamaSources:INITIAL`,
       };
 
-      await ctx.call("data_manager/events.dispatch", initialEvent, {
-        parentCtx: ctx,
-        meta: { etl_context_id },
-      });
+      await dama_events.dispatch(initialEvent, etl_context_id);
 
-      toposortedDamaSrcMeta = await ctx.call(
-        "dama/metadata.loadToposortedDamaSourceMetadata",
-        {
-          toposortedDataSourcesMetadata:
-            toposortedNpmrdsDataSourcesInitialMetadata,
-        }
+      toposortedDamaSrcMeta = await dama_meta.loadToposortedDamaSourceMetadata(
+        toposortedNpmrdsDataSourcesInitialMetadata
       );
 
-      // NOTE: This complicates visualizing NpmrdsTravelTimesExportRitis requests.
-      // const [{ source_id }] = toposortedDamaSrcMeta;
-
-      // await ctx.call("data_manager/events.setEtlContextSourceId", {
-      //   etl_context_id,
-      //   source_id,
-      // });
-
-      const finalEvent = {
+      const final_event = {
         type: `${serviceName}.initializeDamaSources:FINAL`,
         payload: { toposortedDamaSrcMeta },
       };
 
-      await ctx.call("data_manager/events.dispatch", finalEvent, {
-        parentCtx: ctx,
-        meta: { etl_context_id },
-      });
+      logger.info(
+        `==> ${serviceName} initializeDamaSources: NPMRDS DataSources created.`
+      );
+
+      logger.debug(
+        `==> ${serviceName} initializeDamaSources ${JSON.stringify(
+          { final_event },
+          null,
+          4
+        )}`
+      );
+
+      // @ts-ignore
+      await dama_events.dispatch(final_event, etl_context_id);
 
       return toposortedDamaSrcMeta;
     },
