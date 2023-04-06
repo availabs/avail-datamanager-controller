@@ -1,21 +1,15 @@
-import {
-  readdirSync,
-  createReadStream,
-  createWriteStream,
-  mkdirSync,
-} from "fs";
+import { mkdirSync } from "fs";
 
-import { createGzip, createGunzip } from "zlib";
 import { join } from "path";
 import { pipeline } from "stream";
 import { promisify } from "util";
 
 import fetch from "node-fetch";
+import BetterSQLite, { Database as SQLiteDB } from "better-sqlite3";
 
 import { format as csvFormat, CsvFormatterStream } from "fast-csv";
 
 import _ from "lodash";
-import split from "split2";
 import pgFormat from "pg-format";
 import { from as copyFrom } from "pg-copy-streams";
 
@@ -31,8 +25,6 @@ import {
   getEtlContextId,
   isInTaskEtlContext,
 } from "data_manager/contexts";
-
-import { getTimestamp } from "data_utils/time";
 
 import {
   getTranscomRequestFormattedTimestamp,
@@ -50,6 +42,8 @@ import { url, apiResponsePropsToDbCols, dbCols } from "./data_schema";
 const pipelineAsync = promisify(pipeline);
 
 const DEFAULT_SLEEP_MS = 10 * 1000; // 10 seconds
+
+const sqlite_db_fname = "etl_context_local_state.sqlite3";
 
 export type InitialEvent = {
   type: ":INITIAL";
@@ -116,10 +110,6 @@ export async function* makeRawTranscomEventIterator(
 
     const options = {
       method: "POST",
-
-      searchParams: {
-        userId: 78,
-      },
 
       headers: {
         "Content-Type": "application/json",
@@ -233,110 +223,41 @@ export async function loadProtoTranscomEventsIntoDatabase(
   );
 
   await pipelineAsync(csvStream, pgCopyStream);
+
+  db.release();
 }
 
-export function makeRawTranscomEventIteratorFromApiScrapeFile(
-  filePath: string
-): AsyncGenerator<RawTranscomEvent> {
-  // @ts-ignore
-  return pipeline(
-    createReadStream(filePath),
-    createGunzip(),
-    split(JSON.parse),
-    (err: any) => {
-      if (err) {
-        throw err;
-      }
-    }
-  );
-}
-
-// NOTE: Assumes file naming pattern /^raw-transcom-events\.*\.ndjson.gz$/
-export async function* makeRawTranscomEventIteratorFromApiScrapeDirectory(
-  apiScrapeDir: string
-) {
-  const rawEventFiles = readdirSync(apiScrapeDir)
-    .filter((f) => /^raw-transcom-events\..*\.ndjson.gz$/.test(f))
-    .sort();
-
-  for (const file of rawEventFiles) {
-    console.log(file);
-    const rawEventPath = join(apiScrapeDir, file);
-
-    const rawEventIter =
-      makeRawTranscomEventIteratorFromApiScrapeFile(rawEventPath);
-
-    for await (const event of rawEventIter) {
-      yield event;
-    }
-  }
-}
-
-export async function* makeTranscomEventIdIteratorFromApiScrapeDirectory(
-  apiScrapeDir: string
-) {
-  const rawEventIter =
-    makeRawTranscomEventIteratorFromApiScrapeDirectory(apiScrapeDir);
-
-  for await (const { id } of rawEventIter) {
-    yield id;
-  }
-}
-
-export async function loadApiScrapeDirectoryIntoDatabase(
-  apiScrapeDir: string,
-  schemaName: string,
-  tableName: string
-) {
-  const rawEventIter =
-    makeRawTranscomEventIteratorFromApiScrapeDirectory(apiScrapeDir);
-
-  const protoTranscomEventIter =
-    transformRawTranscomEventIteratorToProtoTranscomEventIterator(rawEventIter);
-
-  await loadProtoTranscomEventsIntoDatabase(
-    protoTranscomEventIter,
-    schemaName,
-    tableName
-  );
-}
-
-export async function downloadTranscomEventsForDateRange(
+export async function insertTranscomEventsIdsForDateRangeIntoSqliteDb(
   start_ts: TranscomApiRequestTimestamp,
   end_ts: TranscomApiRequestTimestamp,
-  etl_work_dir: string
+  sqlite_db: SQLiteDB
 ) {
-  const start = start_ts.replace(/-|:/g, "").replace(/ /, "T");
-  const end = end_ts.replace(/-|:/g, "").replace(/ /, "T");
-
-  const fname = `raw-transcom-events.${start}-${end}.${getTimestamp()}.ndjson.gz`;
-  const fpath = join(etl_work_dir, fname);
-
-  logger.silly(`downloading events ${start_ts} to ${end_ts} into ${fpath}`);
+  logger.silly(`downloading events from ${start_ts} to ${end_ts}`);
 
   try {
-    const ws = createWriteStream(fpath);
-    const gzip = createGzip();
+    sqlite_db.exec("BEGIN ;");
 
-    const done = new Promise((resolve, reject) => {
-      ws.once("error", reject);
-      ws.once("finish", resolve);
-    });
+    sqlite_db.exec(`
+      CREATE TABLE IF NOT EXISTS event_ids (
+        id TEXT PRIMARY KEY
+      ) WITHOUT ROWID ;
+    `);
 
-    gzip.pipe(ws);
+    const insert_stmt = sqlite_db.prepare(`
+      INSERT INTO event_ids (id)
+        VALUES ( ? )
+        ON CONFLICT(id) DO NOTHING
+      ;
+    `);
 
     const iter = makeRawTranscomEventIterator(start_ts, end_ts);
 
     let count = 0;
 
-    for await (const event of iter) {
+    for await (const { id } of iter) {
       ++count;
 
-      const ready = gzip.write(`${JSON.stringify(event)}\n`);
-
-      if (!ready) {
-        await new Promise((resolve) => gzip.once("drain", resolve));
-      }
+      insert_stmt.run(id);
 
       if (count % 100 === 0) {
         logger.silly(
@@ -347,25 +268,50 @@ export async function downloadTranscomEventsForDateRange(
       }
     }
 
-    gzip.end();
-
-    await done;
-
     logger.info(
-      `${count} events downloaded for ${start_ts} to ${end_ts} into ${fname}`
+      `${count} events downloaded for ${start_ts} to ${end_ts} and IDs added to ${sqlite_db_fname}`
     );
 
-    return fpath;
+    sqlite_db.exec("COMMIT ;");
   } catch (err) {
-    logger.error(`===== ERROR downloading ${fname} =====`);
+    logger.error(`===== ERROR downloading for ${start_ts} to ${end_ts} =====`);
+    logger.error((<Error>err).message);
+    logger.error((<Error>err).stack);
+
+    sqlite_db.exec("ROLLBACK ;");
     throw err;
+  }
+}
+
+export async function* makeTranscomEventIdIterator() {
+  if (!isInTaskEtlContext()) {
+    throw new Error("MUST run in a TaskEtlContext");
+  }
+
+  const etl_work_dir = join(
+    etl_dir,
+    `transcom.download_transcom_events.pg_env_${getPgEnv()}.etl_context_${getEtlContextId()}`
+  );
+
+  const sqlite_db = new BetterSQLite(join(etl_work_dir, sqlite_db_fname));
+
+  const stmt = sqlite_db.prepare(`
+    SELECT
+        id
+      FROM event_ids
+      ORDER BY id
+  `);
+
+  for await (const { id } of stmt.iterate()) {
+    yield id;
+    await new Promise((resolve) => process.nextTick(resolve));
   }
 }
 
 export default async function main(
   initial_event: InitialEvent
 ): Promise<FinalEvent> {
-  if (!isInTaskEtlContext) {
+  if (!isInTaskEtlContext()) {
     throw new Error("MUST run in a TaskEtlContext");
   }
 
@@ -415,6 +361,8 @@ export default async function main(
       )}`
     );
 
+    const sqlite_db = new BetterSQLite(join(etl_work_dir, sqlite_db_fname));
+
     for (const [start_ts, end_ts] of month_partitions) {
       const download_done_event = {
         type: ":TRANSCOM_EVENTS_DOWNLOADED",
@@ -433,7 +381,11 @@ export default async function main(
         continue;
       }
 
-      await downloadTranscomEventsForDateRange(start_ts, end_ts, etl_work_dir);
+      await insertTranscomEventsIdsForDateRangeIntoSqliteDb(
+        start_ts,
+        end_ts,
+        sqlite_db
+      );
 
       // @ts-ignore
       await dama_events.dispatch(download_done_event);
@@ -453,6 +405,10 @@ export default async function main(
 
     // @ts-ignore
     await dama_events.dispatch(final_event);
+
+    sqlite_db.exec("VACUUM ;");
+
+    sqlite_db.close();
 
     return final_event;
   } catch (err) {
