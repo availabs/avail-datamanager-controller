@@ -1,12 +1,14 @@
 import { inspect } from "util";
 
-import { FSA } from "flux-standard-action";
-import dama_events from "../../../events";
+import dama_events from "data_manager/events";
 
-import { getLoggerForContext, LoggingLevel } from "../../../logger";
+import logger from "data_manager/logger";
 
-const logger = getLoggerForContext();
-logger.level = LoggingLevel.debug;
+import {
+  runInDamaContext,
+  isInTaskEtlContext,
+  TaskEtlContext,
+} from "data_manager/contexts";
 
 const CHAOS_FACTOR = 0;
 // const CHAOS_FACTOR = 0.1;
@@ -39,8 +41,24 @@ const baz = doTask.bind(null, ":BAZ");
 
 const workflow = [foo, bar, baz];
 
-export default async function main(initial_event: FSA): Promise<FSA> {
-  logger.info(`tasks/examples/simple_foo_bar/worker.ts ${new Date()}: start`);
+export type InitialEvent = {
+  type: ":INITIAL";
+  payload: { msg: string; delay: number };
+};
+
+export type FinalEvent = {
+  type: ":FINAL";
+  payload: { msg: string };
+};
+
+export async function main(initial_event: InitialEvent): Promise<FinalEvent> {
+  if (!isInTaskEtlContext()) {
+    throw new Error("MUST run in a TaskEtlContext");
+  }
+
+  logger.info(
+    `tasks/examples/simple_foo_bar/worker.with-context.ts ${new Date()}: start`
+  );
 
   logger.debug(inspect(initial_event));
 
@@ -77,3 +95,8 @@ export default async function main(initial_event: FSA): Promise<FSA> {
     payload: { msg },
   };
 }
+
+export default (etl_context: TaskEtlContext) =>
+  runInDamaContext(etl_context, () =>
+    main(<InitialEvent>etl_context.initial_event)
+  );

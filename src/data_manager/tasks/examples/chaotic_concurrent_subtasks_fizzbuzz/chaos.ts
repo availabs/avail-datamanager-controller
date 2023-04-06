@@ -1,8 +1,6 @@
-import { getLoggerForContext } from "../../../logger";
+import default_logger from "data_manager/logger";
 
-const logger = getLoggerForContext();
-
-export function injectChaos(chaos_factor: number) {
+export function injectChaos(chaos_factor: number, logger = default_logger) {
   if (Math.random() < chaos_factor) {
     logger.error("Chaos kill.");
 

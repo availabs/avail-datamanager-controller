@@ -27,9 +27,9 @@ import {
 
 import dama_db from "../dama_db";
 import dama_events, { DamaEvent } from "../events";
-import { getLoggerForContext } from "../logger";
+import { getLoggerForContext, Logger } from "../logger";
 
-import { runInDamaContext } from "../contexts";
+import { TaskEtlContext } from "../contexts";
 
 import { DamaTaskExitCodes } from "./domain";
 
@@ -52,14 +52,15 @@ if (!AVAIL_DAMA_ETL_CONTEXT_ID || !Number.isFinite(ETL_CONTEXT_ID)) {
   );
 }
 
-const logger = getLoggerForContext(ETL_CONTEXT_ID, PG_ENV);
-
 class TaskRunner {
   private _ctx_lock_cxn!: NodePgClient;
   private readonly initial_event!: DamaEvent;
+  private logger: Logger;
 
   constructor() {
-    // NOTE: Logger will store messages until a transport is added by the task worker.
+    // CONSIDER:  Logging before :INITIAL is locked would cause a duplicate task
+    //            to modify the original task's log, which would be confusing
+    this.logger = getLoggerForContext(ETL_CONTEXT_ID, PG_ENV);
   }
 
   async shutdown(exit_code = 0) {
@@ -74,7 +75,7 @@ class TaskRunner {
   }
 
   async run() {
-    logger.debug("==> TaskRunner.run()");
+    this.logger.debug("==> TaskRunner.run()");
 
     try {
       // @ts-ignore
@@ -96,10 +97,17 @@ class TaskRunner {
       // https://mariusschulz.com/blog/dynamic-import-expressions-in-typescript
       const {
         default: main,
-      }: { default: (initial_event: FSA) => FSA | Promise<FSA> | unknown } =
-        await import(worker_path);
+      }: {
+        default: (etl_ctx: TaskEtlContext) => FSA | Promise<FSA> | unknown;
+      } = await import(worker_path);
 
-      const final_event = await main(this.initial_event);
+      const etl_ctx = {
+        initial_event: this.initial_event,
+        logger: this.logger,
+        meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID },
+      };
+
+      const final_event = await main(etl_ctx);
 
       // If the worker dispatched it's :FINAL event, we are done.
       await this.exitIfTaskIsDone();
@@ -109,7 +117,7 @@ class TaskRunner {
         this.shutdown(DamaTaskExitCodes.WORKER_DID_NOT_RETURN_FINAL_EVENT);
       }
 
-      await dama_events.dispatch(<FSA>final_event);
+      await dama_events.dispatch(<FSA>final_event, ETL_CONTEXT_ID, PG_ENV);
 
       await this.shutdown(DamaTaskExitCodes.DONE);
     } catch (err) {
@@ -119,8 +127,12 @@ class TaskRunner {
         timestamp: new Date().toISOString(),
       };
 
-      // @ts-ignore
-      dama_events.dispatch({ type: ":ERROR", payload, error: true });
+      dama_events.dispatch(
+        // @ts-ignore
+        { type: ":ERROR", payload, error: true },
+        ETL_CONTEXT_ID,
+        PG_ENV
+      );
 
       await this.shutdown(DamaTaskExitCodes.WORKER_THREW_ERROR);
     }
@@ -144,7 +156,7 @@ class TaskRunner {
   //    therefore safely preventing a duplicate task from corrupting the work
   //    of the SINGLETON instance.
   private async getLockedInitalEvent() {
-    logger.debug("Aquiring :INITIAL lock");
+    this.logger.debug("Aquiring :INITIAL lock");
     this._ctx_lock_cxn = await getConnectedNodePgClient(PG_ENV);
 
     await this._ctx_lock_cxn.query("BEGIN ;");
@@ -176,14 +188,14 @@ class TaskRunner {
     } = await this._ctx_lock_cxn.query(sql, [ETL_CONTEXT_ID, dama_host_id]);
 
     if (!initial_event) {
-      logger.error("Unable to aquire :INITIAL event lock.");
+      this.logger.error("Unable to aquire :INITIAL event lock.");
 
       await this.shutdown(
         DamaTaskExitCodes.COULD_NOT_ACQUIRE_INITIAL_EVENT_LOCK
       );
     }
 
-    logger.debug("Aquired :INITIAL lock");
+    this.logger.debug("Aquired :INITIAL lock");
 
     // NOTE: exit handlers don't support async. The results of this will be non-determinant.
     process.on("exit", this.shutdown.bind(this));
@@ -194,7 +206,7 @@ class TaskRunner {
   // Release the :INITIAL event lock, close database connections, and prevent further work.
   private async releaseInitialEventLock() {
     if (this._ctx_lock_cxn) {
-      logger.debug("Releasing :INITIAL lock");
+      this.logger.debug("Releasing :INITIAL lock");
 
       await this._ctx_lock_cxn?.query("ROLLBACK;");
 
@@ -222,10 +234,10 @@ class TaskRunner {
 
     const {
       rows: [{ is_done }],
-    } = await dama_db.query({ text: sql, values: [ETL_CONTEXT_ID] });
+    } = await dama_db.query({ text: sql, values: [ETL_CONTEXT_ID] }, PG_ENV);
 
     if (is_done) {
-      logger.debug("Task is done");
+      this.logger.debug("Task is done");
     }
 
     return is_done;
@@ -240,10 +252,4 @@ class TaskRunner {
   }
 }
 
-runInDamaContext(
-  {
-    logger,
-    meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID },
-  },
-  () => new TaskRunner().run()
-);
+new TaskRunner().run();

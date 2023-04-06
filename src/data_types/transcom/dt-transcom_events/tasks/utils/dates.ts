@@ -1,8 +1,9 @@
 import _ from "lodash";
 
-import { PgEnv } from "../../domain/PostgreSQLTypes";
-
-import { getConnectedPgClient } from "../../utils/PostgreSQL";
+import {
+  PgEnv,
+  getConnectedNodePgClient,
+} from "data_manager/dama_db/postgres/PostgreSQL";
 
 export type TranscomApiRequestTimestamp = string;
 
@@ -35,7 +36,9 @@ export function validateTranscomRequestTimestamp(timestamp: string) {
   }
 }
 
-export function getTranscomRequestFormattedTimestamp(date: Date) {
+export function getTranscomRequestFormattedTimestamp(date: string | Date) {
+  date = typeof date === "string" ? new Date(date) : date;
+
   const { yyyy, mm, dd, HH, MM, SS } = decomposeDate(date);
 
   return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}`;
@@ -77,7 +80,7 @@ export function getNowTimestamp(transcomFormat: boolean = false) {
 export function partitionTranscomRequestTimestampsByMonth(
   startTimestamp: string,
   endTimestamp: string
-) {
+): [TranscomApiRequestTimestamp, TranscomApiRequestTimestamp][] {
   validateTranscomRequestTimestamp(startTimestamp);
   validateTranscomRequestTimestamp(endTimestamp);
 
@@ -113,6 +116,7 @@ export function partitionTranscomRequestTimestampsByMonth(
         const s_dd = isStartMonth ? startDate : 1;
         const s_time = isStartMonth ? startTime : "00:00:00";
 
+        // FIXME: use luxon
         // NOTE: JavaScript Date months start at zero.
         //       Using date 0 means the last day of the preceeding month.
         //       Therefore, the date below represents the last day of the
@@ -136,7 +140,7 @@ export function partitionTranscomRequestTimestampsByMonth(
 
       return acc;
     },
-    []
+    <[TranscomApiRequestTimestamp, TranscomApiRequestTimestamp][]>[]
   );
 
   return partitionedDateTimes;
@@ -145,7 +149,9 @@ export function partitionTranscomRequestTimestampsByMonth(
 export async function getTranscomEventsMaxCreationTimestamp(
   pgEnv: PgEnv
 ): Promise<string | null> {
-  const db = await getConnectedPgClient(pgEnv);
+  throw new Error("FIXME: use dama_db");
+
+  const db = await getConnectedNodePgClient(pgEnv);
 
   try {
     const {

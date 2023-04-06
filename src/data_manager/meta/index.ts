@@ -3,9 +3,10 @@ import _ from "lodash";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
-import DamaContextAttachedResource from "../contexts";
+import DamaContextAttachedResource from "data_manager/contexts";
 
-import dama_db from "../dama_db";
+import dama_db from "data_manager/dama_db";
+import logger from "data_manager/logger";
 
 import { NodePgQueryConfig } from "../dama_db/postgres/PostgreSQL";
 
@@ -49,7 +50,8 @@ export type ToposortedLoadDataSourcesQueries = LoadDataSourcesQueries[];
 class DamaMeta extends DamaContextAttachedResource {
   async describeTable(
     table_schema: string,
-    table_name: string
+    table_name: string,
+    pg_env = this.pg_env
   ): Promise<TableDescription> {
     const text = dedent(`
       SELECT
@@ -67,10 +69,13 @@ class DamaMeta extends DamaContextAttachedResource {
 
     const values = [table_schema, table_name];
 
-    const { rows } = await dama_db.query({
-      text,
-      values,
-    });
+    const { rows } = await dama_db.query(
+      {
+        text,
+        values,
+      },
+      pg_env
+    );
 
     if (rows.length === 0) {
       console.log(JSON.stringify({ text, values }, null, 4));
@@ -90,10 +95,15 @@ class DamaMeta extends DamaContextAttachedResource {
     return table_description;
   }
 
-  async getTableColumns(table_schema: string, table_name: string) {
+  async getTableColumns(
+    table_schema: string,
+    table_name: string,
+    pg_env = this.pg_env
+  ) {
     const table_description = await this.describeTable(
       table_schema,
-      table_name
+      table_name,
+      pg_env
     );
 
     const column_names = Object.keys(table_description).sort(
@@ -105,7 +115,8 @@ class DamaMeta extends DamaContextAttachedResource {
   }
 
   async getDamaViewTableSchemaAndName(
-    dama_view_id: number
+    dama_view_id: number,
+    pg_env = this.pg_env
   ): Promise<{ table_schema: string; table_name: string }> {
     const text = dedent(`
       SELECT
@@ -116,7 +127,10 @@ class DamaMeta extends DamaContextAttachedResource {
       ;
     `);
 
-    const { rows } = await dama_db.query({ text, values: [dama_view_id] });
+    const { rows } = await dama_db.query(
+      { text, values: [dama_view_id] },
+      pg_env
+    );
 
     if (rows.length === 0) {
       throw new Error(`Invalid DamaViewID: ${dama_view_id}`);
@@ -125,14 +139,20 @@ class DamaMeta extends DamaContextAttachedResource {
     return rows[0];
   }
 
-  async getDamaViewTableColumns(dama_view_id: number): Promise<string[]> {
+  async getDamaViewTableColumns(
+    dama_view_id: number,
+    pg_env = this.pg_env
+  ): Promise<string[]> {
     const { table_schema, table_name } =
-      await this.getDamaViewTableSchemaAndName(dama_view_id);
+      await this.getDamaViewTableSchemaAndName(dama_view_id, pg_env);
 
-    return this.getTableColumns(table_schema, table_name);
+    return this.getTableColumns(table_schema, table_name, pg_env);
   }
 
-  async getDamaSourceIdForName(dama_source_name: string): Promise<number> {
+  async getDamaSourceIdForName(
+    dama_source_name: string,
+    pg_env = this.pg_env
+  ): Promise<number> {
     const text = dedent(`
       SELECT
           source_id
@@ -141,10 +161,13 @@ class DamaMeta extends DamaContextAttachedResource {
       ;
     `);
 
-    const { rows } = await dama_db.query({
-      text,
-      values: [dama_source_name],
-    });
+    const { rows } = await dama_db.query(
+      {
+        text,
+        values: [dama_source_name],
+      },
+      pg_env
+    );
 
     if (rows.length === 0) {
       throw new Error(`No DamaSource with name ${dama_source_name}.`);
@@ -160,13 +183,15 @@ class DamaMeta extends DamaContextAttachedResource {
   async generateInsertStatement(
     table_schema: string,
     table_name: string,
-    row: Record<string, any>
+    row: Record<string, any>,
+    pg_env = this.pg_env
   ): Promise<NodePgQueryConfig> {
     const new_row_keys = Object.keys(row);
 
     const table_description = await this.describeTable(
       table_schema,
-      table_name
+      table_name,
+      pg_env
     );
 
     const table_columns = Object.keys(table_description);
@@ -218,14 +243,23 @@ class DamaMeta extends DamaContextAttachedResource {
   async insertNewRow(
     table_schema: string,
     table_name: string,
-    row: Record<string, any>
+    row: Record<string, any>,
+    pg_env = this.pg_env
   ) {
-    const q = await this.generateInsertStatement(table_schema, table_name, row);
+    const q = await this.generateInsertStatement(
+      table_schema,
+      table_name,
+      row,
+      pg_env
+    );
 
-    return dama_db.query(q);
+    return dama_db.query(q, pg_env);
   }
 
-  async getDataSourceMaxViewId(dama_source_id: number): Promise<number> {
+  async getDataSourceMaxViewId(
+    dama_source_id: number,
+    pg_env = this.pg_env
+  ): Promise<number> {
     const text = dedent(`
       SELECT
           MAX(view_id) AS latest_view_id
@@ -234,10 +268,13 @@ class DamaMeta extends DamaContextAttachedResource {
       ;
     `);
 
-    const { rows } = await dama_db.query({
-      text,
-      values: [dama_source_id],
-    });
+    const { rows } = await dama_db.query(
+      {
+        text,
+        values: [dama_source_id],
+      },
+      pg_env
+    );
 
     if (rows.length < 1) {
       throw new Error(`No DamaView for DamaSource ${dama_source_id}`);
@@ -248,21 +285,39 @@ class DamaMeta extends DamaContextAttachedResource {
     return latest_view_id;
   }
 
-  async getDataSourceLatestViewTableColumns(dama_source_id: number) {
-    const dama_view_id = await this.getDataSourceMaxViewId(dama_source_id);
+  async getDataSourceLatestViewTableColumns(
+    dama_source_id: number,
+    pg_env = this.pg_env
+  ) {
+    const dama_view_id = await this.getDataSourceMaxViewId(
+      dama_source_id,
+      pg_env
+    );
 
-    return this.getDamaViewTableColumns(dama_view_id);
+    return this.getDamaViewTableColumns(dama_view_id, pg_env);
   }
 
-  async getInsertDamaViewRowQuery(view_meta: Record<string, any>) {
+  async getInsertDamaViewRowQuery(
+    view_meta: Record<string, any>,
+    pg_env = this.pg_env
+  ) {
     const column_names: string[] = await this.getTableColumns(
       "data_manager",
-      "views"
+      "views",
+      pg_env
     );
 
     const new_row = _.pick(view_meta, column_names);
-    new_row.etl_context_id =
-      new_row.etl_context_id || this.etl_context_id || null;
+
+    new_row.etl_context_id = new_row.etl_context_id || null;
+
+    if (!new_row.etl_context_id) {
+      try {
+        new_row.etl_context_id = this.etl_context_id;
+      } catch (err) {
+        //
+      }
+    }
 
     const cols: string[] = [];
     const queryParams: any[] = [];
@@ -319,17 +374,25 @@ class DamaMeta extends DamaContextAttachedResource {
     };
   }
 
-  async insertNewDamaView(new_dama_view: Record<string, any>) {
-    const query = await this.getInsertDamaViewRowQuery(new_dama_view);
+  async insertNewDamaView(
+    new_dama_view: Record<string, any>,
+    pg_env = this.pg_env
+  ) {
+    const query = await this.getInsertDamaViewRowQuery(new_dama_view, pg_env);
 
     const {
-      rows: [{ view_id: dama_view_id }],
-    } = await dama_db.query(query);
+      rows: [inserted],
+    } = await dama_db.query(query, pg_env);
+
+    const { view_id: dama_view_id } = inserted;
+
+    logger.debug(`dama_meta: Created new view ${dama_view_id}`);
+    logger.silly(`dama_meta: ${JSON.stringify(inserted, null, 4)}`);
 
     return { dama_view_id };
   }
 
-  async getDamaDataSources() {
+  async getDamaDataSources(pg_env = this.pg_env) {
     const sql = dedent(`
       SELECT
           source_id,
@@ -339,12 +402,16 @@ class DamaMeta extends DamaContextAttachedResource {
       ;
     `);
 
-    const { rows } = await dama_db.query(sql);
+    const { rows } = await dama_db.query(sql, pg_env);
 
     return rows;
   }
 
-  async getTableJsonSchema(table_schema: string, table_name: string) {
+  async getTableJsonSchema(
+    table_schema: string,
+    table_name: string,
+    pg_env = this.pg_env
+  ) {
     const text = dedent(`
       SELECT
           t.schema
@@ -357,10 +424,13 @@ class DamaMeta extends DamaContextAttachedResource {
       ;
     `);
 
-    const { rows } = await dama_db.query({
-      text,
-      values: [table_schema, table_name],
-    });
+    const { rows } = await dama_db.query(
+      {
+        text,
+        values: [table_schema, table_name],
+      },
+      pg_env
+    );
 
     if (rows.length === 0) {
       const table_full_name = pgFormat("%I.%I", table_schema, table_name);
@@ -375,7 +445,8 @@ class DamaMeta extends DamaContextAttachedResource {
 
   async getDamaViewProperties(
     dama_view_id: number,
-    properties: string | string[]
+    properties: string | string[],
+    pg_env = this.pg_env
   ) {
     properties = Array.isArray(properties) ? properties : [properties];
 
@@ -400,10 +471,13 @@ class DamaMeta extends DamaContextAttachedResource {
       )
     );
 
-    const { rows } = await dama_db.query({
-      text: sql,
-      values: [dama_view_id],
-    });
+    const { rows } = await dama_db.query(
+      {
+        text: sql,
+        values: [dama_view_id],
+      },
+      pg_env
+    );
 
     if (rows.length !== 1) {
       throw new Error(`Invalid DamaViewID ${dama_view_id}`);
@@ -412,37 +486,44 @@ class DamaMeta extends DamaContextAttachedResource {
     return rows[0];
   }
 
-  async getDamaViewName(dama_view_id: number) {
+  async getDamaViewName(dama_view_id: number, pg_env = this.pg_env) {
     const { dama_view_name } = await this.getDamaViewProperties(
       dama_view_id,
-      "dama_view_name"
+      "dama_view_name",
+      pg_env
     );
 
     return dama_view_name;
   }
 
-  async getDamaViewNamePrefix(dama_view_id: number) {
+  async getDamaViewNamePrefix(dama_view_id: number, pg_env = this.pg_env) {
     const { dama_view_name_prefix } = await this.getDamaViewProperties(
       dama_view_id,
-      "dama_view_name_prefix"
+      "dama_view_name_prefix",
+      pg_env
     );
 
     return dama_view_name_prefix;
   }
 
-  async getDamaViewGlobalId(dama_view_id: number) {
+  async getDamaViewGlobalId(dama_view_id: number, pg_env = this.pg_env) {
     const { dama_global_id } = await this.getDamaViewProperties(
       dama_view_id,
-      "dama_global_id"
+      "dama_global_id",
+      pg_env
     );
 
     return dama_global_id;
   }
 
-  async getDamaViewMapboxPaintStyle(dama_view_id: number) {
+  async getDamaViewMapboxPaintStyle(
+    dama_view_id: number,
+    pg_env = this.pg_env
+  ) {
     const { mapbox_paint_style } = await this.getDamaViewProperties(
       dama_view_id,
-      "dama_global_id"
+      "dama_global_id",
+      pg_env
     );
 
     return mapbox_paint_style;
@@ -451,66 +532,90 @@ class DamaMeta extends DamaContextAttachedResource {
   async generateCreateDamaSourceQuery(
     table_schema: string,
     table_name: string,
-    new_row: Record<string, any>
+    new_row: Record<string, any>,
+    pg_env = this.pg_env
   ) {
-    return this.generateInsertStatement(table_schema, table_name, new_row);
+    return this.generateInsertStatement(
+      table_schema,
+      table_name,
+      new_row,
+      pg_env
+    );
   }
 
-  async createNewDamaSource(new_row: Record<string, any>) {
+  async createNewDamaSource(
+    new_row: Record<string, any>,
+    pg_env = this.pg_env
+  ) {
     const q = await this.generateCreateDamaSourceQuery(
       "data_manager",
       "sources",
-      new_row
+      new_row,
+      pg_env
     );
 
     const {
-      rows: [newDamaSource],
-    } = await dama_db.query(q);
+      rows: [new_dama_source],
+    } = await dama_db.query(q, pg_env);
 
-    return newDamaSource;
+    logger.info(
+      `dama_meta: Created new DamaSource ${new_dama_source.source_id}`
+    );
+    logger.silly(`dama_meta: ${JSON.stringify(new_dama_source, null, 4)}`);
+
+    return new_dama_source;
   }
 
-  async generateCreateDamaViewSql(new_row: Record<string, any>) {
-    return this.generateInsertStatement("data_manager", "views", new_row);
+  async generateCreateDamaViewSql(
+    new_row: Record<string, any>,
+    pg_env = this.pg_env
+  ) {
+    return this.generateInsertStatement(
+      "data_manager",
+      "views",
+      new_row,
+      pg_env
+    );
   }
 
-  async createNewDamaView(new_row: Record<string, any>) {
-    const q = await this.generateCreateDamaViewSql(new_row);
+  async createNewDamaView(new_row: Record<string, any>, pg_env = this.pg_env) {
+    const q = await this.generateCreateDamaViewSql(new_row, pg_env);
 
     const {
-      rows: [damaSrcMeta],
-    } = await dama_db.query(q);
+      rows: [new_dama_view],
+    } = await dama_db.query(q, pg_env);
 
-    return damaSrcMeta;
+    logger.info(`dama_meta: Created new DamaView ${new_dama_view.view_id}`);
+    logger.silly(`dama_meta: ${JSON.stringify(new_dama_view, null, 4)}`);
+
+    return new_dama_view;
   }
 
-  async deleteDamaSource(dama_source_id: number) {
+  async deleteDamaSource(dama_source_id: number, pg_env = this.pg_env) {
     const deleteViews = `DELETE FROM data_manager.views where source_id = ${dama_source_id}`;
     const deleteSource = `DELETE FROM data_manager.sources where source_id = ${dama_source_id}`;
 
-    const [, , res] = await dama_db.query([
-      "BEGIN ;",
-      deleteViews,
-      deleteSource,
-      "COMMIT ;",
-    ]);
+    const [, , res] = await dama_db.query(
+      ["BEGIN ;", deleteViews, deleteSource, "COMMIT ;"],
+      pg_env
+    );
 
-    console.log("res", res);
+    logger.info("dama_meta deleteDamaSource", res);
 
     return res;
   }
 
-  async deleteDamaView(dama_view_id: number) {
+  async deleteDamaView(dama_view_id: number, pg_env = this.pg_env) {
     const sql = `DELETE FROM data_manager.views where view_id = ${dama_view_id}`;
 
-    const res = await dama_db.query(sql);
+    const res = await dama_db.query(sql, pg_env);
 
-    console.log("res", res);
+    logger.info("dama_meta deleteDamaView", res);
 
     return sql;
   }
 
-  async makeAuthoritativeDamaView(dama_view_id: number) {
+  async makeAuthoritativeDamaView(dama_view_id: number, pg_env = this.pg_env) {
     const makeViewAuthSql = `
               UPDATE data_manager.views
               set metadata = CASE WHEN metadata is null THEN '{"authoritative": "true"}' ELSE metadata::text::jsonb || '{"authoritative": "true"}'  END
@@ -523,17 +628,18 @@ class DamaMeta extends DamaContextAttachedResource {
               where source_id IN (select source_id from data_manager.views where view_id = ${dama_view_id})
               and view_id != ${dama_view_id};`;
 
-    await dama_db.query([
-      "BEGIN ;",
-      makeViewAuthSql,
-      invalidateOtherViewsSql,
-      "COMMIT ;",
-    ]);
+    await dama_db.query(
+      ["BEGIN ;", makeViewAuthSql, invalidateOtherViewsSql, "COMMIT ;"],
+      pg_env
+    );
 
     return "success";
   }
 
-  async getDamaSourceMetadataByName(dama_source_names: string[]) {
+  async getDamaSourceMetadataByName(
+    dama_source_names: string[],
+    pg_env = this.pg_env
+  ) {
     const text = dedent(`
       SELECT
           *
@@ -541,10 +647,13 @@ class DamaMeta extends DamaContextAttachedResource {
         WHERE ( name = ANY($1) )
     `);
 
-    const { rows } = await dama_db.query({
-      text,
-      values: [dama_source_names],
-    });
+    const { rows } = await dama_db.query(
+      {
+        text,
+        values: [dama_source_names],
+      },
+      pg_env
+    );
 
     const rowsByName = rows.reduce((acc: Record<string, any>, row: any) => {
       const { name } = row;
@@ -568,9 +677,14 @@ class DamaMeta extends DamaContextAttachedResource {
   }
 
   async generateToposortedLoadDataSourcesQueries(
-    toposorted_dama_sources_meta: Record<string, any>[]
+    toposorted_dama_sources_meta: Record<string, any>[],
+    pg_env = this.pg_env
   ): Promise<ToposortedLoadDataSourcesQueries> {
-    const table_cols = await this.getTableColumns("data_manager", "sources");
+    const table_cols = await this.getTableColumns(
+      "data_manager",
+      "sources",
+      pg_env
+    );
 
     const insertable_cols = table_cols.filter(
       (c) => c !== "source_dependencies"
@@ -741,19 +855,17 @@ class DamaMeta extends DamaContextAttachedResource {
   }
 
   async loadToposortedDamaSourceMetadata(
-    toposorted_dama_sources_meta: Record<string, any>[]
+    toposorted_dama_sources_meta: Record<string, any>[],
+    pg_env = this.pg_env
   ) {
-    const queries = await this.generateToposortedLoadDataSourcesQueries(
-      toposorted_dama_sources_meta
-    );
+    // NODE: Since the callback runs in the context, no need for passing pg_env.
+    return dama_db.runInTransactionContext(async () => {
+      const queries = await this.generateToposortedLoadDataSourcesQueries(
+        toposorted_dama_sources_meta
+      );
 
-    const db_cxn = await dama_db.getDbConnection();
+      const toposorted_dama_src_names: string[] = [];
 
-    await db_cxn.query("BEGIN ;");
-
-    const toposorted_dama_src_names: string[] = [];
-
-    try {
       for (const {
         name,
         exists_query,
@@ -766,13 +878,13 @@ class DamaMeta extends DamaContextAttachedResource {
 
         const {
           rows: [{ data_source_exists }],
-        } = await db_cxn.query(exists_query);
+        } = await dama_db.query(exists_query);
 
         if (data_source_exists) {
           continue;
         }
 
-        await db_cxn.query(insert_query);
+        await dama_db.query(insert_query);
 
         if (!all_source_dependency_names) {
           continue;
@@ -780,7 +892,7 @@ class DamaMeta extends DamaContextAttachedResource {
 
         const {
           rows: [{ existing_source_dependency_names }],
-        } = await db_cxn.query(
+        } = await dama_db.query(
           <NodePgQueryConfig>existing_source_dependency_names_query
         );
 
@@ -795,7 +907,9 @@ class DamaMeta extends DamaContextAttachedResource {
           );
         }
 
-        await db_cxn.query(<NodePgQueryConfig>update_source_dependencies_query);
+        await dama_db.query(
+          <NodePgQueryConfig>update_source_dependencies_query
+        );
       }
 
       const dama_src_meta_sql = dedent(`
@@ -807,12 +921,10 @@ class DamaMeta extends DamaContextAttachedResource {
 
       const dama_src_meta_values = [toposorted_dama_src_names];
 
-      const { rows: dama_src_meta_rows } = await db_cxn.query({
+      const { rows: dama_src_meta_rows } = await dama_db.query({
         text: dama_src_meta_sql,
         values: dama_src_meta_values,
       });
-
-      await db_cxn.query("COMMIT ;");
 
       const dama_src_meta_by_name = dama_src_meta_rows.reduce((acc, row) => {
         const { name } = row;
@@ -825,12 +937,7 @@ class DamaMeta extends DamaContextAttachedResource {
       );
 
       return toposorted_dama_src_meta;
-    } catch (err) {
-      await db_cxn.query("ROLLBACK ;");
-      throw err;
-    } finally {
-      db_cxn.release();
-    }
+    }, pg_env);
   }
 }
 

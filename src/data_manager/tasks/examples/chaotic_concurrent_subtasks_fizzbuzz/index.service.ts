@@ -3,11 +3,10 @@ import { join } from "path";
 import { Context } from "moleculer";
 import { FSA } from "flux-standard-action";
 
-import dama_host_id from "../../../../constants/damaHostId";
-import dama_events from "../../../events";
-
-import { getPgEnv, runInDamaContext } from "../../../contexts";
-import { getLoggerForContext } from "../../../logger";
+import dama_host_id from "constants/damaHostId";
+import dama_events from "data_manager/events";
+import { getPgEnv, runInDamaContext } from "data_manager/contexts";
+import { getLoggerForContext } from "data_manager/logger";
 
 export const service_name =
   "data_manager/dama_tasks/examples/chaotic_concurrent_subtasks_fizzbuzz";

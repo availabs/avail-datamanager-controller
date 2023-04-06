@@ -7,9 +7,9 @@ import { join } from "path";
 import { Context } from "moleculer";
 import _ from "lodash";
 
-import etlDir from "../../constants/etlDir";
+import etlDir from "constants/etlDir";
 
-import dama_db from "../dama_db";
+import dama_db from "data_manager/dama_db";
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 

@@ -12,6 +12,8 @@ import DamaContextAttachedResource, {
   runInDamaContext,
 } from "../contexts/index";
 
+import logger from "data_manager/logger";
+
 import {
   NodePgPool,
   NodePgPoolClient,
@@ -66,6 +68,11 @@ async function initializeDamaTables(dbConnection: NodePgPoolClient) {
   dbConnection.query("COMMIT ;");
 }
 
+export type DamaDbQueryOptions = {
+  // Primarily for use by dama_events so events persist even if transaction rollback.
+  outside_txn_ctx?: boolean;
+};
+
 class DamaDb extends DamaContextAttachedResource {
   private readonly _local_: LocalVariables;
 
@@ -83,7 +90,7 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   private async getDb(pg_env = this.pg_env): Promise<NodePgPool> {
-    this.logger.silly(`dama_db.getDb ${pg_env}`);
+    logger.silly(`dama_db.getDb ${pg_env}`);
 
     if (!this._local_.dbs[pg_env]) {
       let resolve: Function;
@@ -123,22 +130,35 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   // Make sure to release the connection
-  async getDbConnection(pg_env = this.pg_env) {
-    try {
-      const ctx = getContext();
+  // NOTE: outside_txn_ctx for use by dama_events so events persist if transaction rollsback.
+  async getDbConnection(
+    pg_env = this.pg_env,
+    options: DamaDbQueryOptions = {}
+  ) {
+    const { outside_txn_ctx = false } = options || {};
 
-      // TODO TODO:TODO TODO: Make sure not switching pg_env
+    if (!outside_txn_ctx) {
+      try {
+        const ctx = getContext();
 
-      // @ts-ignore
-      if (ctx.meta.__dama_db__?.txn_cxn) {
+        // TODO TODO:TODO TODO: Make sure not switching pg_env
+        if (pg_env !== ctx.meta.pgEnv) {
+          throw new Error(
+            `INCONSISTENT PgEnvs: parameter pg_env=${pg_env}, ctx.meta.pgEnv=${ctx.meta.pgEnv}`
+          );
+        }
+
         // @ts-ignore
-        return ctx.meta.__dama_db__?.txn_cxn;
+        if (ctx.meta.__dama_db__?.txn_cxn) {
+          // @ts-ignore
+          return ctx.meta.__dama_db__?.txn_cxn;
+        }
+      } catch (err) {
+        //
       }
-    } catch (err) {
-      //
     }
 
-    this.logger.silly(`dama_db.getDbConnection ${pg_env}`);
+    logger.silly(`dama_db.getDbConnection ${pg_env}`);
 
     const db = await this.getDb(pg_env);
 
@@ -150,8 +170,6 @@ class DamaDb extends DamaContextAttachedResource {
   get isInTransactionContext() {
     try {
       const ctx = getContext();
-
-      // TODO TODO:TODO TODO: Make sure not switching pg_env
 
       // @ts-ignore
       if (ctx.meta.__dama_db__) {
@@ -180,7 +198,7 @@ class DamaDb extends DamaContextAttachedResource {
 
     //  TODO: Implement SAVEPOINTs
     //        See: https://github.com/golergka/pg-tx/blob/master/src/transaction.ts
-    if (current_context.__dama_db__) {
+    if (this.isInTransactionContext) {
       throw new Error("Transaction contexts cannot be nested.");
     }
 
@@ -208,15 +226,15 @@ class DamaDb extends DamaContextAttachedResource {
       return result;
     } catch (err) {
       // @ts-ignore
-      this.logger.error(err.message);
+      logger.error(err.message);
       console.error(err);
       try {
-        this.logger.warn(`ROLLBACK TRANSACTION for txn_id=${txn_id}`);
+        logger.warn(`ROLLBACK TRANSACTION for txn_id=${txn_id}`);
         await txn_cxn.query("ROLLBACK ;");
         throw err;
       } catch (err2) {
         // @ts-ignore
-        this.logger.error(err2.message);
+        logger.error(err2.message);
         throw err2;
       }
     } finally {
@@ -227,15 +245,18 @@ class DamaDb extends DamaContextAttachedResource {
   // https://node-postgres.com/features/queries#query-config-object
   async query<T extends DamaDbQueryParamType>(
     queries: T,
-    pg_env = this.pg_env
+    pg_env = this.pg_env,
+    options: DamaDbQueryOptions = {}
   ): Promise<DamaDbQueryReturnType<T>> {
-    this.logger.silly(`dama_db.query\n${JSON.stringify(queries, null, 4)}`);
+    const { outside_txn_ctx = false } = options || {};
+
+    logger.silly(`dama_db.query\n${JSON.stringify(queries, null, 4)}`);
 
     const multi_queries = Array.isArray(queries);
 
     const sql_arr = multi_queries ? queries : [queries];
 
-    const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
+    const db = <NodePgPoolClient>await this.getDbConnection(pg_env, options);
 
     try {
       const results: NodePgQueryResult[] = [];
@@ -247,14 +268,14 @@ class DamaDb extends DamaContextAttachedResource {
 
       return (multi_queries ? results : results[0]) as DamaDbQueryReturnType<T>;
     } finally {
-      if (!this.isInTransactionContext) {
+      if (!this.isInTransactionContext || outside_txn_ctx) {
         db.release();
       }
     }
   }
 
   async executeSqlFile(sqlFilePath: string) {
-    this.logger.silly(`dama_db.executeSqlFile ${sqlFilePath}`);
+    logger.silly(`dama_db.executeSqlFile ${sqlFilePath}`);
 
     const sql = await readFileAsync(sqlFilePath, { encoding: "utf8" });
 
@@ -265,7 +286,7 @@ class DamaDb extends DamaContextAttachedResource {
 
   // TODO: Test if this works in a transaction context.
   async *makeIterator(query: string | NodePgQueryConfig, config = {}) {
-    this.logger.silly(
+    logger.silly(
       `\ndama_db.makeIterator query=\n${JSON.stringify(query, null, 4)}`
     );
 

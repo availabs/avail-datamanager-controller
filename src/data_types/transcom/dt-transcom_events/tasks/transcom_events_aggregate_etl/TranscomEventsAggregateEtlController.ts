@@ -1,25 +1,20 @@
-/*
-    TODO: 2nd DB connection to update control table so updates persist if main transaction fails
-*/
-
-import * as os from "os";
-import { mkdirSync, rmSync, existsSync, createWriteStream } from "fs";
+import { mkdirSync, rmSync, existsSync } from "fs";
 import { join } from "path";
 
+import dedent from "dedent";
 import pgFormat from "pg-format";
 
-import { getConnectedPgClient } from "../../utils/PostgreSQL";
+import dama_db from "data_manager/dama_db";
+import dama_meta from "data_manager/meta";
+import dama_events from "data_manager/events";
 
-import initializeTranscomDatabaseTables from "../db_admin/tasks/initializeTranscomDatabaseTables";
+import { getLoggerForContext } from "data_manager/logger";
+import { getEtlContextId } from "data_manager/contexts";
+
 import {
   downloadTranscomEvents,
   makeTranscomEventIdIteratorFromApiScrapeDirectory,
 } from "../transcom_events";
-
-import { dbCols as transcomEventsExpandedDbCols } from "../transcom_events_expanded/data_schema";
-
-import TranscomEventsToAdminGeographiesController from "./TranscomEventsToAdminGeographiesController";
-import TranscomEventsToConflationMapController from "./TranscomEventsToConflationMapController";
 
 import {
   downloadTranscomEventsExpanded,
@@ -30,9 +25,11 @@ import {
   getTimestamp,
   getTranscomRequestFormattedTimestamp,
 } from "../utils/dates";
-import { echoConsoleToWriteStream } from "../utils/logging";
 
-import { PgEnv, PgClient } from "../../domain/PostgreSQLTypes";
+import TranscomEventsToAdminGeographiesController from "./TranscomEventsToAdminGeographiesController";
+import TranscomEventsToConflationMapController from "./TranscomEventsToConflationMapController";
+
+const logger = getLoggerForContext();
 
 const etlBaseDir = join(__dirname, "../../../", "etl-work-dirs");
 
@@ -42,18 +39,14 @@ export default class TranscomEventsAggregateEtlControler {
   protected etlEnd: Date;
   protected etlTranscomEventsDir!: string;
   protected etlTranscomEventsExpandedDir!: string;
-  protected etlHostname: string;
-  protected etlControlId: number;
-  protected disableLogging: Function | null;
-  protected _db?: PgClient | null;
-  protected transcomEventsExpandedStagingTableName?: string;
+  protected elt_context_id: number;
 
   constructor(
     protected readonly pgEnv: PgEnv,
     protected eventsStartTime: Date | null = null,
     protected eventsEndTime: Date | null = null
   ) {
-    this.etlHostname = os.hostname() || "unknown-host-name";
+    this.elt_context_id = <number>getEtlContextId();
   }
 
   // SIDE EFFECT WARNING: etlStart initialized on first get
@@ -68,6 +61,7 @@ export default class TranscomEventsAggregateEtlControler {
     return this._etlStart;
   }
 
+  // TODO: Get the etl_work_dir from the context and replace this with a lock-file or something.
   // SIDE EFFECT WARNING: etlWorkDir initialized on first get
   //   (Facilitates extending this class.)
   protected get etlWorkDir() {
@@ -101,61 +95,10 @@ export default class TranscomEventsAggregateEtlControler {
     return this._etlWorkDir;
   }
 
-  protected async getDbConnection() {
-    if (this._db) {
-      return this._db;
-    }
-
-    if (this._db === null) {
-      throw new Error("The DB Connection as been closed.");
-    }
-
-    this._db = await getConnectedPgClient(this.pgEnv);
-
-    return this._db;
-  }
-
-  protected async closeDbConnection() {
-    if (this._db !== null) {
-      const db = this._db;
-      this._db = null;
-
-      console.log("CLOSE CONNECTION");
-      await db.end();
-    }
-  }
-
-  protected initializeEtlWorkDir() {}
-
-  protected initializeLogging() {
-    if (this.disableLogging) {
-      return;
-    }
-
-    const logFilePath = join(this.etlWorkDir, "aggregate_etl.log");
-
-    const logStream = createWriteStream(logFilePath);
-
-    const disableEchoing = echoConsoleToWriteStream(logStream);
-
-    console.log("Echoing process STDOUT and STDERR to", logFilePath);
-
-    this.disableLogging = () => {
-      disableEchoing();
-      logStream.close();
-      this.disableLogging = null;
-    };
-  }
-
-  protected initializeTranscomDatabaseTables() {
-    initializeTranscomDatabaseTables(this.pgEnv);
-  }
-
   async getTranscomEventsLatestStartDateTimeFromDatabase() {
-    const db = await this.getDbConnection();
     const {
       rows: [{ latest_start_time }],
-    } = await db.query(`
+    } = await dama_db.query(`
       SELECT
           GREATEST (
             '2010-01-01T00:00'::TIMESTAMP, -- If table is empty, start with this timetamp.
@@ -186,36 +129,16 @@ export default class TranscomEventsAggregateEtlControler {
       etlStart: this.etlStart,
       eventsStartTime: this.eventsStartTime,
       eventsEndTime: this.eventsEndTime,
-      etlHostname: this.etlHostname,
       etlWorkDir: this.etlWorkDir,
       status: "IN_PROGRESS",
       subprocesses: [],
     };
   }
 
-  protected async initializeDbControlTableEntry() {
-    const db = await this.getDbConnection();
-
-    const {
-      rows: [{ id }],
-    } = await db.query(
-      `
-        INSERT INTO _transcom_admin.etl_control (
-          start_timestamp,
-          metadata
-        ) VALUES ($1, $2)
-          RETURNING id
-      `,
-      [this.etlStart, JSON.stringify(this.initialEtlControlMetadata)]
-    );
-
-    this.etlControlId = id;
-  }
-
+  // TODO:  This should be replaced with dispatching DamaEvents.
+  //        Then, implement idempotency using the events.
   protected async updateDbControlTableEntry(path: string[], value: any) {
-    const db = await this.getDbConnection();
-
-    await db.query(
+    await dama_db.query(
       `
         UPDATE _transcom_admin.etl_control
           SET metadata = jsonb_set(metadata, $1, $2, true)
@@ -226,9 +149,7 @@ export default class TranscomEventsAggregateEtlControler {
   }
 
   protected async closeDbControlTableEntry() {
-    const db = await this.getDbConnection();
-
-    await db.query(
+    await dama_db.query(
       `
         UPDATE _transcom_admin.etl_control
           SET end_timestamp = $1
@@ -239,8 +160,13 @@ export default class TranscomEventsAggregateEtlControler {
   }
 
   protected async downloadTranscomEvents() {
-    await this.updateDbControlTableEntry(["transcom_events_download"], {
-      start_timestamp: new Date(),
+    await dama_events.dispatch({
+      type: ":START_TRANSCOM_EVENTS_DOWNLOAD",
+      // @ts-ignore
+      payload: {
+        events_start_time: this.eventsStartTime,
+        events_end_time: this.eventsEndTime,
+      },
     });
 
     await downloadTranscomEvents(
@@ -249,10 +175,9 @@ export default class TranscomEventsAggregateEtlControler {
       this.etlTranscomEventsDir
     );
 
-    await this.updateDbControlTableEntry(
-      ["transcom_events_download", "end_timestamp"],
-      new Date()
-    );
+    await dama_events.dispatch({
+      type: ":TRANSCOM_EVENTS_DOWNLOAD_DONE",
+    });
   }
 
   protected get transcomEventIdAsyncIteratorFromApiScrapeDirectory() {
@@ -267,55 +192,86 @@ export default class TranscomEventsAggregateEtlControler {
     //          update the table definition.
     //        If a type changed that would break downstream code,
     //          notify via Slack and HALT.
+    logger.debug("downloadTranscomEventsExpanded start");
 
-    await this.updateDbControlTableEntry(
-      ["transcom_events_expanded_download"],
-      {
-        start_timestamp: new Date(),
-      }
-    );
+    await dama_events.dispatch({
+      type: ":START_TRANSCOM_EVENTS_EXPANDED_DOWNLOAD",
+    });
+
+    logger.silly("dispatched :START_TRANSCOM_EVENTS_EXPANDED_DOWNLOAD");
 
     await downloadTranscomEventsExpanded(
       this.transcomEventIdAsyncIteratorFromApiScrapeDirectory,
       this.etlTranscomEventsExpandedDir
     );
 
-    await this.updateDbControlTableEntry(
-      ["transcom_events_expanded_download", "end_timestamp"],
-      new Date()
-    );
+    logger.silly("TranscomEventsExpanded downloaded");
+
+    await dama_events.dispatch({
+      type: ":TRANSCOM_EVENTS_EXPANDED_DOWNLOAD_DONE",
+    });
+
+    logger.silly("dispatched :TRANSCOM_EVENTS_EXPANDED_DOWNLOAD_DONE");
+
+    logger.debug("downloadTranscomEventsExpanded done");
+  }
+
+  protected get transcom_events_expanded_staging_table() {
+    return {
+      table_schema: "staging",
+      table_name: `transcom_events_etl_ctx_${this.elt_context_id}`,
+    };
   }
 
   protected async createTranscomEventsExpandedStagingTable() {
-    const db = await this.getDbConnection();
+    // TODO: IDEMPOTENCY
+    const { table_schema, table_name } =
+      this.transcom_events_expanded_staging_table;
 
-    this.transcomEventsExpandedStagingTableName = `staged_transcom_events_etl_id_${this.etlControlId}`;
+    const sql = dedent(
+      pgFormat(
+        `
+          CREATE SCHEMA IF NOT EXISTS staging ;
 
-    const sql = pgFormat(
-      `
-        CREATE TABLE _transcom_admin.%I (
-          LIKE _transcom_admin.transcom_events_expanded
-            INCLUDING DEFAULTS      -- necessary for _created_timestamp & _modified_timestamp
-            EXCLUDING CONSTRAINTS   -- because scrapes may violate PrimaryKey CONSTRAINT
-        ) ;
-      `,
-      this.transcomEventsExpandedStagingTableName
+          CREATE TABLE IF NOT EXISTS staging.%I (
+            LIKE _transcom_admin.transcom_events_expanded
+              INCLUDING DEFAULTS      -- necessary for _created_timestamp & _modified_timestamp
+              EXCLUDING CONSTRAINTS   -- because scrapes may violate PrimaryKey CONSTRAINT
+          ) ;
+        `,
+        table_schema,
+        table_schema,
+        table_name
+      )
     );
 
-    await db.query(sql);
+    logger.silly(sql);
+
+    await dama_db.query(sql);
+
+    await dama_events.dispatch({
+      type: ":CREATED_TRANSCOM_EVENTS_EXPANDED_STAGING_TABLE",
+      // @ts-ignore
+      payload: {
+        table_schema,
+        table_name,
+      },
+    });
   }
 
   protected async dropTranscomEventsExpandedStagingTable() {
-    const db = await this.getDbConnection();
+    // TODO: IDEMPOTENCY
 
-    this.transcomEventsExpandedStagingTableName = `staged_transcom_events_etl_id_${this.etlControlId}`;
+    const { table_schema, table_name } =
+      this.transcom_events_expanded_staging_table;
 
     const sql = pgFormat(
-      "DROP TABLE _transcom_admin.%I ;",
-      this.transcomEventsExpandedStagingTableName
+      "DROP TABLE IF EXIST %I.%I ;",
+      table_schema,
+      table_name
     );
 
-    await db.query(sql);
+    await dama_db.query(sql);
   }
 
   protected async stageTranscomEventsExpanded() {
@@ -326,13 +282,13 @@ export default class TranscomEventsAggregateEtlControler {
 
     await this.createTranscomEventsExpandedStagingTable();
 
-    const db = await this.getDbConnection();
+    const { table_schema, table_name } =
+      this.transcom_events_expanded_staging_table;
 
     await loadApiScrapeDirectoryIntoDatabase(
       this.etlTranscomEventsExpandedDir,
-      "_transcom_admin",
-      this.transcomEventsExpandedStagingTableName,
-      db
+      table_schema,
+      table_name
     );
 
     await this.updateDbControlTableEntry(["transcom_events_expanded_staging"], {
@@ -341,9 +297,8 @@ export default class TranscomEventsAggregateEtlControler {
     });
   }
 
+  // FIXME: This should create a new DamaView
   protected async setDbControlTableEtlSummary() {
-    const db = await this.getDbConnection();
-
     const sql = pgFormat(
       `
       SELECT
@@ -359,7 +314,7 @@ export default class TranscomEventsAggregateEtlControler {
       rows: [
         { num_events, min_event_start_date_time, max_event_start_date_time },
       ],
-    } = await db.query(sql);
+    } = await dama_db.query(sql);
 
     await this.updateDbControlTableEntry(["summary"], {
       num_events,
@@ -379,16 +334,19 @@ export default class TranscomEventsAggregateEtlControler {
       start_timestamp: new Date(),
     });
 
-    const db = await this.getDbConnection();
+    const transcomEventsExpandedDbCols = await dama_meta.getTableColumns(
+      "_transcom_admin",
+      "transcom_events_expanded"
+    );
 
-    const indent = `\t`.repeat(8);
+    const indent = "\t".repeat(8);
 
     const conflictActionsHolders = transcomEventsExpandedDbCols
       .map(() => `${indent}%I = EXCLUDED.%I`)
-      .join(`,\n`);
+      .join(",\n");
 
     const conflictActionFillers = transcomEventsExpandedDbCols.reduce(
-      (acc, col) => {
+      (acc: string[], col) => {
         acc.push(col);
         acc.push(col);
         return acc;
@@ -412,9 +370,11 @@ export default class TranscomEventsAggregateEtlControler {
       ...conflictActionFillers
     );
 
-    await db.query(sql);
+    logger.silly(sql);
 
-    await db.query("CLUSTER _transcom_admin.transcom_events_expanded");
+    await dama_db.query(sql);
+
+    await dama_db.query("CLUSTER _transcom_admin.transcom_events_expanded");
 
     await this.updateDbControlTableEntry(
       ["transcom_events_expanded_publish", "end_timestamp"],
@@ -427,9 +387,7 @@ export default class TranscomEventsAggregateEtlControler {
       start_timestamp: new Date(),
     });
 
-    const db = await this.getDbConnection();
-
-    await db.query("CLUSTER _transcom_admin.transcom_events_expanded");
+    await dama_db.query("CLUSTER _transcom_admin.transcom_events_expanded");
 
     await this.updateDbControlTableEntry(
       ["transcom_events_expanded_cluster", "end_timestamp"],
@@ -438,9 +396,8 @@ export default class TranscomEventsAggregateEtlControler {
   }
 
   protected async updateTranscomEventsAdminGeographies() {
-    const db = await this.getDbConnection();
     const ctrlr = new TranscomEventsToAdminGeographiesController(
-      db,
+      dama_db,
       this.etlControlId
     );
 
@@ -448,9 +405,8 @@ export default class TranscomEventsAggregateEtlControler {
   }
 
   protected async updateTranscomEventsToConflationMap() {
-    const db = await this.getDbConnection();
     const ctrlr = new TranscomEventsToConflationMapController(
-      db,
+      dama_db,
       this.etlControlId
     );
 
@@ -458,29 +414,21 @@ export default class TranscomEventsAggregateEtlControler {
   }
 
   protected async analyzeTranscomEventsExpandedTable() {
-    const db = await this.getDbConnection();
-
-    await db.query("ANALYZE _transcom_admin.transcom_events_expanded");
+    await dama_db.query("ANALYZE _transcom_admin.transcom_events_expanded");
   }
 
   protected async updateDataManagerStatistics() {
-    const db = await this.getDbConnection();
-
-    await db.query(
+    await dama_db.query(
       "CALL _transcom_admin.update_data_manager_transcom_events_aggregate_statistics() ;"
     );
   }
 
   protected async beginAggregateUpdateTransaction() {
-    const db = await this.getDbConnection();
-
-    await db.query("BEGIN;");
+    await dama_db.query("BEGIN;");
   }
 
   protected async commitAggregateUpdateTransaction() {
-    const db = await this.getDbConnection();
-
-    await db.query("COMMIT;");
+    await dama_db.query("COMMIT;");
   }
 
   protected async cleanUp() {
@@ -488,19 +436,14 @@ export default class TranscomEventsAggregateEtlControler {
     await this.updateDbControlTableEntry(["etlEnd"], this.etlEnd);
     await this.closeDbControlTableEntry();
 
-    await this.closeDbConnection();
     // this.disableLogging();
 
     rmSync(this.etlWorkDir, { recursive: true });
   }
 
   async run() {
-    // this.initializeLogging();
     try {
-      this.initializeTranscomDatabaseTables();
-
       await this.initializeRequestedTranscomEventsDateExtent();
-      await this.initializeDbControlTableEntry();
 
       await this.downloadTranscomEvents();
       await this.downloadTranscomEventsExpanded();
@@ -509,20 +452,18 @@ export default class TranscomEventsAggregateEtlControler {
       await this.doTranscomEventsQA();
 
       // BEGIN AGGREGATE BOUNDARY
-      await this.beginAggregateUpdateTransaction();
+      dama_db.runInTransactionContext(async () => {
+        await this.moveStagedTranscomEventsToPublished();
+        await this.clusterPublishedTranscomEvents();
 
-      await this.moveStagedTranscomEventsToPublished();
-      await this.clusterPublishedTranscomEvents();
+        await Promise.all([
+          this.updateTranscomEventsAdminGeographies(),
+          this.updateTranscomEventsToConflationMap(),
+        ]);
 
-      await Promise.all([
-        this.updateTranscomEventsAdminGeographies(),
-        this.updateTranscomEventsToConflationMap(),
-      ]);
-
-      await this.commitAggregateUpdateTransaction();
-
-      await this.setDbControlTableEtlSummary();
-      await this.dropTranscomEventsExpandedStagingTable();
+        await this.setDbControlTableEtlSummary();
+        await this.dropTranscomEventsExpandedStagingTable();
+      });
       // END AGGREGATE BOUNDARY
 
       // Cannot call ANALYZE within a TRANSACTION
@@ -533,10 +474,11 @@ export default class TranscomEventsAggregateEtlControler {
 
       await this.cleanUp();
 
-      console.log("done");
+      logger.info("done");
     } catch (err) {
-      console.error(err);
-      await this.closeDbConnection();
+      // @ts-ignore
+      logger.error(err.message);
+
       throw err;
     }
   }

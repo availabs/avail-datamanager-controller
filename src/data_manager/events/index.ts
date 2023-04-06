@@ -11,6 +11,7 @@ import { FSA } from "flux-standard-action";
 import DamaContextAttachedResource from "../contexts";
 
 import dama_db from "../dama_db";
+import logger from "../logger";
 
 import {
   PgEnv,
@@ -45,7 +46,7 @@ class DamaEvents extends DamaContextAttachedResource {
     parent_context_id: number | null = null,
     pg_env = this.pg_env
   ): Promise<number> {
-    this.logger.silly(
+    logger.silly(
       `dama_events.spawnEtlContext: source_id=${source_id}, parent_context_id=${parent_context_id}`
     );
 
@@ -65,14 +66,19 @@ class DamaEvents extends DamaContextAttachedResource {
         text: sql,
         values: [parent_context_id, source_id],
       },
-      pg_env
+      pg_env,
+      { outside_txn_ctx: true }
     );
 
     return new_etl_context_id;
   }
 
-  async setEtlContextSourceId(etl_context_id: number, source_id: number) {
-    this.logger.silly(
+  async setEtlContextSourceId(
+    etl_context_id: number,
+    source_id: number,
+    pg_env = this.pg_env
+  ) {
+    logger.silly(
       `dama_events.setEtlContextSourceId: etl_context_id=${etl_context_id}, source_id=${source_id}`
     );
 
@@ -82,10 +88,14 @@ class DamaEvents extends DamaContextAttachedResource {
         WHERE etl_context_id = $2
     `;
 
-    await dama_db.query({
-      text: sql,
-      values: [source_id, etl_context_id],
-    });
+    await dama_db.query(
+      {
+        text: sql,
+        values: [source_id, etl_context_id],
+      },
+      pg_env,
+      { outside_txn_ctx: true }
+    );
   }
 
   async dispatch(
@@ -130,12 +140,11 @@ class DamaEvents extends DamaContextAttachedResource {
         text: sql,
         values,
       },
-      pg_env
+      pg_env,
+      { outside_txn_ctx: true }
     );
 
-    this.logger.debug(
-      `dama_events dispatched event: ${JSON.stringify(dama_event)}`
-    );
+    logger.debug(`dama_events dispatched event: ${JSON.stringify(dama_event)}`);
 
     return dama_event;
   }
@@ -143,7 +152,8 @@ class DamaEvents extends DamaContextAttachedResource {
   // FIXME FIXME FIXME: RECURSIVE should be a configurable option.
   async queryEvents(
     since_event_id = -1,
-    etl_context_id = this.etl_context_id
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
   ): Promise<DamaEvent[]> {
     const sql = dedent(`
       WITH RECURSIVE cte_ctx_tree(etl_context_id, parent_context_id) AS (
@@ -178,10 +188,14 @@ class DamaEvents extends DamaContextAttachedResource {
           ORDER BY event_id
     `);
 
-    const { rows: dama_events } = await dama_db.query({
-      text: sql,
-      values: [etl_context_id, since_event_id],
-    });
+    const { rows: dama_events } = await dama_db.query(
+      {
+        text: sql,
+        values: [etl_context_id, since_event_id],
+      },
+      pg_env,
+      { outside_txn_ctx: true }
+    );
 
     // FIXME: Why are we doing this? Can it be deprecated without breaking anything?
     dama_events.forEach((e: FSA) => {
@@ -215,7 +229,8 @@ class DamaEvents extends DamaContextAttachedResource {
         text,
         values: [etl_context_id],
       },
-      pg_env
+      pg_env,
+      { outside_txn_ctx: true }
     );
 
     if (!initial_event) {
@@ -250,7 +265,8 @@ class DamaEvents extends DamaContextAttachedResource {
         text,
         values: [etl_context_id],
       },
-      pg_env
+      pg_env,
+      { outside_txn_ctx: true }
     );
 
     if (!final_event) {
@@ -317,7 +333,7 @@ class DamaEvents extends DamaContextAttachedResource {
     );
 
     const notifyListeners = async (etl_context_id: number | string) => {
-      this.logger.silly(
+      logger.silly(
         `dama_events.notifyListeners etl_context_id=${etl_context_id} start`
       );
 
@@ -330,7 +346,7 @@ class DamaEvents extends DamaContextAttachedResource {
           ];
 
         if (!listeners) {
-          this.logger.silly(
+          logger.silly(
             `dama_events.notifyListeners etl_context_id=${etl_context_id} has no listeners`
           );
 
@@ -343,7 +359,7 @@ class DamaEvents extends DamaContextAttachedResource {
           pg_env
         );
 
-        this.logger.silly(
+        logger.silly(
           `dama_events.notifyListeners etl_context_id=${etl_context_id} final_event=${JSON.stringify(
             final_event,
             null,
@@ -364,18 +380,19 @@ class DamaEvents extends DamaContextAttachedResource {
         ];
 
         if (listeners) {
-          this.logger.silly(
+          logger.silly(
             `dama_events.notifyListeners etl_context_id=${etl_context_id} notifying listeners`
           );
           await Promise.all(listeners.map((fn) => fn(final_event)));
         }
       } catch (err) {
-        if (/^No :FINAL event for EtlContext/.test(err.message)) {
-          this.logger.silly(
+        if (/^No :FINAL event for EtlContext/.test((<Error>err).message)) {
+          logger.silly(
             `dama_events.notifyListeners etl_context_id=${etl_context_id} no :FINAL event`
           );
         } else {
-          this.logger.error(err.message);
+          logger.error((<Error>err).message);
+          logger.error((<Error>err).stack);
         }
       }
     };
@@ -420,7 +437,10 @@ class DamaEvents extends DamaContextAttachedResource {
     }
   }
 
-  async getAllEtlContextEvents(etl_context_id = this.etl_context_id) {
+  async getAllEtlContextEvents(
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
+  ) {
     const text = dedent(`
       SELECT
           a.*
@@ -430,16 +450,21 @@ class DamaEvents extends DamaContextAttachedResource {
       ;
     `);
 
-    const { rows: events } = await dama_db.query({
-      text,
-      values: [etl_context_id],
-    });
+    const { rows: events } = await dama_db.query(
+      {
+        text,
+        values: [etl_context_id],
+      },
+      pg_env,
+      { outside_txn_ctx: true }
+    );
 
     return events;
   }
 
   async queryOpenEtlProcessesStatusUpdatesForService(
-    service_name: string
+    service_name: string,
+    pg_env = this.pg_env
   ): Promise<DamaEvent[]> {
     const q = dedent(
       pgFormat(
@@ -481,7 +506,7 @@ class DamaEvents extends DamaContextAttachedResource {
       )
     );
 
-    const { rows } = await dama_db.query(q);
+    const { rows } = await dama_db.query(q, pg_env, { outside_txn_ctx: true });
 
     if (rows.length === 0) {
       return [];
@@ -498,7 +523,8 @@ class DamaEvents extends DamaContextAttachedResource {
   //    2. All ETL processes for the service end with a ":FINAL" or ":ERROR" event
   //    3. All status update types match with /*UPDATE$/
   async queryEtlContextFinalEvent(
-    etl_context_id = this.etl_context_id
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
   ): Promise<DamaEvent | null> {
     const q = dedent(
       `
@@ -517,10 +543,14 @@ class DamaEvents extends DamaContextAttachedResource {
       `
     );
 
-    const { rows } = await dama_db.query({
-      text: q,
-      values: [etl_context_id],
-    });
+    const { rows } = await dama_db.query(
+      {
+        text: q,
+        values: [etl_context_id],
+      },
+      pg_env,
+      { outside_txn_ctx: true }
+    );
 
     if (rows.length === 0) {
       return null;

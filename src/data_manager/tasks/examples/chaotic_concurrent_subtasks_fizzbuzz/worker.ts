@@ -5,11 +5,16 @@ import { join } from "path";
 import dedent from "dedent";
 import { FSA } from "flux-standard-action";
 
-import dama_db from "../../../dama_db";
-import dama_events from "../../../events";
+import dama_db from "data_manager/dama_db";
+import dama_events from "data_manager/events";
 
-import { getEtlContextId } from "../../../contexts";
-import { getLoggerForContext, LoggingLevel } from "../../../logger";
+import {
+  TaskEtlContext,
+  getEtlContextId,
+  runInDamaContext,
+} from "data_manager/contexts";
+
+import logger, { LoggingLevel } from "data_manager/logger";
 
 import BaseTasksController from "../../BaseTasksController";
 
@@ -20,12 +25,21 @@ const task_controller = new BaseTasksController();
 const dama_task_queue_name =
   "data_manager/dama_tasks/examples/chaotic_concurrent_subtasks_fizzbuzz";
 
-const logger = getLoggerForContext();
-logger.level = process.env.AVAIL_LOGGING_LEVEL || LoggingLevel.debug;
-
 const worker_path = join(__dirname, "./subtask_worker.ts");
 
-export default async function main(initial_event: FSA): Promise<FSA> {
+export type InitialEvent = {
+  type: ":INITIAL";
+  payload: {
+    n: number;
+    iterations: number;
+    chaos_factor: number;
+  };
+};
+
+// Runs in TaskEtlContext
+export async function main(initial_event: InitialEvent): Promise<FSA> {
+  logger.level = process.env.AVAIL_LOGGING_LEVEL || LoggingLevel.debug;
+
   logger.debug("subtasks_workflow worker main start");
 
   const heartbeat_interval = setInterval(
@@ -173,3 +187,8 @@ export default async function main(initial_event: FSA): Promise<FSA> {
     payload: { summary },
   };
 }
+
+export default (etl_context: TaskEtlContext) =>
+  runInDamaContext(etl_context, () =>
+    main(<InitialEvent>etl_context.initial_event)
+  );

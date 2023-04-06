@@ -230,15 +230,26 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     const AVAIL_DAMA_ETL_CONTEXT_ID = `${etl_context_id}`;
 
     try {
-      await execa("node", ["--require", "ts-node/register", task_runner_path], {
-        env: {
-          ...process.env,
-          AVAIL_DAMA_PG_ENV: this.pg_env,
-          AVAIL_DAMA_ETL_CONTEXT_ID,
-        },
-        detached: true,
-        stdio: "ignore",
-      });
+      await execa(
+        "node",
+        [
+          // https://www.npmjs.com/package/tsconfig-paths#register
+          "--require",
+          "tsconfig-paths/register",
+          "--require",
+          "ts-node/register",
+          task_runner_path,
+        ],
+        {
+          env: {
+            ...process.env,
+            AVAIL_DAMA_PG_ENV: this.pg_env,
+            AVAIL_DAMA_ETL_CONTEXT_ID,
+          },
+          detached: true,
+          stdio: "ignore",
+        }
+      );
 
       return;
     } catch (err) {
@@ -250,8 +261,11 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
           );
           return await this.handleDuplicateTask(pg_env, etl_context_id);
         default:
-          this.logger.error(err);
-          this.logger.error(`ExecaErrorCode: ${(<ExecaError>err).exitCode}`);
+          this.logger.error(
+            `==> TaskController: etl_context_id=${etl_context_id}; ExecaErrorCode: ${
+              (<ExecaError>err).exitCode
+            }`
+          );
           throw err;
       }
     }

@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "async_hooks";
 
 import { Logger } from "winston";
 
-import { getLoggerForProcess } from "../logger";
+import logger from "../logger";
 import { PgEnv } from "../dama_db/postgres/PostgreSQL";
 
 export type EtlContext = Record<string, any> & {
@@ -10,6 +10,15 @@ export type EtlContext = Record<string, any> & {
   meta: {
     pgEnv: PgEnv;
     etl_context_id?: number | null;
+  };
+};
+
+export type TaskEtlContext = {
+  initial_event: Record<string, any>;
+  logger: Logger;
+  meta: {
+    pgEnv: PgEnv;
+    etl_context_id: number;
   };
 };
 
@@ -23,6 +32,26 @@ export function getContext(): EtlContext {
   }
 
   return ctx;
+}
+
+export function isInEtlContext(): boolean {
+  try {
+    const ctx = getContext();
+
+    return !!ctx?.meta?.pgEnv;
+  } catch (err) {
+    return false;
+  }
+}
+
+export function isInTaskEtlContext(): boolean {
+  try {
+    const ctx = getContext();
+
+    return !!(ctx?.meta?.pgEnv && ctx.meta.etl_context_id && ctx.initial_event);
+  } catch (err) {
+    return false;
+  }
 }
 
 export function getPgEnv(): PgEnv {
@@ -48,13 +77,6 @@ export function getEtlContextId(): number | null {
 }
 
 export function getLogger(): Logger {
-  const {
-    // NOTE:  We could get the context-level logger using getPgEnv and getEtlContextId,
-    //          but we want to allow developer choice.
-    // @ts-ignore
-    logger = getLoggerForProcess(),
-  } = getContext();
-
   return logger;
 }
 
@@ -73,8 +95,19 @@ export default class DamaContextAttachedResource {
 }
 
 // NOTE: Can use getContext to get the parent_context.
-export const runInDamaContext = (store: EtlContext, fn: () => unknown) =>
-  dama_context_async_local_storage.run(store, fn);
+export const runInDamaContext = (store: EtlContext, fn: () => unknown) => {
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperty
+  // Currently causes the following error:
+  //    >> ERROR:
+  //    TypeError: Cannot assign to read only property 'pgEnv' of object '#<Object>'
+  // Changing the pgEnv could be very bad.
+  // Object.defineProperty(store.meta, "pgEnv", {
+  //   configurable: false,
+  //   writable: false,
+  // });
+
+  return dama_context_async_local_storage.run(store, fn);
+};
 
 /*
 // NOTE: Can use getContext to get the parent_context.

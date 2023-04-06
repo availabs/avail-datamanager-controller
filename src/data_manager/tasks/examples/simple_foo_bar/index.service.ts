@@ -1,19 +1,17 @@
 import { join } from "path";
 
-import { Context } from "moleculer";
+import { Context as MoleculerContext } from "moleculer";
 import { FSA } from "flux-standard-action";
 
-import dama_host_id from "../../../../constants/damaHostId";
+import dama_host_id from "constants/damaHostId";
 
-import dama_events from "../../../events";
-import { getPgEnv, runInDamaContext } from "../../../contexts";
-import { getLoggerForContext } from "../../../logger";
+import dama_events from "data_manager/events";
+import { getPgEnv, runInDamaContext } from "data_manager/contexts";
+import { getLoggerForContext } from "data_manager/logger";
 
 export const service_name = "data_manager/tasks/examples/simple_foo_bar";
 
 const dama_task_queue_name = service_name;
-
-const worker_path = join(__dirname, "./worker.ts");
 
 // AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=495 node --require ts-node/register src/data_manager/tasks/TaskRunner.ts
 
@@ -26,7 +24,7 @@ export default {
     startTaskQueue: {
       visibility: "public",
 
-      async handler(ctx: Context) {
+      async handler(ctx: MoleculerContext) {
         await ctx.call("dama/tasks.registerTaskQueue", {
           dama_task_queue_name,
           options: {
@@ -46,7 +44,16 @@ export default {
     sendIt: {
       visibility: "public",
 
-      async handler(ctx: Context) {
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { with_ctx = 1 },
+        } = ctx;
+
+        const fname = `worker.${+with_ctx ? "with" : "without"}-context.ts`;
+
+        const worker_path = join(__dirname, fname);
+
         const dama_task_descr = {
           dama_task_queue_name,
           worker_path,
@@ -86,8 +93,17 @@ export default {
     runWorkerOutsideDamaQueue: {
       visibility: "public",
 
-      async handler() {
+      async handler(ctx: MoleculerContext) {
         try {
+          const {
+            // @ts-ignore
+            params: { with_ctx = 1 },
+          } = ctx;
+
+          const fname = `worker.${with_ctx ? "with" : "without"}-context.ts`;
+
+          const worker_path = join(__dirname, fname);
+
           const etl_context_id = await dama_events.spawnEtlContext();
 
           const pgEnv = getPgEnv();

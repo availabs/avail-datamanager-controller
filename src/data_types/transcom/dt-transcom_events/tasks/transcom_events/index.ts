@@ -3,14 +3,15 @@ import {
   createReadStream,
   createWriteStream,
   mkdirSync,
-  readFileSync,
 } from "fs";
+
 import { createGzip, createGunzip } from "zlib";
 import { join } from "path";
 import { pipeline } from "stream";
 import { promisify } from "util";
 
-import got from "got";
+import fetch from "node-fetch";
+
 import { format as csvFormat, CsvFormatterStream } from "fast-csv";
 
 import _ from "lodash";
@@ -18,16 +19,31 @@ import split from "split2";
 import pgFormat from "pg-format";
 import { from as copyFrom } from "pg-copy-streams";
 
-import { Client } from "pg";
+import dama_host_id from "constants/damaHostId";
+import etl_dir from "constants/etlDir";
+
+import dama_db from "data_manager/dama_db";
+import dama_events from "data_manager/events";
+import logger from "data_manager/logger";
 
 import {
+  getPgEnv,
+  getEtlContextId,
+  isInTaskEtlContext,
+} from "data_manager/contexts";
+
+import { getTimestamp } from "data_utils/time";
+
+import {
+  getTranscomRequestFormattedTimestamp,
   validateTranscomRequestTimestamp,
   partitionTranscomRequestTimestampsByMonth,
-  getNowTimestamp,
   TranscomApiRequestTimestamp,
 } from "../utils/dates";
 
-import { RawTranscomEvent, ProtoTranscomEvent } from "./index.d";
+import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
+
+import { RawTranscomEvent, ProtoTranscomEvent } from "../../../domain";
 
 import { url, apiResponsePropsToDbCols, dbCols } from "./data_schema";
 
@@ -35,35 +51,40 @@ const pipelineAsync = promisify(pipeline);
 
 const DEFAULT_SLEEP_MS = 10 * 1000; // 10 seconds
 
-function getRawTranscomEventsFileName(
-  startTimestamp: TranscomApiRequestTimestamp,
-  endTimestamp: TranscomApiRequestTimestamp
-) {
-  const start = startTimestamp.replace(/-|:/g, "").replace(/ /, "T");
-  const end = endTimestamp.replace(/-|:/g, "").replace(/ /, "T");
+export type InitialEvent = {
+  type: ":INITIAL";
+  payload: {
+    start_timestamp: string;
+    end_timestamp: string;
+  };
+};
 
-  return `raw-transcom-events.${start}-${end}.${getNowTimestamp()}.ndjson.gz`;
-}
-
-function getAuthenticationToken() {
-  const p = join(__dirname, "./config/authenticationtoken");
-  const t = readFileSync(p, { encoding: "utf8" }).trim();
-
-  return t;
-}
+export type FinalEvent = {
+  type: ":FINAL";
+  payload: {
+    start_timestamp: string;
+    end_timestamp: string;
+    etl_work_dir: string;
+  };
+  meta: {
+    dama_host_id: string;
+  };
+};
 
 export async function* makeRawTranscomEventIterator(
-  startTimestamp: string,
-  endTimestamp: string,
+  transcom_start_timestamp: string,
+  transcom_end_timestamp: string,
   sleepMs: number = DEFAULT_SLEEP_MS
 ): AsyncGenerator<RawTranscomEvent> {
-  validateTranscomRequestTimestamp(startTimestamp);
-  validateTranscomRequestTimestamp(endTimestamp);
+  validateTranscomRequestTimestamp(transcom_start_timestamp);
+  validateTranscomRequestTimestamp(transcom_end_timestamp);
 
   const partitionedDateTimes = partitionTranscomRequestTimestampsByMonth(
-    startTimestamp,
-    endTimestamp
+    transcom_start_timestamp,
+    transcom_end_timestamp
   );
+
+  const tokenCollector = new TranscomAuthTokenCollector();
 
   for (const [partitionStartTime, partitionEndTime] of partitionedDateTimes) {
     const reqBody = {
@@ -87,25 +108,36 @@ export async function* makeRawTranscomEventIterator(
       tripIds: "",
     };
 
-    const authenticationtoken = getAuthenticationToken();
+    logger.silly(`reqBody=${JSON.stringify(reqBody, null, 4)}`);
 
-    console.log("authenticationtoken:", authenticationtoken);
+    const authenticationtoken = await tokenCollector.getJWT();
+
+    logger.silly(`authenticationtoken: ${authenticationtoken}`);
 
     const options = {
+      method: "POST",
+
       searchParams: {
         userId: 78,
       },
 
       headers: {
-        authenticationtoken,
+        "Content-Type": "application/json",
+        authenticationtoken: `Bearer ${authenticationtoken}`,
       },
 
-      json: reqBody,
+      body: JSON.stringify(reqBody),
     };
 
-    console.log("makeRawTranscomEventIterator: start");
-    const { data: events } = await got.post(url, options).json();
-    console.log("makeRawTranscomEventIterator: done");
+    logger.debug("makeRawTranscomEventIterator sending request");
+
+    const response = await fetch(`${url}?userId=78`, options);
+
+    logger.debug("makeRawTranscomEventIterator got response");
+
+    const { data: events } = await response.json();
+
+    logger.debug(`makeRawTranscomEventIterator got ${events?.length} events`);
 
     if (Array.isArray(events)) {
       for (const event of events) {
@@ -115,22 +147,30 @@ export async function* makeRawTranscomEventIterator(
 
     await new Promise((resolve) => setTimeout(resolve, sleepMs));
   }
+
+  await tokenCollector.close();
 }
 
 export function transformRawTranscomEventToProtoTranscomEvent(
   rawTranscomEvent: RawTranscomEvent
-) {
+): ProtoTranscomEvent {
   const d = _(rawTranscomEvent)
     .mapKeys((_v, k) => apiResponsePropsToDbCols[k])
     .mapValues((v) => (v === "" ? null : v))
     .value();
 
-  // @ts-ignore
-  d.event_type = d.event_type?.toLowerCase();
-  // @ts-ignore
-  d.direction = d.direction?.toLowerCase();
-  // @ts-ignore
-  d.event_status = d.event_status?.toLowerCase();
+  d.event_type =
+    typeof d.event_type === "string"
+      ? d.event_type?.toLowerCase()
+      : d.event_type;
+
+  d.direction =
+    typeof d.direction === "string" ? d.direction?.toLowerCase() : d.direction;
+
+  d.event_status =
+    typeof d.event_status === "string"
+      ? d.event_status?.toLowerCase()
+      : d.event_status;
 
   return <ProtoTranscomEvent>d;
 }
@@ -171,8 +211,7 @@ export function protoTranscomEventIteratorToCsvStream(
 export async function loadProtoTranscomEventsIntoDatabase(
   protoTranscomEventIter: AsyncGenerator<ProtoTranscomEvent>,
   schemaName: string,
-  tableName: string,
-  db: Client
+  tableName: string
 ) {
   // NOTE: using the transcomEventsDatabaseTableColumns array
   //       keeps column order consistent with transcomEventsCsvStream
@@ -184,6 +223,8 @@ export async function loadProtoTranscomEventsIntoDatabase(
     tableName,
     ...dbCols
   );
+
+  const db = await dama_db.getDbConnection();
 
   const pgCopyStream = db.query(copyFrom(sql));
 
@@ -202,7 +243,7 @@ export function makeRawTranscomEventIteratorFromApiScrapeFile(
     createReadStream(filePath),
     createGunzip(),
     split(JSON.parse),
-    (err) => {
+    (err: any) => {
       if (err) {
         throw err;
       }
@@ -245,8 +286,7 @@ export async function* makeTranscomEventIdIteratorFromApiScrapeDirectory(
 export async function loadApiScrapeDirectoryIntoDatabase(
   apiScrapeDir: string,
   schemaName: string,
-  tableName: string,
-  db: Client
+  tableName: string
 ) {
   const rawEventIter =
     makeRawTranscomEventIteratorFromApiScrapeDirectory(apiScrapeDir);
@@ -257,70 +297,178 @@ export async function loadApiScrapeDirectoryIntoDatabase(
   await loadProtoTranscomEventsIntoDatabase(
     protoTranscomEventIter,
     schemaName,
-    tableName,
-    db
+    tableName
   );
 }
 
-export async function downloadTranscomEvents(
-  startTimestamp: TranscomApiRequestTimestamp,
-  endTimestamp: TranscomApiRequestTimestamp,
-  outputDir: string
+export async function downloadTranscomEventsForDateRange(
+  start_ts: TranscomApiRequestTimestamp,
+  end_ts: TranscomApiRequestTimestamp,
+  etl_work_dir: string
 ) {
-  console.log(
-    JSON.stringify({ startTimestamp, endTimestamp, outputDir }, null, 4)
-  );
-  mkdirSync(outputDir, { recursive: true });
+  const start = start_ts.replace(/-|:/g, "").replace(/ /, "T");
+  const end = end_ts.replace(/-|:/g, "").replace(/ /, "T");
 
-  const monthPartitions = partitionTranscomRequestTimestampsByMonth(
-    startTimestamp,
-    endTimestamp
-  );
+  const fname = `raw-transcom-events.${start}-${end}.${getTimestamp()}.ndjson.gz`;
+  const fpath = join(etl_work_dir, fname);
 
-  for (const [monthStartTimestamp, monthEndTimestamp] of monthPartitions) {
-    const filename = getRawTranscomEventsFileName(
-      monthStartTimestamp,
-      monthEndTimestamp
-    );
+  logger.silly(`downloading events ${start_ts} to ${end_ts} into ${fpath}`);
 
-    try {
-      const filepath = join(outputDir, filename);
+  try {
+    const ws = createWriteStream(fpath);
+    const gzip = createGzip();
 
-      const ws = createWriteStream(filepath);
-      const gzip = createGzip();
+    const done = new Promise((resolve, reject) => {
+      ws.once("error", reject);
+      ws.once("finish", resolve);
+    });
 
-      const done = new Promise((resolve, reject) => {
-        ws.once("error", reject);
-        ws.once("finish", resolve);
-      });
+    gzip.pipe(ws);
 
-      gzip.pipe(ws);
+    const iter = makeRawTranscomEventIterator(start_ts, end_ts);
 
-      const iter = makeRawTranscomEventIterator(
-        monthStartTimestamp,
-        monthEndTimestamp
-      );
+    let count = 0;
 
-      let count = 0;
+    for await (const event of iter) {
+      ++count;
 
-      for await (const event of iter) {
-        ++count;
+      const ready = gzip.write(`${JSON.stringify(event)}\n`);
 
-        let ready = gzip.write(`${JSON.stringify(event)}\n`);
-
-        if (!ready) {
-          await new Promise((resolve) => gzip.once("drain", resolve));
-        }
+      if (!ready) {
+        await new Promise((resolve) => gzip.once("drain", resolve));
       }
 
-      gzip.end();
-
-      console.log(`"${filename}":`, count);
-
-      await done;
-    } catch (err) {
-      console.error("ERROR downloading", filename);
-      console.error(err);
+      if (count % 100 === 0) {
+        logger.silly(
+          `downloaded events ${
+            count - 99
+          }-${count} for ${start_ts} to ${end_ts}`
+        );
+      }
     }
+
+    gzip.end();
+
+    await done;
+
+    logger.info(
+      `${count} events downloaded for ${start_ts} to ${end_ts} into ${fname}`
+    );
+
+    return fpath;
+  } catch (err) {
+    logger.error(`===== ERROR downloading ${fname} =====`);
+    throw err;
+  }
+}
+
+export default async function main(
+  initial_event: InitialEvent
+): Promise<FinalEvent> {
+  if (!isInTaskEtlContext) {
+    throw new Error("MUST run in a TaskEtlContext");
+  }
+
+  try {
+    const {
+      payload: { start_timestamp, end_timestamp },
+    }: InitialEvent = initial_event;
+
+    const events = await dama_events.getAllEtlContextEvents();
+
+    let final_event = events.find((e) => /:FINAL$/.test(e.type));
+
+    if (final_event) {
+      logger.warn("Task already DONE");
+      return final_event;
+    }
+
+    logger.info(`:INITIAL event ${JSON.stringify(initial_event, null, 4)}`);
+
+    const etl_work_dir = join(
+      etl_dir,
+      `transcom.download_transcom_events.pg_env_${getPgEnv()}.etl_context_${getEtlContextId()}`
+    );
+
+    mkdirSync(etl_work_dir, { recursive: true });
+
+    const transcom_start_timestamp: TranscomApiRequestTimestamp =
+      getTranscomRequestFormattedTimestamp(start_timestamp);
+
+    const transcom_end_timestamp: TranscomApiRequestTimestamp =
+      getTranscomRequestFormattedTimestamp(end_timestamp);
+
+    const month_partitions = partitionTranscomRequestTimestampsByMonth(
+      transcom_start_timestamp,
+      transcom_end_timestamp
+    );
+
+    logger.info(
+      `downloading TRANCOM events for ${transcom_start_timestamp} to ${transcom_end_timestamp}`
+    );
+
+    logger.silly(
+      `starting download of month_partitions ${JSON.stringify(
+        month_partitions,
+        null,
+        4
+      )}`
+    );
+
+    for (const [start_ts, end_ts] of month_partitions) {
+      const download_done_event = {
+        type: ":TRANSCOM_EVENTS_DOWNLOADED",
+        // @ts-ignore
+        payload: {
+          start_ts,
+          end_ts,
+        },
+      };
+
+      if (events.some((e) => _.isEqual(e, download_done_event))) {
+        logger.debug(
+          `IDEMPOTENCY: TRANSCOM events already downloaded for ${start_ts} to ${end_ts}`
+        );
+
+        continue;
+      }
+
+      await downloadTranscomEventsForDateRange(start_ts, end_ts, etl_work_dir);
+
+      // @ts-ignore
+      await dama_events.dispatch(download_done_event);
+    }
+
+    final_event = {
+      type: ":FINAL",
+      payload: {
+        start_timestamp,
+        end_timestamp,
+        etl_work_dir,
+      },
+      meta: {
+        dama_host_id,
+      },
+    };
+
+    // @ts-ignore
+    await dama_events.dispatch(final_event);
+
+    return final_event;
+  } catch (err) {
+    logger.error((<Error>err).message);
+    logger.error((<Error>err).stack);
+
+    await dama_events.dispatch({
+      type: ":ERROR",
+      // @ts-ignore
+      payload: {
+        message: (<Error>err).message,
+        stack: (<Error>err).stack,
+      },
+      error: true,
+    });
+
+    throw err;
   }
 }
