@@ -161,12 +161,12 @@ export function postgresEnvVariablesToNodePgCreds(pgCreds: PsqlConfig) {
   return nodePgCreds;
 }
 
-export const getNodePgCredentials = (pgEnv: PgEnv) => {
+export const getNodePgCredentials = (pgEnv: PgEnv): NodePgConfig => {
   const pgCreds = getPsqlCredentials(pgEnv);
 
-  console.log(
-    JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
-  );
+  // console.log(
+  // JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
+  // );
 
   return postgresEnvVariablesToNodePgCreds(pgCreds);
 };
@@ -185,15 +185,16 @@ export const getPostgresConnectionString = (pgEnv: PgEnv) => {
   return connStr;
 };
 
-// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
-export const getPostgresConnectionUri = (pgEnv: PgEnv) => {
+export const getPostgresConnectionUriForNodePgCredentials = (
+  creds: NodePgConfig
+) => {
   const {
     user = null,
     host = "localhost",
     database = null,
     password = null,
     port = 5432,
-  } = getNodePgCredentials(pgEnv);
+  } = creds;
 
   let url = "postgresql://";
 
@@ -218,6 +219,13 @@ export const getPostgresConnectionUri = (pgEnv: PgEnv) => {
   return url;
 };
 
+// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+export const getPostgresConnectionUri = (pgEnv: PgEnv) => {
+  const creds = getNodePgCredentials(pgEnv);
+
+  return getPostgresConnectionUriForNodePgCredentials(creds);
+};
+
 // Make sure to call db.end() or Node will hang.
 export async function getConnectedNodePgClient(
   pgEnv: PgEnv
@@ -237,7 +245,6 @@ export async function getConnectedNodePgPool(
   const nodePgCreds = getNodePgCredentials(pgEnv);
 
   const db = new Pool(nodePgCreds);
-  await db.connect();
 
   return db;
 }

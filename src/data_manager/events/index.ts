@@ -66,8 +66,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text: sql,
         values: [parent_context_id, source_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     return new_etl_context_id;
@@ -93,8 +92,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text: sql,
         values: [source_id, etl_context_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
   }
 
@@ -140,8 +138,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text: sql,
         values,
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     logger.debug(`dama_events dispatched event: ${JSON.stringify(dama_event)}`);
@@ -193,8 +190,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text: sql,
         values: [etl_context_id, since_event_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     // FIXME: Why are we doing this? Can it be deprecated without breaking anything?
@@ -229,8 +225,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text,
         values: [etl_context_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     if (!initial_event) {
@@ -265,8 +260,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text,
         values: [etl_context_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     if (!final_event) {
@@ -455,8 +449,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text,
         values: [etl_context_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     return events;
@@ -506,7 +499,7 @@ class DamaEvents extends DamaContextAttachedResource {
       )
     );
 
-    const { rows } = await dama_db.query(q, pg_env, { outside_txn_ctx: true });
+    const { rows } = await dama_db.query(q, pg_env);
 
     if (rows.length === 0) {
       return [];
@@ -548,8 +541,7 @@ class DamaEvents extends DamaContextAttachedResource {
         text: q,
         values: [etl_context_id],
       },
-      pg_env,
-      { outside_txn_ctx: true }
+      pg_env
     );
 
     if (rows.length === 0) {

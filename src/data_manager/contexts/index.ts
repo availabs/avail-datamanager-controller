@@ -1,8 +1,11 @@
 import { AsyncLocalStorage } from "async_hooks";
+import { inspect } from "util";
 
 import { Logger } from "winston";
+import _ from "lodash";
 
-import logger from "../logger";
+import logger, { getLoggerForProcess } from "data_manager/logger";
+
 import { PgEnv } from "../dama_db/postgres/PostgreSQL";
 
 export type EtlContext = Record<string, any> & {
@@ -13,7 +16,7 @@ export type EtlContext = Record<string, any> & {
   };
 };
 
-export type TaskEtlContext = {
+export type TaskEtlContext = EtlContext & {
   initial_event: Record<string, any>;
   logger: Logger;
   meta: {
@@ -78,6 +81,19 @@ export function getEtlContextId(): number | null {
 
 export function getLogger(): Logger {
   return logger;
+}
+
+// For debugging
+export function logContextInfo() {
+  const proc_logger = getLoggerForProcess();
+
+  try {
+    const ctx = getContext();
+
+    proc_logger.info(inspect(_.omit(ctx, "logger")));
+  } catch (err) {
+    proc_logger.info("Not in a context");
+  }
 }
 
 export default class DamaContextAttachedResource {

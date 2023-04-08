@@ -1,4 +1,5 @@
 *
 !postgres.template.env
+!postgres.test_db.env
 !.gitignore
 dama_host_id

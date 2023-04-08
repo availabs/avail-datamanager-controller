@@ -29,10 +29,6 @@ export const getLoggerForProcess = memoize(() => {
     env: { AVAIL_DAMA_PG_ENV, AVAIL_DAMA_ETL_CONTEXT_ID },
   } = process;
 
-  if (!AVAIL_DAMA_PG_ENV) {
-    throw new Error("No AVAIL_DAMA_PG_ENV ENV variable.");
-  }
-
   const PG_ENV = <string>AVAIL_DAMA_PG_ENV;
 
   // @ts-ignore
@@ -58,15 +54,6 @@ export const getLoggerForProcess = memoize(() => {
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef
 // https://v8.dev/features/weak-references
 const etl_context_loggers: Record<string, WeakRef<WinstonLogger>> = {};
-
-// Deletes entry from the etl_context_loggers object after WinstonLogger is garbage collected.
-setInterval(() => {
-  for (const k of Object.keys(etl_context_loggers)) {
-    if (!etl_context_loggers[k]?.deref()) {
-      delete etl_context_loggers[k];
-    }
-  }
-}, 60000);
 
 export const getSimpleConsoleLogger = memoize(
   (
@@ -107,6 +94,14 @@ export function getLoggerForContext(
   const logger_weak_ref = new WeakRef(logger);
 
   etl_context_loggers[k] = logger_weak_ref;
+
+  process.nextTick(() => {
+    for (const _k of Object.keys(etl_context_loggers)) {
+      if (!etl_context_loggers[_k]?.deref()) {
+        delete etl_context_loggers[_k];
+      }
+    }
+  });
 
   return logger;
 }

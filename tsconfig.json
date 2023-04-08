@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "baseUrl": "./src",
+    "baseUrl": "src",
+    "paths": {
+      "src/*": ["src/*"]
+    },
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

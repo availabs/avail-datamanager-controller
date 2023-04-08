@@ -10,7 +10,7 @@ module.exports = {
     project: "tsconfig.json",
     sourceType: "module",
   },
-  plugins: ["import", "@typescript-eslint"],
+  plugins: ["import", "@typescript-eslint", "eslint-plugin-tsdoc"],
   rules: {
     "@typescript-eslint/adjacent-overload-signatures": "error",
     "@typescript-eslint/array-type": "off",
@@ -131,6 +131,7 @@ module.exports = {
       },
     ],
     "spaced-comment": "error",
+    "tsdoc/syntax": "warn",
     "use-isnan": "error",
     "valid-typeof": "off",
   },

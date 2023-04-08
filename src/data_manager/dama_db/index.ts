@@ -154,49 +154,38 @@ class DamaDb extends DamaContextAttachedResource {
    *        The client.release method is disabled and handled by the TransactionContext.
    *
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
-   * @param _options_ - Intended to be used ONLY internally by data_manager core modules.
    *
    * @returns a node-pg [Client](https://node-postgres.com/apis/client)
    */
-  async getDbConnection(
-    pg_env = this.pg_env,
-    _options_: DamaDbQueryOptions = {}
-  ): Promise<NodePgPoolClient> {
-    const { outside_txn_ctx = false } = _options_ || {};
+  async getDbConnection(pg_env = this.pg_env): Promise<NodePgPoolClient> {
+    logger.silly(`dama_db.getDbConnection ${pg_env}`);
 
-    if (!outside_txn_ctx) {
-      try {
-        const ctx = getContext();
+    if (this.isInTransactionContext) {
+      const ctx = getContext();
 
-        // TODO TODO:TODO TODO: Make sure not switching pg_env
-        if (pg_env !== ctx.meta.pgEnv) {
-          throw new Error(
-            `INCONSISTENT PgEnvs: parameter pg_env=${pg_env}, ctx.meta.pgEnv=${ctx.meta.pgEnv}`
-          );
-        }
-
-        // @ts-ignore
-        if (ctx.meta.__dama_db__?.txn_cxn) {
-          // @ts-ignore
-          return ctx.meta.__dama_db__?.txn_cxn;
-        }
-      } catch (err) {
-        //
+      // TODO TODO:TODO TODO: Make sure not switching pg_env
+      if (pg_env !== this.pg_env) {
+        throw new Error(
+          `INCONSISTENT PgEnvs: parameter pg_env=${pg_env}, ctx.meta.pgEnv=${ctx.meta.pgEnv}`
+        );
       }
+
+      logger.silly(
+        // @ts-ignore
+        `dama_db.getDbConnection returning connection for ${ctx.meta.__dama_db__.txn_id}`
+      );
+
+      // @ts-ignore
+      return ctx.meta.__dama_db__.txn_cxn;
     }
 
-    logger.silly(`dama_db.getDbConnection ${pg_env}`);
+    logger.silly(
+      "dama_db.getDbConnection returning non-transaction context connection"
+    );
 
     const db = await this.getDb(pg_env);
 
     const connection = await db.connect();
-
-    if (this.isInTransactionContext) {
-      connection.release = () =>
-        logger.debug(
-          "Disabling connection.release because isInTransactionContext"
-        );
-    }
 
     return connection;
   }
@@ -259,8 +248,22 @@ class DamaDb extends DamaContextAttachedResource {
     }
 
     // NOTE: Not yet isInTransactionContext, therefore release not disabled.
-    const txn_cxn = await this.getDbConnection(pg_env);
+    const db = await this.getDbConnection(pg_env);
     const txn_id = uuid();
+
+    const txn_cxn = <NodePgPoolClient>new Proxy(
+      {},
+      {
+        get(_target, prop) {
+          if (prop === "release") {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            return () => {};
+          }
+
+          return typeof db[prop] === "function" ? db[prop].bind(db) : db[prop];
+        },
+      }
+    );
 
     const meta = {
       ...current_context.meta,
@@ -274,28 +277,32 @@ class DamaDb extends DamaContextAttachedResource {
     };
 
     try {
-      await txn_cxn.query("BEGIN ;");
+      await db.query("BEGIN ;");
 
       const result = await runInDamaContext(txn_context, fn);
 
-      await txn_cxn.query("COMMIT ;");
+      logger.silly("COMMITING", txn_id);
+
+      await db.query("COMMIT ;");
 
       return result;
     } catch (err) {
       // @ts-ignore
-      logger.error(err.message);
-      console.error(err);
+      logger.debug((<Error>err).message);
+      logger.debug((<Error>err).stack);
+
       try {
-        logger.warn(`ROLLBACK TRANSACTION for txn_id=${txn_id}`);
-        await txn_cxn.query("ROLLBACK ;");
+        logger.debug(`ROLLBACK TRANSACTION for txn_id=${txn_id}`);
+        await db.query("ROLLBACK ;");
         throw err;
       } catch (err2) {
         // @ts-ignore
-        logger.error(err2.message);
+        logger.debug(err2.message);
         throw err2;
       }
     } finally {
-      txn_cxn.release();
+      logger.silly("release txn_context", txn_id);
+      db.release();
     }
   }
 
@@ -305,24 +312,20 @@ class DamaDb extends DamaContextAttachedResource {
    * @param queries - The database query or queries to execute. A query may be expressed either as a string
    *    or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
-   * @param _options_ - Intended to be used ONLY internally by data_manager core modules.
    *
    * @returns the [result](https://node-postgres.com/apis/result)(s) of the query/queries
    */
   async query<T extends DamaDbQueryParamType>(
     queries: T,
-    pg_env = this.pg_env,
-    _options_: DamaDbQueryOptions = {}
+    pg_env = this.pg_env
   ): Promise<DamaDbQueryReturnType<T>> {
-    const { outside_txn_ctx = false } = _options_ || {};
-
     logger.silly(`dama_db.query\n${JSON.stringify(queries, null, 4)}`);
 
     const multi_queries = Array.isArray(queries);
 
     const sql_arr = multi_queries ? queries : [queries];
 
-    const db = <NodePgPoolClient>await this.getDbConnection(pg_env, _options_);
+    const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
 
     try {
       const results: NodePgQueryResult[] = [];
@@ -334,9 +337,7 @@ class DamaDb extends DamaContextAttachedResource {
 
       return (multi_queries ? results : results[0]) as DamaDbQueryReturnType<T>;
     } finally {
-      if (!this.isInTransactionContext || outside_txn_ctx) {
-        db.release();
-      }
+      db.release();
     }
   }
 
@@ -439,11 +440,13 @@ class DamaDb extends DamaContextAttachedResource {
       Object.keys(this._local_.dbs).forEach(async (pg_env) => {
         try {
           const db = await this._local_.dbs[pg_env];
-          delete this._local_.dbs[pg_env];
+          if (db) {
+            delete this._local_.dbs[pg_env];
 
-          await db?.end();
+            await db.end();
+          }
         } catch (err) {
-          // ignore
+          //
         }
       });
     } catch (err) {

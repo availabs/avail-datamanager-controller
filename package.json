@@ -31,7 +31,7 @@
     "@types/express-http-proxy": "^1.6.3",
     "@types/geojson": "^7946.0.10",
     "@types/graphlib": "^2.1.8",
-    "@types/jest": "^25.1.4",
+    "@types/jest": "^25.2.3",
     "@types/lodash": "^4.14.185",
     "@types/luxon": "^3.2.0",
     "@types/mkdirp": "^1.0.0",
@@ -47,10 +47,15 @@
     "@typescript-eslint/parser": "^2.26.0",
     "eslint": "^6.8.0",
     "eslint-plugin-import": "^2.20.2",
+    "eslint-plugin-tsdoc": "^0.2.17",
+    "jest": "^29.5.0",
     "jest-cli": "^25.1.0",
+    "jsdoc": "^4.0.2",
     "moleculer-repl": "^0.7.2",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
-    "typescript": "^4.9.3"
+    "typedoc": "^0.23.28",
+    "typescript": "^4.9.5"
   },
   "dependencies": {
     "@types/node-fetch": "^2.6.2",
@@ -72,7 +77,6 @@
     "gdal-async": "~3.5.3",
     "graphlib": "^2.1.8",
     "gunzip-maybe": "^1.4.2",
-    "jest": "^29.3.1",
     "json-stable-stringify": "^1.0.2",
     "luxon": "^3.2.1",
     "memoize-one": "^6.0.0",
@@ -106,25 +110,5 @@
     "uuid": "^9.0.0",
     "wellknown": "^0.5.0",
     "winston": "^3.8.2"
-  },
-  "jest": {
-    "coverageDirectory": "<rootDir>/coverage",
-    "testEnvironment": "node",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js"
-    ],
-    "transform": {
-      "^.+\\.(ts|tsx)$": "ts-jest"
-    },
-    "testMatch": [
-      "**/*.spec.(ts|js)"
-    ],
-    "globals": {
-      "ts-jest": {
-        "tsConfig": "tsconfig.json"
-      }
-    }
   }
 }
