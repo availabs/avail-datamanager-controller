@@ -55,19 +55,6 @@ type DamaDbQueryReturnType<T> = T extends DamaDbSingleQueryParam
   ? NodePgQueryResult
   : NodePgQueryResult[];
 
-async function initializeDamaTables(dbConnection: NodePgPoolClient) {
-  await dbConnection.query("BEGIN;");
-
-  for (const scriptFile of dbInitializationScripts) {
-    const sqlPath = join(__dirname, "sql", scriptFile);
-    const sql = await readFileAsync(sqlPath, { encoding: "utf8" });
-
-    await dbConnection.query(sql);
-  }
-
-  dbConnection.query("COMMIT ;");
-}
-
 export type DamaDbQueryOptions = {
   // Primarily for use by dama_events so events persist even if transaction rollback.
   outside_txn_ctx?: boolean;
@@ -111,7 +98,16 @@ class DamaDb extends DamaContextAttachedResource {
       const dbConnection = await db.connect();
 
       try {
-        await initializeDamaTables(dbConnection);
+        await dbConnection.query("BEGIN;");
+
+        for (const scriptFile of dbInitializationScripts) {
+          const sqlPath = join(__dirname, "sql", scriptFile);
+          const sql = await readFileAsync(sqlPath, { encoding: "utf8" });
+
+          await dbConnection.query(sql);
+        }
+
+        dbConnection.query("COMMIT ;");
 
         process.nextTick(() => resolve(db));
       } catch (err) {
@@ -431,9 +427,8 @@ class DamaDb extends DamaContextAttachedResource {
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
    */
   async runDatabaseInitializationDDL(pg_env = this.pg_env) {
-    const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
-
-    await initializeDamaTables(db);
+    // data_manager SCHEMA is initialized in getDb
+    await this.getDb(pg_env);
   }
 
   /**
