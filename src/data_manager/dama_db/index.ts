@@ -33,7 +33,7 @@ type LocalVariables = {
   dbs: Record<string, Promise<NodePgPool> | null>;
 };
 
-// Order matters
+// Order matters.
 const dbInitializationScripts = [
   "create_required_extensions.sql",
   "create_dama_core_tables.sql",
@@ -141,17 +141,26 @@ class DamaDb extends DamaContextAttachedResource {
    * Returns a [NodePgPoolClient](https://node-postgres.com/apis/pool#poolconnect) for the given pg_env.
    *
    * @remarks
-   * This method is useful if you need to
-   *   * execute SQL statements within a TRANSACTION. See note-postgres [Transactions](https://node-postgres.com/features/transactions)
-   *   * using node-pg ETL libraries such as:
+   *  This method is useful if you need to
+   *
+   *   * execute SQL statements within a TRANSACTION. See note-postgres
+   *      [Transactions](https://node-postgres.com/features/transactions).
+   *
+   *   * use node-pg ETL libraries such as:
    *     * [pg-query-stream](https://github.com/brianc/node-postgres/tree/master/packages/pg-query-stream)
    *     * [pg-cursor](https://node-postgres.com/apis/cursor)
    *     * [pg-copy-streams](https://github.com/brianc/node-pg-copy-streams)
    *
-   * NOTE: *User MUST [release](https://node-postgres.com/apis/pool#releasing-clients) the returned client when done.*
+   * IMPORTANT: *User MUST [release](https://node-postgres.com/apis/pool#releasing-clients) the
+   *            returned client when done.*
+   *
+   * NOTE: If called within a TransactionContext, the returned connection is the Transaction's connection.
+   *        The client.release method is disabled and handled by the TransactionContext.
    *
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
    * @param _options_ - Intended to be used ONLY internally by data_manager core modules.
+   *
+   * @returns a node-pg [Client](https://node-postgres.com/apis/client)
    */
   async getDbConnection(
     pg_env = this.pg_env,
@@ -196,6 +205,11 @@ class DamaDb extends DamaContextAttachedResource {
     return connection;
   }
 
+  /**
+   * Determine whether executing code is happening inside a TransactionContext.
+   *
+   * @returns true if in a TransactionContext, false otherwise.
+   */
   get isInTransactionContext() {
     try {
       const ctx = getContext();
@@ -215,21 +229,23 @@ class DamaDb extends DamaContextAttachedResource {
    * Execute all database interactions during the passed function's execution within a DB TRANSACTION.
    *
    * @remarks
-   * All database interactions that occur during the execution of the passed function happen inside
-   * a database [TRANSACTION](https://www.postgresql.org/docs/current/tutorial-transactions.html).
-   * The database TRANSACTION BEGINs when the method is called and COMMITs when the passed function returns.
-   * If the passed function throws an Error, the TRANSACTION will ROLLBACK.
+   *  All database interactions that occur during the execution of the passed function happen inside
+   *    a database [TRANSACTION](https://www.postgresql.org/docs/current/tutorial-transactions.html).
+   *    The database TRANSACTION BEGINs when the method is called and COMMITs when the passed function returns.
+   *    If the passed function throws an Error, the TRANSACTION will ROLLBACK.
    *
    * SEE: {@link DamaDb.isInTransactionContext}
    *
    * NOTE: Currently, TransactionContexts cannot be nested.
    *
    * Based on:
-   * * https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#transactionfunction---function
-   * * https://github.com/golergka/pg-tx
+   *    * https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#transactionfunction---function
+   *    * https://github.com/golergka/pg-tx
    *
    * @param fn - The function for which all database interactions will happen in the TRANSACTION.
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   *
+   * @returns the result of the passed function
    */
   async runInTransactionContext(fn: () => unknown, pg_env = this.pg_env) {
     let current_context: EtlContext;
@@ -290,9 +306,12 @@ class DamaDb extends DamaContextAttachedResource {
   /**
    * Execute the passed query/queries and return the result/results.
    *
-   * @param queries - The database query or queries to execute. A query may be expressed either as a string or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
+   * @param queries - The database query or queries to execute. A query may be expressed either as a string
+   *    or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
    * @param _options_ - Intended to be used ONLY internally by data_manager core modules.
+   *
+   * @returns the [result](https://node-postgres.com/apis/result)(s) of the query/queries
    */
   async query<T extends DamaDbQueryParamType>(
     queries: T,
@@ -342,11 +361,16 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   /**
-   * Make an [AsyncGenerator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator) over the results of a database query.
+   * Make an [AsyncGenerator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)
+   *    over the results of a database query.
    *
-   * @param query - The database query. A query may be expressed either as a string or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
-   * @param options - options.row_count configures how many rows to read at a time. See [Cursor.read](https://node-postgres.com/apis/cursor#read).
+   * @param query - The database query. A query may be expressed either as a string or as
+   *    a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
+   * @param options - options.row_count configures how many rows to read at a time.
+   *    See [Cursor.read](https://node-postgres.com/apis/cursor#read).
    * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   *
+   * @returns the AsyncGenerator over the query results.
    */
   async *makeIterator(
     query: string | NodePgQueryConfig,
