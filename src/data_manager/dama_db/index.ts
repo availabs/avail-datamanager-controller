@@ -89,6 +89,14 @@ class DamaDb extends DamaContextAttachedResource {
     return listAllPgEnvs();
   }
 
+  /**
+   * Returns [NodePgPool](https://node-postgres.com/apis/pool) for the given pg_env.
+   *
+   * @remarks
+   * Private method used to get cached database connection pools.
+   *
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   */
   private async getDb(pg_env = this.pg_env): Promise<NodePgPool> {
     logger.silly(`dama_db.getDb ${pg_env}`);
 
@@ -129,13 +137,27 @@ class DamaDb extends DamaContextAttachedResource {
     return this._local_.dbs[pg_env];
   }
 
-  // Make sure to release the connection
-  // NOTE: outside_txn_ctx for use by dama_events so events persist if transaction rollsback.
+  /**
+   * Returns a [NodePgPoolClient](https://node-postgres.com/apis/pool#poolconnect) for the given pg_env.
+   *
+   * @remarks
+   * This method is useful if you need to
+   *   * execute SQL statements within a TRANSACTION. See note-postgres [Transactions](https://node-postgres.com/features/transactions)
+   *   * using node-pg ETL libraries such as:
+   *     * [pg-query-stream](https://github.com/brianc/node-postgres/tree/master/packages/pg-query-stream)
+   *     * [pg-cursor](https://node-postgres.com/apis/cursor)
+   *     * [pg-copy-streams](https://github.com/brianc/node-pg-copy-streams)
+   *
+   * NOTE: *User MUST [release](https://node-postgres.com/apis/pool#releasing-clients) the returned client when done.*
+   *
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   * @param _options_ - Intended to be used ONLY internally by data_manager core modules.
+   */
   async getDbConnection(
     pg_env = this.pg_env,
-    options: DamaDbQueryOptions = {}
-  ) {
-    const { outside_txn_ctx = false } = options || {};
+    _options_: DamaDbQueryOptions = {}
+  ): Promise<NodePgPoolClient> {
+    const { outside_txn_ctx = false } = _options_ || {};
 
     if (!outside_txn_ctx) {
       try {
@@ -164,6 +186,13 @@ class DamaDb extends DamaContextAttachedResource {
 
     const connection = await db.connect();
 
+    if (this.isInTransactionContext) {
+      connection.release = () =>
+        logger.debug(
+          "Disabling connection.release because isInTransactionContext"
+        );
+    }
+
     return connection;
   }
 
@@ -182,11 +211,26 @@ class DamaDb extends DamaContextAttachedResource {
     }
   }
 
-  // https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#transactionfunction---function
-  // https://github.com/golergka/pg-tx
-  // https://stackoverflow.com/a/65588782
-  // NOTE:  If code executing in a TransactionContext calls getDbConnection,
-  //          then releases the connection, this will break.
+  /**
+   * Execute all database interactions during the passed function's execution within a DB TRANSACTION.
+   *
+   * @remarks
+   * All database interactions that occur during the execution of the passed function happen inside
+   * a database [TRANSACTION](https://www.postgresql.org/docs/current/tutorial-transactions.html).
+   * The database TRANSACTION BEGINs when the method is called and COMMITs when the passed function returns.
+   * If the passed function throws an Error, the TRANSACTION will ROLLBACK.
+   *
+   * SEE: {@link DamaDb.isInTransactionContext}
+   *
+   * NOTE: Currently, TransactionContexts cannot be nested.
+   *
+   * Based on:
+   * * https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md#transactionfunction---function
+   * * https://github.com/golergka/pg-tx
+   *
+   * @param fn - The function for which all database interactions will happen in the TRANSACTION.
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   */
   async runInTransactionContext(fn: () => unknown, pg_env = this.pg_env) {
     let current_context: EtlContext;
 
@@ -202,8 +246,9 @@ class DamaDb extends DamaContextAttachedResource {
       throw new Error("Transaction contexts cannot be nested.");
     }
 
-    const txn_id = uuid();
+    // NOTE: Not yet isInTransactionContext, therefore release not disabled.
     const txn_cxn = await this.getDbConnection(pg_env);
+    const txn_id = uuid();
 
     const meta = {
       ...current_context.meta,
@@ -238,17 +283,23 @@ class DamaDb extends DamaContextAttachedResource {
         throw err2;
       }
     } finally {
-      await txn_cxn.release();
+      txn_cxn.release();
     }
   }
 
-  // https://node-postgres.com/features/queries#query-config-object
+  /**
+   * Execute the passed query/queries and return the result/results.
+   *
+   * @param queries - The database query or queries to execute. A query may be expressed either as a string or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   * @param _options_ - Intended to be used ONLY internally by data_manager core modules.
+   */
   async query<T extends DamaDbQueryParamType>(
     queries: T,
     pg_env = this.pg_env,
-    options: DamaDbQueryOptions = {}
+    _options_: DamaDbQueryOptions = {}
   ): Promise<DamaDbQueryReturnType<T>> {
-    const { outside_txn_ctx = false } = options || {};
+    const { outside_txn_ctx = false } = _options_ || {};
 
     logger.silly(`dama_db.query\n${JSON.stringify(queries, null, 4)}`);
 
@@ -256,7 +307,7 @@ class DamaDb extends DamaContextAttachedResource {
 
     const sql_arr = multi_queries ? queries : [queries];
 
-    const db = <NodePgPoolClient>await this.getDbConnection(pg_env, options);
+    const db = <NodePgPoolClient>await this.getDbConnection(pg_env, _options_);
 
     try {
       const results: NodePgQueryResult[] = [];
@@ -274,34 +325,54 @@ class DamaDb extends DamaContextAttachedResource {
     }
   }
 
-  async executeSqlFile(sqlFilePath: string) {
-    logger.silly(`dama_db.executeSqlFile ${sqlFilePath}`);
+  /**
+   * Execute a SQL file.
+   *
+   * @param sql_file_path - Path to the SQL file.
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   */
+  async executeSqlFile(sql_file_path: string, pg_env = this.pg_env) {
+    logger.silly(`dama_db.executeSqlFile ${sql_file_path}`);
 
-    const sql = await readFileAsync(sqlFilePath, { encoding: "utf8" });
+    const sql = await readFileAsync(sql_file_path, { encoding: "utf8" });
 
-    const { rows } = await this.query(sql);
+    const { rows } = await this.query(sql, pg_env);
 
     return rows;
   }
 
-  // TODO: Test if this works in a transaction context.
-  async *makeIterator(query: string | NodePgQueryConfig, config = {}) {
+  /**
+   * Make an [AsyncGenerator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator) over the results of a database query.
+   *
+   * @param query - The database query. A query may be expressed either as a string or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
+   * @param options - options.row_count configures how many rows to read at a time. See [Cursor.read](https://node-postgres.com/apis/cursor#read).
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   */
+  async *makeIterator(
+    query: string | NodePgQueryConfig,
+    cursor_config = {},
+    pg_env = this.pg_env
+  ) {
     logger.silly(
       `\ndama_db.makeIterator query=\n${JSON.stringify(query, null, 4)}`
     );
 
     // @ts-ignore
-    const { rowCount = 500 } = config;
+    const { row_count = 500 } = cursor_config;
 
     // @ts-ignore
     const cursorRequest = new Cursor(query);
 
-    const db = <NodePgPoolClient>await this.getDbConnection();
+    // TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+    // Need to make sure this works within a TransactionContext
+    // Can we have a cursor open on a connection while sending queries?
+
+    const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
     const cursor = db.query(cursorRequest);
 
     try {
       const fn = (resolve: Function, reject: Function) => {
-        cursor.read(rowCount, (err, rows) => {
+        cursor.read(row_count, (err, rows) => {
           if (err) {
             return reject(err);
           }
@@ -326,24 +397,30 @@ class DamaDb extends DamaContextAttachedResource {
       throw err;
     } finally {
       await cursor.close();
-
-      if (!this.isInTransactionContext) {
-        db.release();
-      }
+      db.release();
     }
   }
 
-  async runDatabaseInitializationDDL() {
-    const db = <NodePgPoolClient>await this.getDbConnection();
+  /**
+   * Execute DDL to initialize the data_manager SCHEMA.
+   *
+   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   */
+  async runDatabaseInitializationDDL(pg_env = this.pg_env) {
+    const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
 
     await initializeDamaTables(db);
   }
 
+  /**
+   * Close all database connections.
+   */
   async shutdown() {
     try {
       Object.keys(this._local_.dbs).forEach(async (pg_env) => {
         try {
           const db = await this._local_.dbs[pg_env];
+          delete this._local_.dbs[pg_env];
 
           await db?.end();
         } catch (err) {
