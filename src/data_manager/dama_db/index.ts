@@ -371,9 +371,11 @@ class DamaDb extends DamaContextAttachedResource {
    */
   async *makeIterator(
     query: string | NodePgQueryConfig,
-    cursor_config = {},
+    cursor_config: { row_count?: number } | null = null,
     pg_env = this.pg_env
   ) {
+    cursor_config = cursor_config || {};
+
     logger.silly(
       `\ndama_db.makeIterator query=\n${JSON.stringify(query, null, 4)}`
     );
@@ -418,6 +420,7 @@ class DamaDb extends DamaContextAttachedResource {
       throw err;
     } finally {
       await cursor.close();
+
       db.release();
     }
   }
