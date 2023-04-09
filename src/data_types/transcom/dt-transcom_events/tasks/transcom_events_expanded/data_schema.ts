@@ -108,4 +108,5 @@ export const apiResponsePropsToDbCols = {
 
 export const dbColsToApiResponseProps = _.invert(apiResponsePropsToDbCols);
 
+// NOTE: dbCols array ensures same order of columns in CSV and COPY FROM CSV statement.
 export const dbCols = Object.keys(dbColsToApiResponseProps);

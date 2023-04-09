@@ -1,9 +1,7 @@
-import { FSA } from "flux-standard-action";
-import dama_events from "../../../events";
+import dama_events, { EtlEvent } from "../../../events";
 
-export default async function main(initial_event: FSA): Promise<FSA> {
+export default async function main(initial_event: EtlEvent): Promise<EtlEvent> {
   const {
-    // @ts-ignore
     payload: { n },
   } = initial_event;
 
@@ -21,7 +19,6 @@ export default async function main(initial_event: FSA): Promise<FSA> {
 
   return {
     type: ":FINAL",
-    // @ts-ignore
     payload: { n: n + 1 },
   };
 }

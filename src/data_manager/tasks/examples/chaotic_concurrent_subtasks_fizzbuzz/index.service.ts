@@ -1,10 +1,9 @@
 import { join } from "path";
 
 import { Context } from "moleculer";
-import { FSA } from "flux-standard-action";
 
 import dama_host_id from "constants/damaHostId";
-import dama_events from "data_manager/events";
+import dama_events, { EtlEvent } from "data_manager/events";
 import { getPgEnv, runInDamaContext } from "data_manager/contexts";
 import { getLoggerForContext } from "data_manager/logger";
 
@@ -124,19 +123,17 @@ export default {
               },
             };
 
-            // @ts-ignore
             await dama_events.dispatch(initial_event);
 
             const {
               default: main,
             }: {
-              default: (initial_event: FSA) => FSA | Promise<FSA> | unknown;
+              default: (initial_event: EtlEvent) => Promise<EtlEvent>;
             } = await import(worker_path);
 
-            // @ts-ignore
-            const final_event = <FSA>await main(initial_event);
+            const final_event = await main(initial_event);
 
-            await dama_events.dispatch(<FSA>final_event);
+            await dama_events.dispatch(final_event);
 
             logger.debug(
               `chaotic_concurrent_subtasks_fizzbuzz pg_env=${pgEnv} etl_context_id=${etl_context_id} DONE`

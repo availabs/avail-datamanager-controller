@@ -70,7 +70,6 @@ export default async function main(
   logger.debug(inspect(initial_event));
 
   const {
-    // @ts-ignore
     payload: { msg, delay },
   } = initial_event;
 
@@ -101,7 +100,6 @@ export default async function main(
 
   return {
     type: ":FINAL",
-    // @ts-ignore
     payload: { msg },
   };
 }

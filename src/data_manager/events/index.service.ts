@@ -1,8 +1,6 @@
 import { Context } from "moleculer";
 
-import { FSA } from "flux-standard-action";
-
-import dama_events from ".";
+import dama_events, { EtlEvent } from ".";
 
 export default {
   name: "data_manager/events",
@@ -37,7 +35,7 @@ export default {
     dispatch: {
       visibility: "public",
 
-      handler(ctx: Context & { params: FSA }) {
+      handler(ctx: Context & { params: EtlEvent }) {
         const { params } = ctx;
 
         const etl_context_id =

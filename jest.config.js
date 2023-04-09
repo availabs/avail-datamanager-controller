@@ -1,4 +1,5 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
+
 const { join } = require("path");
 
 const { pathsToModuleNameMapper } = require("ts-jest");
@@ -18,4 +19,7 @@ module.exports = {
   ),
 
   testMatch: [join(__dirname, "src/**/*.spec.(ts|js)")],
+
+  globalSetup: join(__dirname, "./src/testing/globalSetup.ts"),
+  globalTeardown: join(__dirname, "./src/testing/globalTeardown.js"),
 };

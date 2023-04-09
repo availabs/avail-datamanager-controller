@@ -6,8 +6,6 @@ import createPostgresSubscriber, {
   Subscriber as PgListenSubscriber,
 } from "pg-listen";
 
-import { FSA } from "flux-standard-action";
-
 import DamaContextAttachedResource from "../contexts";
 
 import dama_db from "../dama_db";
@@ -18,7 +16,23 @@ import {
   getPostgresConnectionUri,
 } from "../dama_db/postgres/PostgreSQL";
 
-export type DamaEvent = FSA & {
+type EtlNonErrorEvent = {
+  type: string;
+  payload?: Record<string, any> | null;
+  meta?: Record<string, any> | null;
+  error?: false | null;
+};
+
+type EtlErrorEvent = {
+  type: string;
+  payload: any;
+  meta?: Record<string, any> | null;
+  error: true;
+};
+
+export type EtlEvent = EtlNonErrorEvent | EtlErrorEvent;
+
+export type DamaEvent = EtlEvent & {
   event_id: number;
   etl_context_id: number;
   _created_timestamp: Date;
@@ -41,6 +55,21 @@ class DamaEvents extends DamaContextAttachedResource {
     this.final_event_listeners_by_etl_context_by_pg_env = {};
   }
 
+  /**
+   * Creates a new EtlContext.
+   *
+   * @remarks
+   *  INSERTs a row into the data_manager.etl_contexts TABLE and returns the etl_context_id.
+   *  NOTE: An EtlContext is REQUIRED to dispatch events.
+   *
+   * @param source_id - The DamaSource ID.
+   *
+   * @param parent_context_id - The ID of the EtlContext within which this context is being spawned.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the ID of the spawned EtlContext
+   */
   async spawnEtlContext(
     source_id: number | null = null,
     parent_context_id: number | null = null,
@@ -72,6 +101,15 @@ class DamaEvents extends DamaContextAttachedResource {
     return new_etl_context_id;
   }
 
+  /**
+   * Set the DamaSourceID for an existing EtlContext.
+   *
+   * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
+   *
+   * @param source_id - The DamaSource ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
   async setEtlContextSourceId(
     etl_context_id: number,
     source_id: number,
@@ -96,15 +134,23 @@ class DamaEvents extends DamaContextAttachedResource {
     );
   }
 
+  /**
+   * Set the DamaSourceID for an existing EtlContext.
+   *
+   * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
+   *
+   * @param source_id - The DamaSource ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
   async dispatch(
-    event: FSA,
+    event: EtlEvent,
     etl_context_id = this.etl_context_id,
     pg_env = this.pg_env
   ): Promise<DamaEvent> {
     const { type, meta = null, error = null } = event;
 
-    // @ts-ignore
-    let { payload = null }: { payload: FSA["payload"] | string | null } = event;
+    let { payload = null } = event;
 
     //  Because JS Array types won't load into Postgres JSON columns, we must first stringify the array.
     //    See: https://github.com/brianc/node-postgres/issues/1519
@@ -146,7 +192,24 @@ class DamaEvents extends DamaContextAttachedResource {
     return dama_event;
   }
 
-  // FIXME FIXME FIXME: RECURSIVE should be a configurable option.
+  /**
+   * Queries all events after since_event_id for the passes etl_context_id for the EtlContext tree.
+   * The EtlContext tree includes the EtlContext, as well as all ancestors and descendents.
+   *
+   * @remarks
+   *    NOTE: Queries all events in the EtlContext tree... all ancestors and descendants.
+   *        TODO: Make this behavior configurable.
+   *
+   * @param since_event_id - Return all events in the EtlContext tree with
+   *    event_id greater than the  since_event_id.
+   *
+   * @param etl_context_id - The ID of the EtlContext whose ancestors', self's,
+   *    and descendants' events to query. Optional if in a dama_context EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns An array of all the events that occurred in the EtlContext tree after since_event_id.
+   */
   async queryEvents(
     since_event_id = -1,
     etl_context_id = this.etl_context_id,
@@ -194,20 +257,29 @@ class DamaEvents extends DamaContextAttachedResource {
     );
 
     // FIXME: Why are we doing this? Can it be deprecated without breaking anything?
-    dama_events.forEach((e: FSA) => {
-      // @ts-ignore
+    dama_events.forEach((e: DamaEvent) => {
       e.meta = e.meta || {};
-      // @ts-ignore
       e.meta.pgEnv = this.pg_env;
     });
 
     return dama_events;
   }
 
+  /**
+   * Returns the :INITIAL event for the EtlContext.
+   *
+   * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns A Promise for the :INITIAL event.
+   *
+   * @throws Will throw if no :INITIAL event found for the the etl_context_id.
+   */
   async getEtlContextInitialEvent(
     etl_context_id = this.etl_context_id,
     pg_env = this.pg_env
-  ) {
+  ): Promise<DamaEvent> {
     const text = dedent(`
       SELECT
           b.*
@@ -235,6 +307,17 @@ class DamaEvents extends DamaContextAttachedResource {
     return initial_event;
   }
 
+  /**
+   * Returns the :FINAL event for the EtlContext.
+   *
+   * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns A Promise for the :FINAL event.
+   *
+   * @throws Will throw if no :FINAL event found for the the etl_context_id.
+   */
   async getEtlContextFinalEvent(
     etl_context_id = this.etl_context_id,
     pg_env = this.pg_env
@@ -270,23 +353,43 @@ class DamaEvents extends DamaContextAttachedResource {
     return final_event;
   }
 
+  /**
+   * Register a listener for an EtlContext's :FINAL event.
+   *   If the :FINAL event already exists, the listener is immediately called with the event.
+   *   If the :FINAL event does not yet exists, the listener will be called when
+   *     the :FINAL event is written to the database.
+   *
+   * @remarks
+   *   Uses PostgreSQL's NOTIFY/LISTEN
+   *     * https://www.postgresql.org/docs/current/sql-notify.html
+   *     * https://github.com/andywer/pg-listen
+   *
+   * @param etl_context_id - The EtlContext ID whose :FINAL event will be passed to the listener.
+   *
+   * @param listener - Function that will be called with the :FINAL event when it occurs.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
   async registerEtlContextFinalEventListener(
     etl_context_id: number,
-    fn: (final_event: DamaEvent) => any,
+    listener: (final_event: DamaEvent) => any,
     pg_env = this.pg_env
   ) {
     try {
       // If the EtlContext is already done, there will be no new NOTIFY.
       // Therefore, we must immediately call with the :FINAL event.
+      // getEtlContextFinalEvent throws if no :FINAL event.
       const final_event = await this.getEtlContextFinalEvent(
         etl_context_id,
         pg_env
       );
 
-      process.nextTick(() => fn(final_event));
+      return process.nextTick(() => listener(final_event));
     } catch (err) {
-      // Note:  registering the listener happens synchronously so no race condition
-      //        even if the listener already exists.
+      // Note:  I believe there is no race condition here.
+      //        If getEtlContextFinalEvent threw, this catch block will execute synchronously.
+      //        While it is executing, no new event notifications from the db can be processed.
+      //        Once this block completes, this listener is registered.
       this.final_event_listeners_by_etl_context_by_pg_env[pg_env] =
         this.final_event_listeners_by_etl_context_by_pg_env[pg_env] || {};
 
@@ -299,12 +402,20 @@ class DamaEvents extends DamaContextAttachedResource {
 
       this.final_event_listeners_by_etl_context_by_pg_env[pg_env][
         etl_context_id
-      ].push(fn);
+      ].push(listener);
 
       await this.addPgListenSubscriber(pg_env);
     }
   }
 
+  /**
+   * Listen for :FINAL event notifications from the database.
+   *
+   * @remarks
+   *   NOTIFY happens in an INSERT TRIGGER on data_manager.event_store.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
   protected async addPgListenSubscriber(
     pg_env = this.pg_env
   ): Promise<PgListenSubscriber> {
@@ -377,7 +488,7 @@ class DamaEvents extends DamaContextAttachedResource {
           logger.silly(
             `dama_events.notifyListeners etl_context_id=${etl_context_id} notifying listeners`
           );
-          await Promise.all(listeners.map((fn) => fn(final_event)));
+          await Promise.all(listeners.map((listener) => listener(final_event)));
         }
       } catch (err) {
         if (/^No :FINAL event for EtlContext/.test((<Error>err).message)) {
@@ -431,6 +542,13 @@ class DamaEvents extends DamaContextAttachedResource {
     }
   }
 
+  /**
+   * Get all the events for an EtlContext.
+   *
+   * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
   async getAllEtlContextEvents(
     etl_context_id = this.etl_context_id,
     pg_env = this.pg_env
@@ -455,6 +573,19 @@ class DamaEvents extends DamaContextAttachedResource {
     return events;
   }
 
+  /**
+   * Get all the OPEN EtlContexts for a given Moleculer Service.
+   *
+   * @remarks
+   *    EtlContexts can be in three states: OPEN, ERROR, and DONE.
+   *    FIXME: The query is outdated. Use the etl_contexts table's etl_status and latest_event_id columns.
+   *
+   * @param service_name - The Moleculer Service name.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns An Array constaining the latest event for each OPEN EtlContext.
+   */
   async queryOpenEtlProcessesStatusUpdatesForService(
     service_name: string,
     pg_env = this.pg_env
@@ -508,13 +639,29 @@ class DamaEvents extends DamaContextAttachedResource {
     return rows.map((row) => <DamaEvent>_.omit(row, "row_number"));
   }
 
-  //  FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-  //  These ASSUMPTIONS are no longer valid since Tasks support retry.
-  //    TODO: Look at the repercussions of changing logic.
-  //  ASSUMES the following CONVENTION/INVARIANTs:
-  //    1. Event type prefixed by service_name. E.G:  `${service_name}/foo/bar:BAZ`
-  //    2. All ETL processes for the service end with a ":FINAL" or ":ERROR" event
-  //    3. All status update types match with /*UPDATE$/
+  /**
+   * Get latest event for non-OPEN EtlContexts.
+   *
+   * @remarks
+   *    EtlContexts can be in three states: OPEN, ERROR, and DONE.
+   *
+   *    FIXME:
+   *      * The query is outdated. Use the etl_contexts table's etl_status and latest_event_id columns.
+   *      * Wrong meaning for "Final". Rename the method.
+   *      * ASSUMES the following CONVENTION/INVARIANTs:
+   *          1. Event type prefixed by service_name. E.G:  `${service_name}/foo/bar:BAZ`
+   *          2. All ETL processes for the service end with a ":FINAL" or ":ERROR" event
+   *          3. All status update types match with /*UPDATE$/
+   *
+   *        These ASSUMPTIONS are no longer valid since Tasks support retry.
+   *          TODO: Look at the repercussions of changing logic.
+   *
+   * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns An the latest event for the EtlContext.
+   */
   async queryEtlContextFinalEvent(
     etl_context_id = this.etl_context_id,
     pg_env = this.pg_env

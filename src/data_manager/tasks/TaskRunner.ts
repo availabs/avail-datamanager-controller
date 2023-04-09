@@ -16,8 +16,6 @@
 
 import dedent from "dedent";
 
-import { FSA } from "flux-standard-action";
-
 import dama_host_id from "../../constants/damaHostId";
 
 import {
@@ -98,7 +96,9 @@ class TaskRunner {
       const {
         default: main,
       }: {
-        default: (etl_ctx: TaskEtlContext) => FSA | Promise<FSA> | unknown;
+        default: (
+          etl_ctx: TaskEtlContext
+        ) => DamaEvent | Promise<DamaEvent> | unknown;
       } = await import(worker_path);
 
       const etl_ctx = {
@@ -117,18 +117,20 @@ class TaskRunner {
         this.shutdown(DamaTaskExitCodes.WORKER_DID_NOT_RETURN_FINAL_EVENT);
       }
 
-      await dama_events.dispatch(<FSA>final_event, ETL_CONTEXT_ID, PG_ENV);
+      await dama_events.dispatch(
+        <DamaEvent>final_event,
+        ETL_CONTEXT_ID,
+        PG_ENV
+      );
 
       await this.shutdown(DamaTaskExitCodes.DONE);
     } catch (err) {
       const payload = {
-        // @ts-ignore
-        err_msg: err.message,
+        err_msg: (<Error>err).message,
         timestamp: new Date().toISOString(),
       };
 
       dama_events.dispatch(
-        // @ts-ignore
         { type: ":ERROR", payload, error: true },
         ETL_CONTEXT_ID,
         PG_ENV

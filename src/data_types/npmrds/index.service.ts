@@ -81,7 +81,6 @@ export default {
         )}`
       );
 
-      // @ts-ignore
       await dama_events.dispatch(final_event, etl_context_id);
 
       return toposortedDamaSrcMeta;

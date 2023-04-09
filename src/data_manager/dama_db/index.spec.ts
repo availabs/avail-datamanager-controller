@@ -1,36 +1,10 @@
-import { Client } from "pg";
 import { v4 as uuid } from "uuid";
 import pgFormat from "pg-format";
+import _ from "lodash";
 
 import dama_db from ".";
-import { getNodePgCredentials } from "./postgres/PostgreSQL";
 
 const PG_ENV = "test_db";
-
-beforeAll(async () => {
-  const creds = getNodePgCredentials(PG_ENV);
-
-  creds.host = "127.0.0.1";
-  creds.database = "postgres";
-  creds.user = "dama_test_user";
-
-  const db = new Client(creds);
-
-  try {
-    await db.connect();
-
-    await db.query("DROP DATABASE IF EXISTS test_db;");
-    await db.query("CREATE DATABASE test_db;");
-  } catch (err) {
-    throw err;
-  } finally {
-    await db.end();
-  }
-});
-
-afterAll(async () => {
-  await dama_db.shutdown();
-});
 
 const getRandomTableName = () => uuid().replace(/[^0-9a-z]/gi, "");
 
@@ -368,118 +342,162 @@ test("transaction context rolls back on error", async () => {
   expect(table_exists).toBe(false);
 });
 
-test("transaction contexts exhibit ISOLATION", async () => {
+test("default transaction contexts exhibit READ COMMITTED ISOLATION", async () => {
   const table_name = getRandomTableName();
 
-  const sql = pgFormat("CREATE TABLE %I ( msg TEXT );", table_name);
+  const sql = pgFormat("CREATE TABLE %I ( i INTEGER );", table_name);
 
   await dama_db.query(sql, PG_ENV);
 
-  type Config = {
-    msg: "a msg" | "b msg";
-    done: Function;
-  };
+  // Needs to be less than the number of Pool clients available.
+  const n = 5;
+  const task_ids = _.range(0, n);
 
-  const configs: Record<"a" | "b", Config> = {
-    // @ts-ignore
-    a: {
-      msg: "a msg",
-    },
-    // @ts-ignore
-    b: {
-      msg: "b msg",
-    },
-  };
+  const task_done_fns: Function[] = [];
 
-  const both_done = Promise.all([
-    new Promise((resolve) => (configs.a.done = resolve)),
-    new Promise((resolve) => (configs.b.done = resolve)),
-  ]);
+  const all_done = Promise.all(
+    task_ids.map((i) => new Promise((resolve) => (task_done_fns[i] = resolve)))
+  );
 
-  const task_fn = async (task_id: "a" | "b") => {
-    // @ts-ignore
-    const { msg, done } = configs[task_id];
-    const other_msg = task_id === "a" ? configs.b.msg : configs.a.msg;
-
-    await dama_db.query(
-      pgFormat(
+  // Because no task COMMITs until all have INSERTed their data, no task sees other's INSERTs.
+  const task_fn = async (task_id: number) => {
+    await dama_db.query({
+      text: pgFormat(
         `
-          INSERT INTO %I ( msg )
-            VALUES ( %L )
+          INSERT INTO %I ( i )
+            SELECT
+                i
+              FROM generate_series(1, $1) AS t(i)
+          ;
         `,
-        table_name,
-        msg
-      )
-    );
+        table_name
+      ),
+      values: [n],
+    });
 
     const {
-      rows: [{ own_msg_exists }],
+      rows: [{ count_in_ctx }],
     } = await dama_db.query(
       pgFormat(
         `
-          SELECT EXISTS (
-            SELECT
-                1
-              FROM %I
-              WHERE ( msg = %L )
-          ) AS own_msg_exists
+          SELECT
+              COUNT(1)::INTEGER AS count_in_ctx
+            FROM %I
+          ;
         `,
-        table_name,
-        msg
+        table_name
       )
     );
 
-    expect(own_msg_exists).toBe(true);
+    expect(count_in_ctx).toBe(n);
 
-    const {
-      rows: [{ other_msg_dne }],
-    } = await dama_db.query(
-      pgFormat(
-        `
-          SELECT NOT EXISTS (
-            SELECT
-                1
-              FROM %I
-              WHERE ( msg = %L )
-          ) AS other_msg_dne
-        `,
-        table_name,
-        other_msg
-      )
-    );
+    task_done_fns[task_id]();
 
-    expect(other_msg_dne).toBe(true);
-
-    done();
-
-    await both_done;
+    // None COMMIT until all COMMIT since function does not return.
+    await all_done;
   };
 
-  await Promise.all([
-    dama_db.runInTransactionContext(task_fn.bind(null, "a"), PG_ENV),
-    dama_db.runInTransactionContext(task_fn.bind(null, "b"), PG_ENV),
-  ]);
+  await Promise.all(
+    task_ids.map((task_id) =>
+      dama_db.runInTransactionContext(task_fn.bind(null, task_id), PG_ENV)
+    )
+  );
 
-  const { rows } = await dama_db.query(
+  const {
+    rows: [{ total_count }],
+  } = await dama_db.query(
     pgFormat(
       `
         SELECT
-            msg
+            COUNT(1)::INTEGER AS total_count
           FROM %I
-          ORDER BY 1
       `,
       table_name
     ),
     PG_ENV
   );
 
-  expect(rows.length).toBe(2);
+  expect(total_count).toBe(n ** 2);
+});
 
-  const sorted_msgs = Object.keys(configs)
-    .map((k) => configs[k].msg)
-    .sort();
+test("demonstrate transaction contexts exhibit PHANTOM READs", async () => {
+  const table_name = getRandomTableName();
 
-  for (let i = 0; i < sorted_msgs.length; ++i) {
-    expect(rows[i].msg).toBe(sorted_msgs[i]);
-  }
+  const sql = pgFormat(
+    `
+      CREATE TABLE %I (
+        task_id INTEGER, 
+        i INTEGER
+      );
+    `,
+    table_name
+  );
+
+  await dama_db.query(sql, PG_ENV);
+
+  // Needs to be less than the number of Pool clients available.
+  const n = 5;
+  const task_ids = _.range(0, n);
+
+  const task_started_fns: Function[] = [];
+
+  const all_ready = Promise.all(
+    task_ids.map(
+      (i) => new Promise((resolve) => (task_started_fns[i] = resolve))
+    )
+  );
+
+  // Because no task BEGINs until all have begun, no task sees other's INSERTs.
+  const task_fn = async (task_id: number) => {
+    const others_ct_sql = pgFormat(
+      `
+          SELECT
+              COUNT(1)::INTEGER AS others_ct
+            FROM %I
+            WHERE ( task_id <> $1 )
+          ;
+        `,
+      table_name
+    );
+
+    const {
+      rows: [{ others_ct: initial_others_ct }],
+    } = await dama_db.query({ text: others_ct_sql, values: [task_id] });
+
+    expect(initial_others_ct).toBe(0);
+
+    task_started_fns[task_id]();
+
+    await all_ready;
+
+    await dama_db.query({
+      text: pgFormat(
+        `
+          INSERT INTO %I ( task_id, i )
+            SELECT
+                $1 AS task_id,
+                i
+              FROM generate_series(1, $2) AS t(i)
+          ;
+        `,
+        table_name
+      ),
+      values: [task_id, n],
+    });
+
+    const {
+      rows: [{ others_ct: subsequent_others_ct }],
+    } = await dama_db.query({ text: others_ct_sql, values: [task_id] });
+
+    // PHANTOM READ
+    return initial_others_ct === subsequent_others_ct;
+  };
+
+  const all_tasks_results = await Promise.all(
+    task_ids.map((task_id) =>
+      dama_db.runInTransactionContext(task_fn.bind(null, task_id), PG_ENV)
+    )
+  );
+
+  expect(all_tasks_results.some((res) => res === false)).toBe(true);
 });

@@ -82,7 +82,7 @@ class DamaDb extends DamaContextAttachedResource {
    * @remarks
    * Private method used to get cached database connection pools.
    *
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    */
   private async getDb(pg_env = this.pg_env): Promise<NodePgPool> {
     logger.silly(`dama_db.getDb ${pg_env}`);
@@ -153,7 +153,7 @@ class DamaDb extends DamaContextAttachedResource {
    * NOTE: If called within a TransactionContext, the returned connection is the Transaction's connection.
    *        The client.release method is disabled and handled by the TransactionContext.
    *
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    *
    * @returns a node-pg [Client](https://node-postgres.com/apis/client)
    */
@@ -219,6 +219,9 @@ class DamaDb extends DamaContextAttachedResource {
    *    The database TRANSACTION BEGINs when the method is called and COMMITs when the passed function returns.
    *    If the passed function throws an Error, the TRANSACTION will ROLLBACK.
    *
+   *  NOTE: The ISOLATION level within TransactionContexts is READ COMMITTED.
+   *        SEE: https://www.postgresql.org/docs/current/transaction-iso.html
+   *
    * SEE: {@link DamaDb.isInTransactionContext}
    *
    * NOTE: Currently, TransactionContexts cannot be nested.
@@ -228,7 +231,8 @@ class DamaDb extends DamaContextAttachedResource {
    *    * https://github.com/golergka/pg-tx
    *
    * @param fn - The function for which all database interactions will happen in the TRANSACTION.
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    *
    * @returns the result of the passed function
    */
@@ -311,7 +315,8 @@ class DamaDb extends DamaContextAttachedResource {
    *
    * @param queries - The database query or queries to execute. A query may be expressed either as a string
    *    or as a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    *
    * @returns the [result](https://node-postgres.com/apis/result)(s) of the query/queries
    */
@@ -345,7 +350,8 @@ class DamaDb extends DamaContextAttachedResource {
    * Execute a SQL file.
    *
    * @param sql_file_path - Path to the SQL file.
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    */
   async executeSqlFile(sql_file_path: string, pg_env = this.pg_env) {
     logger.silly(`dama_db.executeSqlFile ${sql_file_path}`);
@@ -363,9 +369,11 @@ class DamaDb extends DamaContextAttachedResource {
    *
    * @param query - The database query. A query may be expressed either as a string or as
    *    a node-pg [query config object](https://node-postgres.com/features/queries#query-config-object).
+   *
    * @param options - options.row_count configures how many rows to read at a time.
    *    See [Cursor.read](https://node-postgres.com/apis/cursor#read).
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   *
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    *
    * @returns the AsyncGenerator over the query results.
    */
@@ -428,7 +436,7 @@ class DamaDb extends DamaContextAttachedResource {
   /**
    * Execute DDL to initialize the data_manager SCHEMA.
    *
-   * @param pg_env - The database to connect to. Optional if running in an EtlContext.
+   * @param pg_env - The database to connect to. Optional if running in an dama_context EtlContext.
    */
   async runDatabaseInitializationDDL(pg_env = this.pg_env) {
     // data_manager SCHEMA is initialized in getDb

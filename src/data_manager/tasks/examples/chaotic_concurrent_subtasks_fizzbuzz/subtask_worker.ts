@@ -39,7 +39,6 @@ export default async function main(
   logger.debug(`TaskEtlContext ${inspect(_.omit(etl_context, "logger"))}`);
 
   const {
-    // @ts-ignore
     payload: { n, chaos_factor },
   } = initial_event;
 
@@ -107,7 +106,6 @@ export default async function main(
 
   return {
     type: ":FINAL",
-    // @ts-ignore
     payload: { n: n + 1 },
   };
 }

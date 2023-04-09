@@ -3,10 +3,9 @@
 import { join } from "path";
 
 import dedent from "dedent";
-import { FSA } from "flux-standard-action";
 
 import dama_db from "data_manager/dama_db";
-import dama_events from "data_manager/events";
+import dama_events, { EtlEvent } from "data_manager/events";
 
 import {
   TaskEtlContext,
@@ -36,8 +35,13 @@ export type InitialEvent = {
   };
 };
 
+export type FinalEvent = {
+  type: ":FINAL";
+  payload: { summary: Record<":FIZZ" | ":BUZZ" | ":FIZZBUZZ", number> };
+};
+
 // Runs in TaskEtlContext
-export async function main(initial_event: InitialEvent): Promise<FSA> {
+export async function main(initial_event: InitialEvent): Promise<FinalEvent> {
   logger.level = process.env.AVAIL_LOGGING_LEVEL || LoggingLevel.debug;
 
   logger.debug("subtasks_workflow worker main start");
@@ -50,7 +54,6 @@ export async function main(initial_event: InitialEvent): Promise<FSA> {
   await dama_events.dispatch({ type: ":TASK_STARTED" });
 
   let {
-    // @ts-ignore
     // eslint-disable-next-line prefer-const
     payload: { n, iterations, chaos_factor = 0.05 },
   } = initial_event;
@@ -59,7 +62,7 @@ export async function main(initial_event: InitialEvent): Promise<FSA> {
 
   const parent_context_id = getEtlContextId();
 
-  const subtask_promises: Array<Promise<FSA>> = [];
+  const subtask_promises: Array<Promise<EtlEvent>> = [];
 
   while (iterations--) {
     const dama_task_descr = {
@@ -120,8 +123,7 @@ export async function main(initial_event: InitialEvent): Promise<FSA> {
             ).etl_context_id;
           } catch (err) {
             console.error(err);
-            // @ts-ignore
-            logger.error(err.message);
+            logger.error((<Error>err).message);
           }
 
           logger.debug(`before queueing subtask ${_n} `);
@@ -183,7 +185,6 @@ export async function main(initial_event: InitialEvent): Promise<FSA> {
 
   return {
     type: ":FINAL",
-    // @ts-ignore
     payload: { summary },
   };
 }

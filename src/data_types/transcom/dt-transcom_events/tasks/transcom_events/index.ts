@@ -1,23 +1,11 @@
-import { mkdirSync } from "fs";
-
-import { join } from "path";
-
 import fetch from "node-fetch";
-import BetterSQLite, { Database as SQLiteDB } from "better-sqlite3";
-
+import { Database as SQLiteDB } from "better-sqlite3";
 import _ from "lodash";
-
-import dama_host_id from "constants/damaHostId";
-import etl_dir from "constants/etlDir";
 
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
-import {
-  getPgEnv,
-  getEtlContextId,
-  isInTaskEtlContext,
-} from "data_manager/contexts";
+import { isInTaskEtlContext } from "data_manager/contexts";
 
 import {
   getTranscomRequestFormattedTimestamp,
@@ -30,11 +18,11 @@ import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
 
 import { RawTranscomEvent } from "../../../domain";
 
+import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
+
 import { url } from "./data_schema";
 
 const DEFAULT_SLEEP_MS = 10 * 1000; // 10 seconds
-
-const sqlite_db_fname = "etl_context_local_state.sqlite3";
 
 export type InitialEvent = {
   type: ":INITIAL";
@@ -132,7 +120,7 @@ export async function* makeRawTranscomEventIterator(
   await tokenCollector.close();
 }
 
-export async function insertTranscomEventsIdsForDateRangeIntoSqliteDb(
+export async function collectTranscomEventsIdsForDateRangeIntoSqliteDb(
   start_ts: TranscomApiRequestTimestamp,
   end_ts: TranscomApiRequestTimestamp,
   sqlite_db: SQLiteDB
@@ -141,12 +129,6 @@ export async function insertTranscomEventsIdsForDateRangeIntoSqliteDb(
 
   try {
     sqlite_db.exec("BEGIN ;");
-
-    sqlite_db.exec(`
-      CREATE TABLE IF NOT EXISTS event_ids (
-        id TEXT PRIMARY KEY
-      ) WITHOUT ROWID ;
-    `);
 
     const insert_stmt = sqlite_db.prepare(`
       INSERT INTO event_ids (id)
@@ -174,88 +156,72 @@ export async function insertTranscomEventsIdsForDateRangeIntoSqliteDb(
     }
 
     logger.info(
-      `${count} events downloaded for ${start_ts} to ${end_ts} and IDs added to ${sqlite_db_fname}`
+      `${count} events downloaded for ${start_ts} to ${end_ts} and IDs added to sqlite_db`
     );
 
     sqlite_db.exec("COMMIT ;");
   } catch (err) {
-    logger.error(`===== ERROR downloading for ${start_ts} to ${end_ts} =====`);
-    logger.error((<Error>err).message);
-    logger.error((<Error>err).stack);
-
     sqlite_db.exec("ROLLBACK ;");
+
+    logger.error(`===== ERROR downloading for ${start_ts} to ${end_ts} =====`);
+
     throw err;
   }
 }
 
-export async function* makeTranscomEventIdIterator() {
-  if (!isInTaskEtlContext()) {
-    throw new Error("MUST run in a TaskEtlContext");
-  }
-
-  const etl_work_dir = join(
-    etl_dir,
-    `transcom.download_transcom_events.pg_env_${getPgEnv()}.etl_context_${getEtlContextId()}`
-  );
-
-  const sqlite_db = new BetterSQLite(join(etl_work_dir, sqlite_db_fname));
-
-  const stmt = sqlite_db.prepare(`
-    SELECT
-        id
-      FROM event_ids
-      ORDER BY id
+export function createEventIdsTable(sqlite_db: SQLiteDB) {
+  sqlite_db.exec(`
+    CREATE TABLE IF NOT EXISTS event_ids (
+      id TEXT PRIMARY KEY
+    ) WITHOUT ROWID ;
   `);
-
-  for await (const { id } of stmt.iterate()) {
-    yield id;
-    await new Promise((resolve) => process.nextTick(resolve));
-  }
 }
 
-export default async function main(
-  initial_event: InitialEvent
+export function getMonthPartitionsForTimeRange(
+  start_timestamp: string | Date,
+  end_timestamp: string | Date
+) {
+  const transcom_start_timestamp: TranscomApiRequestTimestamp =
+    getTranscomRequestFormattedTimestamp(start_timestamp);
+
+  const transcom_end_timestamp: TranscomApiRequestTimestamp =
+    getTranscomRequestFormattedTimestamp(end_timestamp);
+
+  const month_partitions = partitionTranscomRequestTimestampsByMonth(
+    transcom_start_timestamp,
+    transcom_end_timestamp
+  );
+
+  return month_partitions;
+}
+
+export async function collectTranscomEventIdsForTimeRange(
+  start_timestamp: string | Date,
+  end_timestamp: string | Date
 ): Promise<FinalEvent> {
   if (!isInTaskEtlContext()) {
     throw new Error("MUST run in a TaskEtlContext");
   }
 
   try {
-    const {
-      payload: { start_timestamp, end_timestamp },
-    }: InitialEvent = initial_event;
+    const task_done_type = ":COLLECT_TRANSCOM_EVENT_IDS_DONE";
 
     const events = await dama_events.getAllEtlContextEvents();
 
-    let final_event = events.find((e) => /:FINAL$/.test(e.type));
+    let task_done_event = events.find((e) => e.type === task_done_type);
 
-    if (final_event) {
+    if (task_done_event) {
       logger.warn("Task already DONE");
-      return final_event;
+      return task_done_event;
     }
 
-    logger.info(`:INITIAL event ${JSON.stringify(initial_event, null, 4)}`);
-
-    const etl_work_dir = join(
-      etl_dir,
-      `transcom.download_transcom_events.pg_env_${getPgEnv()}.etl_context_${getEtlContextId()}`
-    );
-
-    mkdirSync(etl_work_dir, { recursive: true });
-
-    const transcom_start_timestamp: TranscomApiRequestTimestamp =
-      getTranscomRequestFormattedTimestamp(start_timestamp);
-
-    const transcom_end_timestamp: TranscomApiRequestTimestamp =
-      getTranscomRequestFormattedTimestamp(end_timestamp);
-
-    const month_partitions = partitionTranscomRequestTimestampsByMonth(
-      transcom_start_timestamp,
-      transcom_end_timestamp
+    const month_partitions = getMonthPartitionsForTimeRange(
+      start_timestamp,
+      end_timestamp
     );
 
     logger.info(
-      `downloading TRANCOM events for ${transcom_start_timestamp} to ${transcom_end_timestamp}`
+      `downloading TRANCOM events for ${start_timestamp} to ${end_timestamp}`
     );
 
     logger.silly(
@@ -266,12 +232,13 @@ export default async function main(
       )}`
     );
 
-    const sqlite_db = new BetterSQLite(join(etl_work_dir, sqlite_db_fname));
+    const sqlite_db = getEtlContextLocalStateSqliteDb();
+
+    createEventIdsTable(sqlite_db);
 
     for (const [start_ts, end_ts] of month_partitions) {
       const download_done_event = {
         type: ":TRANSCOM_EVENTS_DOWNLOADED",
-        // @ts-ignore
         payload: {
           start_ts,
           end_ts,
@@ -286,43 +253,40 @@ export default async function main(
         continue;
       }
 
-      await insertTranscomEventsIdsForDateRangeIntoSqliteDb(
+      await collectTranscomEventsIdsForDateRangeIntoSqliteDb(
         start_ts,
         end_ts,
         sqlite_db
       );
 
-      // @ts-ignore
       await dama_events.dispatch(download_done_event);
     }
 
-    final_event = {
-      type: ":FINAL",
+    task_done_event = {
+      type: task_done_type,
       payload: {
         start_timestamp,
         end_timestamp,
-        etl_work_dir,
-      },
-      meta: {
-        dama_host_id,
       },
     };
 
-    // @ts-ignore
-    await dama_events.dispatch(final_event);
+    await dama_events.dispatch(task_done_event);
+
+    logger.info(
+      `${task_done_event} event ${JSON.stringify(task_done_event, null, 4)}`
+    );
 
     sqlite_db.exec("VACUUM ;");
 
     sqlite_db.close();
 
-    return final_event;
+    return task_done_event;
   } catch (err) {
     logger.error((<Error>err).message);
     logger.error((<Error>err).stack);
 
     await dama_events.dispatch({
       type: ":ERROR",
-      // @ts-ignore
       payload: {
         message: (<Error>err).message,
         stack: (<Error>err).stack,

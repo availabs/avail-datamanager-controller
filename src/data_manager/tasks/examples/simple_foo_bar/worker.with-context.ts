@@ -63,7 +63,6 @@ export async function main(initial_event: InitialEvent): Promise<FinalEvent> {
   logger.debug(inspect(initial_event));
 
   const {
-    // @ts-ignore
     payload: { msg, delay },
   } = initial_event;
 
@@ -91,7 +90,6 @@ export async function main(initial_event: InitialEvent): Promise<FinalEvent> {
 
   return {
     type: ":FINAL",
-    // @ts-ignore
     payload: { msg },
   };
 }
