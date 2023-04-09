@@ -437,7 +437,10 @@ class DamaEvents extends DamaContextAttachedResource {
       }
     );
 
-    const notifyListeners = async (etl_context_id: number | string) => {
+    const notifyListeners = async (
+      etl_context_id: number | string,
+      log_missing_events = true
+    ) => {
       logger.silly(
         `dama_events.notifyListeners etl_context_id=${etl_context_id} start`
       );
@@ -452,7 +455,7 @@ class DamaEvents extends DamaContextAttachedResource {
 
         if (!listeners) {
           logger.silly(
-            `dama_events.notifyListeners etl_context_id=${etl_context_id} has no listeners`
+            `dama_events.notifyListeners pg_env=${pg_env} etl_context_id=${etl_context_id} has no listeners`
           );
 
           return;
@@ -488,14 +491,34 @@ class DamaEvents extends DamaContextAttachedResource {
           logger.silly(
             `dama_events.notifyListeners etl_context_id=${etl_context_id} notifying listeners`
           );
-          await Promise.all(listeners.map((listener) => listener(final_event)));
+
+          await Promise.all(
+            listeners.map((listener) => {
+              try {
+                listener(final_event);
+              } catch (err) {
+                // CONISIDER: The listener should catch this Error.
+                //            If we do not discard it here, other listeners will not get notified.
+                logger.warn(
+                  `dama_events.notifyListeners ignoring error for pg_env=${pg_env} etl_context_id=${etl_context_id}`
+                );
+                logger.warn((<Error>err).message);
+                logger.warn((<Error>err).stack);
+              }
+            })
+          );
         }
       } catch (err) {
         if (/^No :FINAL event for EtlContext/.test((<Error>err).message)) {
-          logger.silly(
-            `dama_events.notifyListeners etl_context_id=${etl_context_id} no :FINAL event`
-          );
+          if (log_missing_events) {
+            logger.warn(
+              `dama_events.notifyListeners pg_env=${pg_env} etl_context_id=${etl_context_id} no :FINAL event`
+            );
+          }
         } else {
+          logger.warn(
+            `dama_events.notifyListeners ignoring error for pg_env=${pg_env} etl_context_id=${etl_context_id}`
+          );
           logger.error((<Error>err).message);
           logger.error((<Error>err).stack);
         }
@@ -507,7 +530,9 @@ class DamaEvents extends DamaContextAttachedResource {
         connectionString: getPostgresConnectionUri(pg_env),
       });
 
-      subscriber.notifications.on("ETL_CONTEXT_FINAL_EVENT", notifyListeners);
+      subscriber.notifications.on("ETL_CONTEXT_FINAL_EVENT", (eci) =>
+        notifyListeners(eci, true)
+      );
 
       //  NOTE: The following sequence will cause a missed :FINAL event
       //
@@ -517,7 +542,7 @@ class DamaEvents extends DamaContextAttachedResource {
       await subscriber.connect();
       await subscriber.listenTo("ETL_CONTEXT_FINAL_EVENT");
 
-      // Handle the potentially missed :FINAL event case described above.
+      // I believe this handles the potentially missed :FINAL event case described above.
       process.nextTick(async () => {
         if (!this.final_event_listeners_by_etl_context_by_pg_env[pg_env]) {
           return;
@@ -530,7 +555,9 @@ class DamaEvents extends DamaContextAttachedResource {
           final_event_listeners_by_etl_context
         );
 
-        await Promise.all(etl_context_ids.map(notifyListeners));
+        await Promise.all(
+          etl_context_ids.map((eci) => notifyListeners(eci, false))
+        );
       });
 
       process.nextTick(() => done(subscriber));
@@ -574,7 +601,109 @@ class DamaEvents extends DamaContextAttachedResource {
   }
 
   /**
-   * Get all the OPEN EtlContexts for a given Moleculer Service.
+   * Get all the latest events for OPEN EtlContexts for a given DamaSourceType.
+   *
+   * @remarks
+   *    EtlContexts can be in three states: OPEN, ERROR, and DONE.
+   *
+   * @param data_type - The DamaType. (data_manager.sources.type column).
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns An Array constaining the latest event for each OPEN EtlContext.
+   */
+  async queryOpenEtlProcessesLatestEventForDataSourceType(
+    data_type: string,
+    pg_env = this.pg_env
+  ): Promise<DamaEvent[]> {
+    const q = dedent(
+      pgFormat(
+        `
+          SELECT
+              c.*
+            FROM data_manager.sources AS a
+              INNER JOIN data_manager.etl_contexts AS b
+                ON (
+                  ( a.type = $1 )
+                  AND
+                  ( b.etl_status = 'OPEN' )
+                  AND
+                  ( a.source_id = b.source_id)
+                )
+              INNER JOIN data_manager.event_store AS c
+                ON (
+                  ( b.etl_context_id = c.etl_context_id )
+                  AND
+                  ( b.latest_event_id = c.event_id )
+                )
+            ORDER BY c.event_id
+          ;
+        `
+      )
+    );
+
+    const { rows } = await dama_db.query(
+      { text: q, values: [data_type] },
+      pg_env
+    );
+
+    return rows;
+  }
+
+  /**
+   * Get all the latest events for non-OPEN (ERROR or DONE etl_status) EtlContexts for a given DamaSourceType.
+   *
+   * @remarks
+   *    EtlContexts can be in three states: OPEN, ERROR, and DONE.
+   *
+   * @param data_type - The DamaType. (data_manager.sources.type column).
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns An Array constaining the latest event for each EtlContext with elt_status ERROR or DONE.
+   */
+  async queryNonOpenEtlProcessesLatestEventForDataSourceType(
+    data_type: string,
+    pg_env = this.pg_env
+  ): Promise<DamaEvent[]> {
+    const q = dedent(
+      pgFormat(
+        `
+          SELECT
+              c.*
+            FROM data_manager.sources AS a
+              INNER JOIN data_manager.etl_contexts AS b
+                ON (
+                  ( a.type = $1 )
+                  AND
+                  ( b.etl_status <> 'OPEN' )
+                  AND
+                  ( a.source_id = b.source_id)
+                )
+              INNER JOIN data_manager.event_store AS c
+                ON (
+                  ( b.etl_context_id = c.etl_context_id )
+                  AND
+                  ( b.latest_event_id = c.event_id )
+                )
+            ORDER BY c.event_id
+          ;
+        `
+      )
+    );
+
+    const { rows } = await dama_db.query(
+      { text: q, values: [data_type] },
+      pg_env
+    );
+
+    return rows;
+  }
+
+  /**
+   * DEPRECATED: Get all the OPEN EtlContexts for a given Moleculer Service.
+   *
+   * @deprecated Use queryOpenEtlProcessesLatestEventForDataSourceType instead.
    *
    * @remarks
    *    EtlContexts can be in three states: OPEN, ERROR, and DONE.
@@ -640,7 +769,9 @@ class DamaEvents extends DamaContextAttachedResource {
   }
 
   /**
-   * Get latest event for non-OPEN EtlContexts.
+   * DEPRECATED: Get latest event for non-OPEN EtlContexts.
+   *
+   * @deprecated Use queryNonOpenEtlProcessesLatestEventForDataSourceType instead.
    *
    * @remarks
    *    EtlContexts can be in three states: OPEN, ERROR, and DONE.
@@ -696,6 +827,21 @@ class DamaEvents extends DamaContextAttachedResource {
     }
 
     return rows[0];
+  }
+
+  /**
+   * Shutdown the dama_events service.
+   *
+   * @remarks
+   *    The Node.js process will hang if listeners have been added and this method is not called.
+   */
+  async shutdown() {
+    for (const pg_env of Object.keys(this.pglisten_subscribers_by_pgenv)) {
+      const subscriber = await this.pglisten_subscribers_by_pgenv[pg_env];
+
+      // eslint-disable-next-line no-unused-expressions
+      subscriber?.close();
+    }
   }
 }
 

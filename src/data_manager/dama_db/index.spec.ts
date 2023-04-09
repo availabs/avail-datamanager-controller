@@ -4,7 +4,7 @@ import _ from "lodash";
 
 import dama_db from ".";
 
-const PG_ENV = "test_db";
+const PG_ENV = "ephemeral_test_db";
 
 const getRandomTableName = () => uuid().replace(/[^0-9a-z]/gi, "");
 
