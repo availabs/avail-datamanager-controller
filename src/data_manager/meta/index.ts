@@ -960,6 +960,9 @@ class DamaMeta extends DamaContextAttachedResource {
   /**
    * Make a DamaView authoritative.
    *
+   * @remarks
+   *    Uses an 'authoritative' property on the data_manager.views.meta JSONB column.
+   *
    * @param dama_view_id - The ID of the DamaView to delete
    *
    * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
