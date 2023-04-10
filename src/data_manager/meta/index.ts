@@ -51,6 +51,11 @@ class DamaMeta extends DamaContextAttachedResource {
   /**
    * Get a description of a database table's schema.
    *
+   * @remarks
+   *    The table must either be
+   *      * declared in the data_manager.views using the table_schema and table_name columns
+   *      * in the data_manager or _data_manager_admin schemas
+   *
    * @param table_schema - The database schema name.
    *
    * @param table_name - The database table name.
@@ -91,10 +96,12 @@ class DamaMeta extends DamaContextAttachedResource {
     );
 
     if (rows.length === 0) {
-      console.log(JSON.stringify({ text, values }, null, 4));
       const table = pgFormat("%I.%I", table_schema, table_name);
 
-      throw new Error(`No such table ${table}`);
+      logger.debug(`No such table in data_manager: ${table}`);
+      logger.debug(JSON.stringify({ text, values }, null, 4));
+
+      throw new Error(`No such table in data_manager: ${table}`);
     }
 
     const table_description = rows.reduce(
@@ -445,15 +452,11 @@ class DamaMeta extends DamaContextAttachedResource {
   }
 
   /**
-   * Generate a node-postgres parameterized query to
+   * DEPRECATED Generate a node-postgres parameterized query to
    *    INSERT the new_dama_view object into the data_manager.views table.
    *
-   * @remarks
-   *    In most cases, use insertNewDamaView instead.
-   *
-   * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-   * deprecate dama_source_name.
-   *    Only used in data_types/npmrds/dt-npmrds_travel_times_export_ritis/index.service.ts
+   * @deprecated
+   *    Use createNewDamaView instead.
    *
    * @param new_dama_view - An object representing the new DamaView to INSERT.
    *    MUST include either a source_id or a dama_source_name property.
@@ -544,11 +547,9 @@ class DamaMeta extends DamaContextAttachedResource {
   }
 
   /**
-   * INSERT the new_dama_view object into the data_manager.views table.
+   * DEPRECATED INSERT the new_dama_view object into the data_manager.views table.
    *
-   * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-   * deprecate dama_source_name.
-   *    Only used in data_types/npmrds/dt-npmrds_travel_times_export_ritis/index.service.ts
+   * @deprecated Use createNewDamaView instead
    *
    * @param new_dama_view - An object representing the new DamaView to INSERT.
    *    MUST include either a source_id or a dama_source_name property.

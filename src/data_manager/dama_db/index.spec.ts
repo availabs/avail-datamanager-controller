@@ -6,7 +6,10 @@ import dama_db from ".";
 
 const PG_ENV = "ephemeral_test_db";
 
-const getRandomTableName = () => uuid().replace(/[^0-9a-z]/gi, "");
+const getRandomTableName = () =>
+  uuid()
+    .replace(/[^0-9a-z]/gi, "")
+    .replace(/^[0-9]+/, "x");
 
 test("initializes data_manager schema on connect", async () => {
   const {
