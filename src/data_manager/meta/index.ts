@@ -710,50 +710,6 @@ class DamaMeta extends DamaContextAttachedResource {
     return rows[0];
   }
 
-  /*
-CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name_prefix( damaViewId INTEGER )
-  RETURNS TEXT
-  LANGUAGE SQL
-  IMMUTABLE
-  RETURNS NULL ON NULL INPUT
-  AS
-  $$
-    SELECT
-        ( 's' || source_id::TEXT || '_v' || view_id::TEXT )
-      FROM data_manager.views AS a
-      WHERE ( view_id = damaViewId )
-  $$
-;
-
-CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name(
-  damaViewId INTEGER
-)
-  RETURNS TEXT
-  LANGUAGE SQL
-  IMMUTABLE
-  RETURNS NULL ON NULL INPUT
-  AS
-  $$
-    SELECT
-        --  Max Postgres DB object name is 63 characters.
-        --    We need to leave some space for index/trigger name extensions
-        substring(
-          ( dama_view_prefix || '_' || dama_src_normalized_name )
-          FROM 1 FOR 50
-        )
-      FROM (
-        SELECT
-            _data_manager_admin.dama_view_name_prefix(damaViewId) as dama_view_prefix,
-            _data_manager_admin.to_snake_case(a.name) AS dama_src_normalized_name
-          FROM data_manager.sources AS a
-            INNER JOIN data_manager.views AS b
-              USING ( source_id )
-          WHERE ( view_id = damaViewId )
-      ) AS t
-  $$
-;
-*/
-
   /**
    *  Get the standardized name for a DamaView.
    *
