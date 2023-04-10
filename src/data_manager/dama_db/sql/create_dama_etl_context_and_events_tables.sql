@@ -236,6 +236,7 @@ DO
             FOREIGN KEY (etl_context_id)
               REFERENCES data_manager.etl_contexts (etl_context_id)
               -- We do _NOT_ want "ON DELETE CASCADE" here
+              -- We do want to prevent etl_contexts DELETEs.
           ;
       END IF ;
 

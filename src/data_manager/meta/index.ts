@@ -48,6 +48,19 @@ export type LoadDataSourcesQueries = {
 export type ToposortedLoadDataSourcesQueries = LoadDataSourcesQueries[];
 
 class DamaMeta extends DamaContextAttachedResource {
+  /**
+   * Get a description of a database table's schema.
+   *
+   * @param table_schema - The database schema name.
+   *
+   * @param table_name - The database table name.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an Object whose keys are the column names and values are \{ column_type, column_number \}.
+   *
+   * @throws Throws an Error if no such table exists.
+   */
   async describeTable(
     table_schema: string,
     table_name: string,
@@ -95,6 +108,19 @@ class DamaMeta extends DamaContextAttachedResource {
     return table_description;
   }
 
+  /**
+   * Get list of a database table's columns.
+   *
+   * @param table_schema - The database schema name.
+   *
+   * @param table_name - The database table name.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns An array of the table columns.
+   *
+   * @throws Throws an Error if no such table exists.
+   */
   async getTableColumns(
     table_schema: string,
     table_name: string,
@@ -114,6 +140,20 @@ class DamaMeta extends DamaContextAttachedResource {
     return column_names;
   }
 
+  /**
+   * Get the table_schema and table_name of a DamaView.
+   *
+   * @remarks
+   *    Uses the data_manager.views.table_schema and data_manager.views.table_name columns.
+   *
+   * @param dama_view_id - The DamaView's ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an \{ table_schema, table_name \} object.
+   *
+   * @throws Throws an Error if no such DamaView exists.
+   */
   async getDamaViewTableSchemaAndName(
     dama_view_id: number,
     pg_env = this.pg_env
@@ -139,6 +179,21 @@ class DamaMeta extends DamaContextAttachedResource {
     return rows[0];
   }
 
+  /**
+   * Get a list of the column names for a DamaView.
+   *
+   * @remarks
+   *    Uses the data_manager.views.table_schema and data_manager.views.table_name columns.
+   *
+   * @param dama_view_id - The DamaView's ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an \{ table_schema, table_name \} object.
+   *
+   * @throws Throws an Error if no such DamaView exists,
+   *    or if the DamaView's (table_schema, table_name) do not exist.
+   */
   async getDamaViewTableColumns(
     dama_view_id: number,
     pg_env = this.pg_env
@@ -149,6 +204,20 @@ class DamaMeta extends DamaContextAttachedResource {
     return this.getTableColumns(table_schema, table_name, pg_env);
   }
 
+  /**
+   * Get the DamaSource ID for the DamaSource name.
+   *
+   * @remarks
+   *    There are NON NULL and UNIQUE contraints on the data_manager.sources.name column.
+   *
+   * @param dama_source_name - The DamaSource's name.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the DamaSource's ID.
+   *
+   * @throws Throws an Error if no such DamaSource exists.
+   */
   async getDamaSourceIdForName(
     dama_source_name: string,
     pg_env = this.pg_env
@@ -178,8 +247,30 @@ class DamaMeta extends DamaContextAttachedResource {
     return source_id;
   }
 
-  // TODO:  Add a strict mode that throws if row schema does not match table schema.
-  //        Could use JSON-Schema to validate/coerce.
+  /**
+   * Generate a node-postgres parameterized query to INSERT the row into the table.
+   *
+   * @remarks
+   *    Maps row object keys to database column names.
+   *    Silently ignores properties without corresponding columns.
+   *
+   *    NOTE: "RETURNING *" is added to the INSERT statement.
+   *
+   *    NOTE: Converts empty strings to NULL.
+   *
+   * @param table_schema - The database schema name.
+   *
+   * @param table_name - The database table name.
+   *
+   * @param row - The row to INSERT.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns a node-postgres parameterized query
+   *    See: https://node-postgres.com/features/queries#parameterized-query
+   *
+   * @throws Throws an Error if the specified table does not exist.
+   */
   async generateInsertStatement(
     table_schema: string,
     table_name: string,
@@ -207,8 +298,17 @@ class DamaMeta extends DamaContextAttachedResource {
 
         acc.placeholders.push(`$${i + 1}::${column_type}`);
 
-        const v = row[col];
-        acc.values.push(v === "" ? null : v);
+        let v = row[col];
+
+        if (v === "") {
+          v = null;
+        }
+
+        if (Array.isArray(v)) {
+          v = JSON.stringify(v);
+        }
+
+        acc.values.push(v);
 
         return acc;
       },
@@ -240,6 +340,26 @@ class DamaMeta extends DamaContextAttachedResource {
     return { text, values };
   }
 
+  /**
+   * INSERT the row into the specified table.
+   *
+   * @remarks
+   *    Maps row object keys to database column names.
+   *    Silently ignores properties without corresponding columns.
+   *
+   * @param table_schema - The database schema name.
+   *
+   * @param table_name - The database table name.
+   *
+   * @param row - The row to INSERT.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns The INSERT result. The INSERTed row can be found at result.rows[0].
+   *    See: https://node-postgres.com/apis/result
+   *
+   * @throws Throws an Error if the specified table does not exist.
+   */
   async insertNewRow(
     table_schema: string,
     table_name: string,
@@ -256,6 +376,17 @@ class DamaMeta extends DamaContextAttachedResource {
     return dama_db.query(q, pg_env);
   }
 
+  /**
+   * Get the MAX DamaView ID for the DamaSource.
+   *
+   * @param dama_source_id - The DamaSource ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns The MAX DamaView ID
+   *
+   * @throws Throws an Error if the specified DamaSource does not exist.
+   */
   async getDataSourceMaxViewId(
     dama_source_id: number,
     pg_env = this.pg_env
@@ -285,6 +416,22 @@ class DamaMeta extends DamaContextAttachedResource {
     return latest_view_id;
   }
 
+  /**
+   * Get a list of the database table columns for the latest DamaView (max view_id) for the DamaSource.
+   *
+   * @remarks
+   *    Uses the data_manager.views.table_schema and data_manager.views.table_name columns.
+   *
+   * @param dama_source_id - The DamaSource ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns The MAX DamaView ID
+   *
+   * @throws Throws an Error if
+   *    * the specified DamaSource does not exist, or
+   *    * the latest DamaView table does not exist.
+   */
   async getDataSourceLatestViewTableColumns(
     dama_source_id: number,
     pg_env = this.pg_env
@@ -297,8 +444,30 @@ class DamaMeta extends DamaContextAttachedResource {
     return this.getDamaViewTableColumns(dama_view_id, pg_env);
   }
 
+  /**
+   * Generate a node-postgres parameterized query to
+   *    INSERT the new_dama_view object into the data_manager.views table.
+   *
+   * @remarks
+   *    In most cases, use insertNewDamaView instead.
+   *
+   * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+   * deprecate dama_source_name.
+   *    Only used in data_types/npmrds/dt-npmrds_travel_times_export_ritis/index.service.ts
+   *
+   * @param new_dama_view - An object representing the new DamaView to INSERT.
+   *    MUST include either a source_id or a dama_source_name property.
+   *    The dama_source_name property is a convenience that allows hard-coding known DamaSource names
+   *      rather than querying the DamaSource ID for a given PgEnv.
+   *      dama_source_name is not INSERTed into the data_manager.views table.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns a node-postgres parameterized query
+   *    See: https://node-postgres.com/features/queries#parameterized-query
+   */
   async getInsertDamaViewRowQuery(
-    view_meta: Record<string, any>,
+    new_dama_view: Record<string, any>,
     pg_env = this.pg_env
   ) {
     const column_names: string[] = await this.getTableColumns(
@@ -307,7 +476,7 @@ class DamaMeta extends DamaContextAttachedResource {
       pg_env
     );
 
-    const new_row = _.pick(view_meta, column_names);
+    const new_row = _.pick(new_dama_view, column_names);
 
     new_row.etl_context_id = new_row.etl_context_id || null;
 
@@ -352,7 +521,7 @@ class DamaMeta extends DamaContextAttachedResource {
       .join(", ");
 
     // FIXME: remove the dama_source_name requirement. Just use source_id.
-    const { data_source_name } = view_meta;
+    const { data_source_name } = new_dama_view;
     const data_source_name_param_num = queryParams.push(data_source_name);
 
     const sql = `
@@ -374,6 +543,23 @@ class DamaMeta extends DamaContextAttachedResource {
     };
   }
 
+  /**
+   * INSERT the new_dama_view object into the data_manager.views table.
+   *
+   * FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+   * deprecate dama_source_name.
+   *    Only used in data_types/npmrds/dt-npmrds_travel_times_export_ritis/index.service.ts
+   *
+   * @param new_dama_view - An object representing the new DamaView to INSERT.
+   *    MUST include either a source_id or a dama_source_name property.
+   *    The dama_source_name property is a convenience that allows hard-coding known DamaSource names
+   *      rather than querying the DamaSource ID for a given PgEnv.
+   *      dama_source_name is not INSERTed into the data_manager.views table.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the new DamaView's ID
+   */
   async insertNewDamaView(
     new_dama_view: Record<string, any>,
     pg_env = this.pg_env
@@ -392,6 +578,13 @@ class DamaMeta extends DamaContextAttachedResource {
     return { dama_view_id };
   }
 
+  /**
+   * Get the source_id and name of all DamaSources in the PgEnv.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an Array of \{ source_id, name \}
+   */
   async getDamaDataSources(pg_env = this.pg_env) {
     const sql = dedent(`
       SELECT
@@ -407,6 +600,23 @@ class DamaMeta extends DamaContextAttachedResource {
     return rows;
   }
 
+  /**
+   * Get the JSON Schema description of the JSON representation of a table's data.
+   *
+   * @remarks
+   *    The JSON Schema describes the object node-pg creates for the table's rows.
+   *      See:
+   *        * https://json-schema.org/
+   *        * https://node-postgres.com/features/types
+   *
+   * @param table_schema - The database schema name.
+   *
+   * @param table_name - The database table name.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns a JSON Schema object
+   */
   async getTableJsonSchema(
     table_schema: string,
     table_name: string,
@@ -443,6 +653,20 @@ class DamaMeta extends DamaContextAttachedResource {
     return schema;
   }
 
+  /**
+   * Get properties of a DamaView
+   *
+   * @remarks
+   *    The properties MUST map exactly to data_manager.views columns.
+   *
+   * @param dama_view_id - The DamaView ID.
+   *
+   * @param properties - The list of properties to obtain the values of
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an Array of objects where the object keys are the passed properties.
+   */
   async getDamaViewProperties(
     dama_view_id: number,
     properties: string | string[],
@@ -486,6 +710,80 @@ class DamaMeta extends DamaContextAttachedResource {
     return rows[0];
   }
 
+  /*
+CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name_prefix( damaViewId INTEGER )
+  RETURNS TEXT
+  LANGUAGE SQL
+  IMMUTABLE
+  RETURNS NULL ON NULL INPUT
+  AS
+  $$
+    SELECT
+        ( 's' || source_id::TEXT || '_v' || view_id::TEXT )
+      FROM data_manager.views AS a
+      WHERE ( view_id = damaViewId )
+  $$
+;
+
+CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name(
+  damaViewId INTEGER
+)
+  RETURNS TEXT
+  LANGUAGE SQL
+  IMMUTABLE
+  RETURNS NULL ON NULL INPUT
+  AS
+  $$
+    SELECT
+        --  Max Postgres DB object name is 63 characters.
+        --    We need to leave some space for index/trigger name extensions
+        substring(
+          ( dama_view_prefix || '_' || dama_src_normalized_name )
+          FROM 1 FOR 50
+        )
+      FROM (
+        SELECT
+            _data_manager_admin.dama_view_name_prefix(damaViewId) as dama_view_prefix,
+            _data_manager_admin.to_snake_case(a.name) AS dama_src_normalized_name
+          FROM data_manager.sources AS a
+            INNER JOIN data_manager.views AS b
+              USING ( source_id )
+          WHERE ( view_id = damaViewId )
+      ) AS t
+  $$
+;
+*/
+
+  /**
+   *  Get the standardized name for a DamaView.
+   *
+   * @remarks
+   *    The data_manager.views tables does NOT have a name column.
+   *
+   *    The name returned by this function is generated in the database for internal use.
+   *      The primary use of the dama_view_name is automated database table naming.
+   *      The generated names offer some human readability when inspecting the database
+   *        or creating external files such as exported CSVs or MBtiles.
+   *
+   *    The dama_view_name generation rules:
+   *      (1) A dama_view_name begins with s\<source_id\>_v\<view_id\>
+   *            For example, for DamaSourceID 10 and DamaViewID 101,
+   *              the dama_view_name prefix would be s10_v101.
+   *      (2) The DamaView's DamaSourceName is converted to snake_case and appended to (1).
+   *      (3) The string obtained in (2) is truncated to 50 characters.
+   *            This is because PostgreSQL limits database object names to 63 characters
+   *              and extra characters are reserved for suffixes when naming indices, triggers, etc.
+   *
+   *    NOTE: DamaSourceNames are NOT immutable.
+   *          Therefore the s\<source_id\>_v\<view_id\> is the only reliable way to associate
+   *            database objects with their respective DamaSource and DamaView.
+   *
+   * @param dama_view_id - The DamaView ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the database-generated dama_view_name
+   */
   async getDamaViewName(dama_view_id: number, pg_env = this.pg_env) {
     const { dama_view_name } = await this.getDamaViewProperties(
       dama_view_id,
@@ -496,6 +794,20 @@ class DamaMeta extends DamaContextAttachedResource {
     return dama_view_name;
   }
 
+  /**
+   *  Get the prefix of a DamaView's standardized name.
+   *
+   * @remarks
+   *    A dama_view_name begins with s\<source_id\>_v\<view_id\>
+   *      For example, for DamaSourceID 10 and DamaViewID 101,
+   *        the dama_view_name prefix would be s10_v101.
+   *
+   * @param dama_view_id - The DamaView ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the s\<source_id\>_v\<view_id\> prefix of database-generated DamaView names.
+   */
   async getDamaViewNamePrefix(dama_view_id: number, pg_env = this.pg_env) {
     const { dama_view_name_prefix } = await this.getDamaViewProperties(
       dama_view_id,
@@ -506,6 +818,20 @@ class DamaMeta extends DamaContextAttachedResource {
     return dama_view_name_prefix;
   }
 
+  /**
+   *  Get the DamaView's unique identifier across all PgEnvs.
+   *
+   * @remarks
+   *    The DamaView's global ID is a unique identifier across all PgEnvs.
+   *    DamaView global IDs are prefixed with the PgEnv's database_id.
+   *      The database_id is a UUID created upon database initialization.
+   *
+   * @param dama_view_id - The DamaView ID.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an Array of objects where the object keys are the passed properties.
+   */
   async getDamaViewGlobalId(dama_view_id: number, pg_env = this.pg_env) {
     const { dama_global_id } = await this.getDamaViewProperties(
       dama_view_id,
@@ -516,6 +842,9 @@ class DamaMeta extends DamaContextAttachedResource {
     return dama_global_id;
   }
 
+  /**
+   * DEPRECATED
+   */
   async getDamaViewMapboxPaintStyle(
     dama_view_id: number,
     pg_env = this.pg_env
@@ -529,30 +858,44 @@ class DamaMeta extends DamaContextAttachedResource {
     return mapbox_paint_style;
   }
 
+  /**
+   * Generate the parameterized query to create a new DamaSource
+   *
+   * @remarks
+   *    In most cases, you'll want to use createNewDamaSource.
+   *
+   * @param new_row - Object describing the new DamaSource.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the newly created DamaSource.
+   */
   async generateCreateDamaSourceQuery(
-    table_schema: string,
-    table_name: string,
     new_row: Record<string, any>,
     pg_env = this.pg_env
   ) {
     return this.generateInsertStatement(
-      table_schema,
-      table_name,
-      new_row,
-      pg_env
-    );
-  }
-
-  async createNewDamaSource(
-    new_row: Record<string, any>,
-    pg_env = this.pg_env
-  ) {
-    const q = await this.generateCreateDamaSourceQuery(
       "data_manager",
       "sources",
       new_row,
       pg_env
     );
+  }
+
+  /**
+   * Create a new DamaSource
+   *
+   * @param new_row - Object describing the new DamaSource.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the newly created DamaSource.
+   */
+  async createNewDamaSource(
+    new_row: Record<string, any>,
+    pg_env = this.pg_env
+  ) {
+    const q = await this.generateCreateDamaSourceQuery(new_row, pg_env);
 
     const {
       rows: [new_dama_source],
@@ -566,6 +909,18 @@ class DamaMeta extends DamaContextAttachedResource {
     return new_dama_source;
   }
 
+  /**
+   * Generate the parameterized query to create a new DamaView
+   *
+   * @remarks
+   *    In most cases, you'll want to use createNewDamaView.
+   *
+   * @param new_row - Object describing the new DamaView.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the newly created DamaView.
+   */
   async generateCreateDamaViewSql(
     new_row: Record<string, any>,
     pg_env = this.pg_env
@@ -578,6 +933,15 @@ class DamaMeta extends DamaContextAttachedResource {
     );
   }
 
+  /**
+   * Create a new DamaView
+   *
+   * @param new_row - Object describing the new DamaView.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the newly created DamaView.
+   */
   async createNewDamaView(new_row: Record<string, any>, pg_env = this.pg_env) {
     const q = await this.generateCreateDamaViewSql(new_row, pg_env);
 
@@ -591,6 +955,18 @@ class DamaMeta extends DamaContextAttachedResource {
     return new_dama_view;
   }
 
+  /**
+   * Delete a DamaSource
+   *
+   * @remarks
+   *    NOTE: Also deletes all DamaViews for the DamaSource
+   *
+   * @param dama_source_id - The ID of the DamaSource to delete
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the result of the DELETE FROM dama_manager.sources command.
+   */
   async deleteDamaSource(dama_source_id: number, pg_env = this.pg_env) {
     const deleteViews = `DELETE FROM data_manager.views where source_id = ${dama_source_id}`;
     const deleteSource = `DELETE FROM data_manager.sources where source_id = ${dama_source_id}`;
@@ -605,6 +981,15 @@ class DamaMeta extends DamaContextAttachedResource {
     return res;
   }
 
+  /**
+   * Delete a DamaView
+   *
+   * @param dama_view_id - The ID of the DamaView to delete
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns the result of the DELETE FROM dama_manager.views command.
+   */
   async deleteDamaView(dama_view_id: number, pg_env = this.pg_env) {
     const sql = `DELETE FROM data_manager.views where view_id = ${dama_view_id}`;
 
@@ -615,6 +1000,15 @@ class DamaMeta extends DamaContextAttachedResource {
     return sql;
   }
 
+  /**
+   * Make a DamaView authoritative.
+   *
+   * @param dama_view_id - The ID of the DamaView to delete
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns "success" if successful
+   */
   async makeAuthoritativeDamaView(dama_view_id: number, pg_env = this.pg_env) {
     const makeViewAuthSql = `
               UPDATE data_manager.views
@@ -636,6 +1030,15 @@ class DamaMeta extends DamaContextAttachedResource {
     return "success";
   }
 
+  /**
+   * Get DamaSource metadata (all columns of the dama_manager.sources table) for the DamaSource names.
+   *
+   * @param dama_source_names - The names of the DamaSources whose metadata to return.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an object with DamaSources names as keys and DamaSources as values.
+   */
   async getDamaSourceMetadataByName(
     dama_source_names: string[],
     pg_env = this.pg_env
@@ -676,7 +1079,10 @@ class DamaMeta extends DamaContextAttachedResource {
     return metaByName;
   }
 
-  async generateToposortedLoadDataSourcesQueries(
+  /**
+   * Internal method used by loadToposortedDamaSourceMetadata
+   */
+  protected async generateToposortedLoadDataSourcesQueries(
     toposorted_dama_sources_meta: Record<string, any>[],
     pg_env = this.pg_env
   ): Promise<ToposortedLoadDataSourcesQueries> {
@@ -854,6 +1260,31 @@ class DamaMeta extends DamaContextAttachedResource {
     return stmts;
   }
 
+  /**
+   * Create a tree of DamaSources that involve inter-dependencies.
+   *
+   * @remarks
+   *    DamaSources can depend on other DamaSources.
+   *      These dependencies are declared in the data_manager.sources.source_dependencies column.
+   *
+   *    This method allows declaring a tree of inter-dependent DamaSources as an object,
+   *      inserting them into the data_manager.sources table, while auto-populating
+   *      the source_dependencies column.
+   *
+   *    The source_dependencies must be declared using a source_dependencies_names property
+   *      because source_ids are not known until after a DamaSource is INSERTed.
+   *
+   *    NOTE: It is safe to include already existing DamaSources in toposorted_dama_src_meta.
+   *
+   *    For an example of the toposorted_dama_src_meta datastructure,
+   *      see ../../data_types/npmrds/domain toposortedNpmrdsDataSourcesInitialMetadata
+   *
+   * @param toposorted_dama_sources_meta - An array of DamaSources, toposorted by source_dependencies_names.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   *
+   * @returns an array with the newly inserted DamaSources, in the same order as toposorted_dama_sources_meta
+   */
   async loadToposortedDamaSourceMetadata(
     toposorted_dama_sources_meta: Record<string, any>[],
     pg_env = this.pg_env

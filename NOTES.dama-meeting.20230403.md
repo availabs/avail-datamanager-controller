@@ -86,7 +86,7 @@ Or, you can use the etl_context_id output from the sendIt command to launch the 
 manually via the command line:
 
 ```sh
-$ AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=333 node --require ts-node/register src/data_manager/tasks/TaskRunner.ts
+$ AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=333 node --require tsconfig-paths/register --require ts-node/register src/data_manager/tasks/TaskRunner.ts
 ```
 
 #### Complex Multi-SubTask Workflow (with chaos)
@@ -102,7 +102,7 @@ mol $ call data_manager/dama_tasks/examples/chaotic_concurrent_subtasks_fizzbuzz
 or
 
 ```
-$ AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=333 node --require ts-node/register src/data_manager/tasks/TaskRunner.ts
+$ AVAIL_LOGGING_LEVEL=silly AVAIL_DAMA_PG_ENV=dama_dev_1 AVAIL_DAMA_ETL_CONTEXT_ID=333 node --require tsconfig-paths/register --require ts-node/register src/data_manager/tasks/TaskRunner.ts
 ```
 
 Monitoring the task in psql:
