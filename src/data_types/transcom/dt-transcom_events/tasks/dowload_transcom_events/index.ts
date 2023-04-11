@@ -25,7 +25,7 @@ import { url, apiResponsePropsToDbCols, dbCols } from "./data_schema";
 import {
   RawTranscomEventExpanded,
   ProtoTranscomEventExpanded,
-} from "../../../domain";
+} from "../../domain";
 
 import { getTimestamp } from "data_utils/time";
 

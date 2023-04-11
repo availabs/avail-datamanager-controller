@@ -16,7 +16,7 @@ import {
 
 import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
 
-import { RawTranscomEvent } from "../../../domain";
+import { RawTranscomEvent } from "../../domain";
 
 import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
 

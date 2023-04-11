@@ -1,6 +1,6 @@
 import puppeteer, { Browser } from "puppeteer";
 
-import credentials from "../../../config/transcom_credentials.json";
+import credentials from "../../config/transcom_credentials.json";
 
 import logger from "data_manager/logger";
 
