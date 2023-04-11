@@ -41,7 +41,7 @@ export default class TranscomAuthTokenCollector {
 
       logger.debug("TranscomAuthTokenCollector: creating puppeteer page");
 
-      await page.goto("https://xcmdfe1.xcmdata.org/SSO/#!/home/app/default");
+      await page.goto("https://xcmdfe1.xcmdata.org/SSO/#!/login");
       await page.waitForSelector("#username");
 
       // Type into search box.
@@ -69,6 +69,12 @@ export default class TranscomAuthTokenCollector {
               console.error(err);
             }
           });
+
+          //  If the page.evaluate above returns undefined, it will continue to do so.
+          if ((await this.jwt_token_p) === undefined) {
+            await this.close();
+            await this.start();
+          }
 
           logger.debug(
             `TranscomAuthTokenCollector: typeof this.jwt_token_p ${typeof this

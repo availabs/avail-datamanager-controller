@@ -1,5 +1,13 @@
 # TODO
 
+## PgEnv
+
+ There MUST exist a corresponding file in the project's config directory. For
+ example, if pg_env = foo, there must be a config/postgres.foo.env file with
+ the database connection credentials. Because DamaDb extends
+ DamaContextAttachedResource, pg_env is an optional variable if getDb is called
+ within an EtlContext.
+
 ## Testing
 
 * https://stackoverflow.com/questions/59540432/how-to-mock-postgresql-pg-in-node-js-using-jest
@@ -21,4 +29,3 @@
 ## More
 
 * https://martinfowler.com/articles/evodb.html
-

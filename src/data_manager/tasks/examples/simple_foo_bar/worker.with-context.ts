@@ -6,7 +6,7 @@ import logger from "data_manager/logger";
 
 import {
   runInDamaContext,
-  isInTaskEtlContext,
+  verifyIsInTaskEtlContext,
   TaskEtlContext,
 } from "data_manager/contexts";
 
@@ -52,9 +52,7 @@ export type FinalEvent = {
 };
 
 export async function main(initial_event: InitialEvent): Promise<FinalEvent> {
-  if (!isInTaskEtlContext()) {
-    throw new Error("MUST run in a TaskEtlContext");
-  }
+  verifyIsInTaskEtlContext();
 
   logger.info(
     `tasks/examples/simple_foo_bar/worker.with-context.ts ${new Date()}: start`

@@ -22,6 +22,7 @@ export type TaskEtlContext = EtlContext & {
   meta: {
     pgEnv: PgEnv;
     etl_context_id: number;
+    parent_context_id?: number;
   };
 };
 
@@ -54,6 +55,12 @@ export function isInTaskEtlContext(): boolean {
     return !!(ctx?.meta?.pgEnv && ctx.meta.etl_context_id && ctx.initial_event);
   } catch (err) {
     return false;
+  }
+}
+
+export function verifyIsInTaskEtlContext() {
+  if (!isInTaskEtlContext()) {
+    throw new Error("MUST run in a TaskEtlContext");
   }
 }
 

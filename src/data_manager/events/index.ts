@@ -310,6 +310,10 @@ class DamaEvents extends DamaContextAttachedResource {
   /**
    * Returns the :FINAL event for the EtlContext.
    *
+   * @remarks
+   *    NOTE: This method throws if the :FINAL event does not exist.
+   *    If you wish to await the :FINAL event, use getEventualEtlContextFinalEvent
+   *
    * @param etl_context_id - The EtlContext ID. Optional if running in a dama_context EtlContext.
    *
    * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
@@ -406,6 +410,31 @@ class DamaEvents extends DamaContextAttachedResource {
 
       await this.addPgListenSubscriber(pg_env);
     }
+  }
+
+  /**
+   * Returns a Promise for an EtlContext's :FINAL event.
+   *   If the :FINAL event already exists, the Promise immediately resolves with the event.
+   *   If the :FINAL event does not yet exists, the Promise will resolve when
+   *     the :FINAL event is written to the database.
+   *
+   * @remarks
+   *    Uses registerEtlContextFinalEventListener.
+   *    NOTE: This method may need to wait for a long-running task to finish.
+   *          The getEtlContextFinalEvent does not wait for tasks.
+   *            It will throw an error if the :FINAL event does not exist.
+   *
+   * @param etl_context_id - The EtlContext ID whose :FINAL event will be passed to the listener.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
+  getEventualEtlContextFinalEvent(
+    etl_context_id: number,
+    pg_env = this.pg_env
+  ) {
+    return new Promise<DamaEvent>((resolve) =>
+      this.registerEtlContextFinalEventListener(etl_context_id, resolve, pg_env)
+    );
   }
 
   /**

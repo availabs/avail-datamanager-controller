@@ -1,8 +1,5 @@
 import _ from "lodash";
 
-export const url =
-  "https://eventsearch.xcmdata.org/HistoricalEventSearch/xcmEvent/getEventGridData";
-
 export const apiResponsePropsToDbCols = {
   facility: "facility",
   eventType: "event_type",

@@ -126,8 +126,8 @@ class TaskRunner {
       await this.shutdown(DamaTaskExitCodes.DONE);
     } catch (err) {
       const payload = {
-        err_msg: (<Error>err).message,
-        timestamp: new Date().toISOString(),
+        message: (<Error>err).message,
+        stack: (<Error>err).stack,
       };
 
       dama_events.dispatch(

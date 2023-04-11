@@ -11,6 +11,7 @@ import {
   TaskEtlContext,
   getEtlContextId,
   runInDamaContext,
+  verifyIsInTaskEtlContext,
 } from "data_manager/contexts";
 
 import logger, { LoggingLevel } from "data_manager/logger";
@@ -42,6 +43,8 @@ export type FinalEvent = {
 
 // Runs in TaskEtlContext
 export async function main(initial_event: InitialEvent): Promise<FinalEvent> {
+  verifyIsInTaskEtlContext();
+
   logger.level = process.env.AVAIL_LOGGING_LEVEL || LoggingLevel.debug;
 
   logger.debug("subtasks_workflow worker main start");

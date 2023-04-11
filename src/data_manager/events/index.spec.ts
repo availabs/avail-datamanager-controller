@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 import _ from "lodash";
 
-import dama_db from "../dama_db";
+import dama_db from "data_manager/dama_db";
 import dama_events, { DamaEvent } from ".";
 
 const PG_ENV = "ephemeral_test_db";
@@ -672,4 +672,44 @@ test("queryNonOpenEtlProcessesLatestEventForDataSourceType", async () => {
   expect(cur_latest[0].type).toBe(":FINAL");
   expect(cur_latest[1].etl_context_id).toBe(eci_b);
   expect(cur_latest[1].type).toBe(":FINAL");
+});
+
+test.only("getEtlContextFinalEvent vs getEventualEtlContextFinalEvent", async () => {
+  const eci_immediate = await dama_events.spawnEtlContext(null, null, PG_ENV);
+  const eci_eventual = await dama_events.spawnEtlContext(null, null, PG_ENV);
+
+  await dama_events.dispatch({ type: ":INITIAL" }, eci_immediate, PG_ENV);
+  await dama_events.dispatch({ type: ":INITIAL" }, eci_eventual, PG_ENV);
+
+  const id = uuid();
+
+  const eventually_dispatch_final_event = async (eci: number) => {
+    await new Promise((r) => setTimeout(r, 2000));
+
+    await dama_events.dispatch(
+      { type: ":FINAL", payload: { _id_: id } },
+      eci,
+      PG_ENV
+    );
+  };
+
+  // getEtlContextFinalEvent does not wait
+  expect(
+    Promise.all([
+      dama_events.getEtlContextFinalEvent(eci_immediate, PG_ENV),
+      eventually_dispatch_final_event(eci_immediate),
+    ])
+  ).rejects.toThrow();
+
+  // getEventualEtlContextFinalEvent waits
+  const [
+    {
+      payload: { _id_ },
+    },
+  ] = await Promise.all([
+    dama_events.getEventualEtlContextFinalEvent(eci_eventual, PG_ENV),
+    eventually_dispatch_final_event(eci_eventual),
+  ]);
+
+  expect(_id_).toBe(id);
 });

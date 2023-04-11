@@ -268,7 +268,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
 
   // For now, Tasks can poll for SubTask status.
   // Eventually we could push :FINAL events using https://www.npmjs.com/package/pg-listen
-  async getDamaTaskStatus(etl_context_id: number) {
+  async getDamaTaskStatus(etl_context_id: number, pg_env = this.pg_env) {
     const sql = dedent(`
       SELECT
           *
@@ -278,7 +278,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
 
     const query = { text: sql, values: [etl_context_id] };
 
-    const { rows } = await dama_db.query(query);
+    const { rows } = await dama_db.query(query, pg_env);
 
     if (!rows.length) {
       throw new Error(`No such etl_context_id: ${etl_context_id}`);

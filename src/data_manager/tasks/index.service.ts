@@ -1,8 +1,6 @@
 import { Context } from "moleculer";
 
-import TasksController from "./TasksController";
-
-const dama_task_controller = new TasksController();
+import dama_tasks from ".";
 
 export default {
   name: "dama/tasks",
@@ -17,10 +15,7 @@ export default {
           params: { dama_task_queue_name, options } = {},
         } = ctx;
 
-        await dama_task_controller.registerTaskQueue(
-          dama_task_queue_name,
-          options
-        );
+        await dama_tasks.registerTaskQueue(dama_task_queue_name, options);
       },
     },
 
@@ -31,14 +26,9 @@ export default {
         const {
           // @ts-ignore
           params: { dama_task_queue_name } = {},
-          // @ts-ignore
-          meta: { pgEnv },
         } = ctx;
 
-        await dama_task_controller.startDamaQueueWorker(
-          dama_task_queue_name,
-          pgEnv
-        );
+        await dama_tasks.startDamaQueueWorker(dama_task_queue_name);
       },
     },
 
@@ -53,7 +43,7 @@ export default {
 
         console.log(JSON.stringify({ options }, null, 4));
 
-        return dama_task_controller.queueDamaTask(dama_task_descr, options);
+        return dama_tasks.queueDamaTask(dama_task_descr, options);
       },
     },
 
@@ -64,14 +54,9 @@ export default {
         const {
           // @ts-ignore
           params: { etl_context_id },
-          // @ts-ignore
-          meta: { pgEnv },
         } = ctx;
 
-        const status = await this.dama_task_controller.getDamaTaskStatus(
-          pgEnv,
-          etl_context_id
-        );
+        const status = await dama_tasks.getDamaTaskStatus(etl_context_id);
 
         return status;
       },

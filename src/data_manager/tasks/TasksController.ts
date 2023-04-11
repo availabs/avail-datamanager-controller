@@ -1,3 +1,4 @@
+import { inspect } from "util";
 import { join } from "path";
 
 import execa, { ExecaError } from "execa";
@@ -100,6 +101,12 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     dama_task_queue_name: DamaTaskQueueName,
     options: PgBossWorkOptions = {}
   ) {
+    this.logger.silly(
+      `registerTaskQueue: dama_task_queue_name=${dama_task_queue_name} options=${inspect(
+        options
+      )}`
+    );
+
     dama_task_queue_name =
       this.prefixDamaTaskQueueNameWithHostId(dama_task_queue_name);
 

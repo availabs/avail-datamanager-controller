@@ -5,7 +5,7 @@ import _ from "lodash";
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
-import { isInTaskEtlContext } from "data_manager/contexts";
+import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 
 import {
   getTranscomRequestFormattedTimestamp,
@@ -20,13 +20,12 @@ import { RawTranscomEvent } from "../../../domain";
 
 import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
 
-import { url } from "./data_schema";
-
 const DEFAULT_SLEEP_MS = 10 * 1000; // 10 seconds
 
 export type InitialEvent = {
   type: ":INITIAL";
   payload: {
+    etl_work_dir: string;
     start_timestamp: string;
     end_timestamp: string;
   };
@@ -34,15 +33,10 @@ export type InitialEvent = {
 
 export type FinalEvent = {
   type: ":FINAL";
-  payload: {
-    start_timestamp: string;
-    end_timestamp: string;
-    etl_work_dir: string;
-  };
-  meta: {
-    dama_host_id: string;
-  };
 };
+
+export const url =
+  "https://eventsearch.xcmdata.org/HistoricalEventSearch/xcmEvent/getEventGridData";
 
 export async function* makeRawTranscomEventIterator(
   transcom_start_timestamp: string,
@@ -59,7 +53,13 @@ export async function* makeRawTranscomEventIterator(
 
   const tokenCollector = new TranscomAuthTokenCollector();
 
+  let must_sleep = false;
+
   for (const [partitionStartTime, partitionEndTime] of partitionedDateTimes) {
+    if (must_sleep) {
+      await new Promise((resolve) => setTimeout(resolve, sleepMs));
+    }
+
     const reqBody = {
       // See  ../documentation/EventCategoryIds.md
       eventCategoryIds: "1,2,3,4,13",
@@ -102,6 +102,8 @@ export async function* makeRawTranscomEventIterator(
 
     const response = await fetch(`${url}?userId=78`, options);
 
+    must_sleep = true;
+
     logger.debug("makeRawTranscomEventIterator got response");
 
     const { data: events } = await response.json();
@@ -113,8 +115,6 @@ export async function* makeRawTranscomEventIterator(
         yield event;
       }
     }
-
-    await new Promise((resolve) => setTimeout(resolve, sleepMs));
   }
 
   await tokenCollector.close();
@@ -131,9 +131,9 @@ export async function collectTranscomEventsIdsForDateRangeIntoSqliteDb(
     sqlite_db.exec("BEGIN ;");
 
     const insert_stmt = sqlite_db.prepare(`
-      INSERT INTO event_ids (id)
+      INSERT INTO seen_event ( event_id )
         VALUES ( ? )
-        ON CONFLICT(id) DO NOTHING
+        ON CONFLICT ( event_id ) DO NOTHING
       ;
     `);
 
@@ -169,14 +169,6 @@ export async function collectTranscomEventsIdsForDateRangeIntoSqliteDb(
   }
 }
 
-export function createEventIdsTable(sqlite_db: SQLiteDB) {
-  sqlite_db.exec(`
-    CREATE TABLE IF NOT EXISTS event_ids (
-      id TEXT PRIMARY KEY
-    ) WITHOUT ROWID ;
-  `);
-}
-
 export function getMonthPartitionsForTimeRange(
   start_timestamp: string | Date,
   end_timestamp: string | Date
@@ -195,24 +187,21 @@ export function getMonthPartitionsForTimeRange(
   return month_partitions;
 }
 
-export async function collectTranscomEventIdsForTimeRange(
+export default async function collectTranscomEventIdsForTimeRange(
+  etl_work_dir: string, // facilitates testing
   start_timestamp: string | Date,
   end_timestamp: string | Date
 ): Promise<FinalEvent> {
-  if (!isInTaskEtlContext()) {
-    throw new Error("MUST run in a TaskEtlContext");
-  }
+  verifyIsInTaskEtlContext();
 
   try {
-    const task_done_type = ":COLLECT_TRANSCOM_EVENT_IDS_DONE";
-
     const events = await dama_events.getAllEtlContextEvents();
 
-    let task_done_event = events.find((e) => e.type === task_done_type);
+    let final_event = events.find((e) => e.type === ":FINAL");
 
-    if (task_done_event) {
-      logger.warn("Task already DONE");
-      return task_done_event;
+    if (final_event) {
+      logger.info("Task already DONE");
+      return final_event;
     }
 
     const month_partitions = getMonthPartitionsForTimeRange(
@@ -232,9 +221,7 @@ export async function collectTranscomEventIdsForTimeRange(
       )}`
     );
 
-    const sqlite_db = getEtlContextLocalStateSqliteDb();
-
-    createEventIdsTable(sqlite_db);
+    const sqlite_db = getEtlContextLocalStateSqliteDb(etl_work_dir);
 
     for (const [start_ts, end_ts] of month_partitions) {
       const download_done_event = {
@@ -262,25 +249,17 @@ export async function collectTranscomEventIdsForTimeRange(
       await dama_events.dispatch(download_done_event);
     }
 
-    task_done_event = {
-      type: task_done_type,
-      payload: {
-        start_timestamp,
-        end_timestamp,
-      },
+    final_event = {
+      type: ":FINAL",
     };
-
-    await dama_events.dispatch(task_done_event);
-
-    logger.info(
-      `${task_done_event} event ${JSON.stringify(task_done_event, null, 4)}`
-    );
 
     sqlite_db.exec("VACUUM ;");
 
-    sqlite_db.close();
+    await dama_events.dispatch(final_event);
 
-    return task_done_event;
+    logger.info(`final_event ${JSON.stringify(final_event, null, 4)}`);
+
+    return final_event;
   } catch (err) {
     logger.error((<Error>err).message);
     logger.error((<Error>err).stack);

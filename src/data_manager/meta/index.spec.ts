@@ -2,7 +2,7 @@ import { v4 as uuid } from "uuid";
 import pgFormat from "pg-format";
 import _ from "lodash";
 
-import dama_db from "../dama_db";
+import dama_db from "data_manager/dama_db";
 import dama_meta from ".";
 
 const PG_ENV = "ephemeral_test_db";
