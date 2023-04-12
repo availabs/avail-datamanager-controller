@@ -15,6 +15,8 @@ import { getLoggerForContext, LoggingLevel } from "data_manager/logger";
 import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
 import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
 
+import getEtlWorkDir from "../utils/etlWorkDir";
+
 import collectTranscomEventIdsForTimeRange, {
   url as historical_events_url,
 } from ".";
@@ -38,15 +40,23 @@ beforeAll(() => {
 });
 
 test("collects event_ids from seen_event and requests them", async () => {
-  const { name: etl_work_dir, removeCallback } = tmp.dirSync({
+  // We use a tmp dir so there are no name collisions.
+  // Recall the ephemeral_test_db database is DROPPED before tests run.
+  // That means the same etl_context_ids will reappear.
+  const { name: tmp_dir, removeCallback } = tmp.dirSync({
     prefix: "dt-transcom_events.test.",
     tmpdir: etl_dir,
     unsafeCleanup: true,
   });
 
   try {
-    // console.log("==> etl_work_dir:", etl_work_dir);
+    const etl_context_id = await dama_events.spawnEtlContext(
+      null,
+      null,
+      PG_ENV
+    );
 
+    const etl_work_dir = getEtlWorkDir(PG_ENV, etl_context_id, tmp_dir);
     const event_ids = ["ORI249285209", "ORI1237164741", "ORI730824"].sort();
 
     // @ts-ignore
@@ -69,12 +79,6 @@ test("collects event_ids from seen_event and requests them", async () => {
     });
 
     const sqlite_db = getEtlContextLocalStateSqliteDb(etl_work_dir);
-
-    const etl_context_id = await dama_events.spawnEtlContext(
-      null,
-      null,
-      PG_ENV
-    );
 
     const start_date_time = DateTime.now().startOf("day").plus({ hours: 12 });
 

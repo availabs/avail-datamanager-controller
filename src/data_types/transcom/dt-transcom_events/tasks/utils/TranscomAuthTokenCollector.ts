@@ -73,6 +73,7 @@ export default class TranscomAuthTokenCollector {
           //  If the page.evaluate above returns undefined, it will continue to do so.
           if ((await this.jwt_token_p) === undefined) {
             await this.close();
+            await new Promise((resolve) => setTimeout(resolve, 3000));
             await this.start();
           }
 

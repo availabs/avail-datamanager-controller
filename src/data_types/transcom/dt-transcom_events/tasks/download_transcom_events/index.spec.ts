@@ -13,6 +13,7 @@ import { runInDamaContext } from "data_manager/contexts";
 import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
 import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
 
+import getEtlWorkDir from "../utils/etlWorkDir";
 import downloadTranscomEventsExpanded from ".";
 
 const PG_ENV = "ephemeral_test_db";
@@ -32,14 +33,23 @@ beforeAll(() => {
 });
 
 test("reads event_ids from seen_event and requests them", async () => {
-  const { name: etl_work_dir, removeCallback } = tmp.dirSync({
+  // We use a tmp dir so there are no name collisions.
+  // Recall the ephemeral_test_db database is DROPPED before tests run.
+  // That means the same etl_context_ids will reappear.
+  const { name: tmp_dir, removeCallback } = tmp.dirSync({
     prefix: "dt-transcom_events.test.",
     tmpdir: etl_dir,
     unsafeCleanup: true,
   });
 
   try {
-    console.log("==> etl_work_dir:", etl_work_dir);
+    const etl_context_id = await dama_events.spawnEtlContext(
+      null,
+      null,
+      PG_ENV
+    );
+
+    const etl_work_dir = getEtlWorkDir(PG_ENV, etl_context_id, tmp_dir);
 
     const event_ids = ["ORI249285209", "ORI1237164741", "ORI730824"].sort();
 
@@ -77,12 +87,6 @@ test("reads event_ids from seen_event and requests them", async () => {
       insert_stmt.run(event_id);
     }
 
-    const etl_context_id = await dama_events.spawnEtlContext(
-      null,
-      null,
-      PG_ENV
-    );
-
     const initial_event = { type: ":INITIAL" };
 
     await dama_events.dispatch(initial_event, etl_context_id, PG_ENV);
@@ -102,14 +106,23 @@ test("reads event_ids from seen_event and requests them", async () => {
 });
 
 test("skips already downloaded event_ids", async () => {
-  const { name: etl_work_dir, removeCallback } = tmp.dirSync({
+  // We use a tmp dir so there are no name collisions.
+  // Recall the ephemeral_test_db database is DROPPED before tests run.
+  // That means the same etl_context_ids will reappear.
+  const { name: tmp_dir, removeCallback } = tmp.dirSync({
     prefix: "dt-transcom_events.test.",
     tmpdir: etl_dir,
     unsafeCleanup: true,
   });
 
   try {
-    console.log("==> etl_work_dir:", etl_work_dir);
+    const etl_context_id = await dama_events.spawnEtlContext(
+      null,
+      null,
+      PG_ENV
+    );
+
+    const etl_work_dir = getEtlWorkDir(PG_ENV, etl_context_id, tmp_dir);
 
     const event_ids = ["ORI249285209", "ORI1237164741", "ORI730824"].sort();
 
@@ -151,18 +164,12 @@ test("skips already downloaded event_ids", async () => {
     sqlite_db
       .prepare(
         `
-          INSERT INTO downloaded_event ( event_id, file_path )
+          INSERT INTO downloaded_event ( event_id, file_name )
             VALUES ( ?, ? )
           ;
         `
       )
       .run(already_downloaded_event_id, "mock");
-
-    const etl_context_id = await dama_events.spawnEtlContext(
-      null,
-      null,
-      PG_ENV
-    );
 
     const initial_event = { type: ":INITIAL" };
 
