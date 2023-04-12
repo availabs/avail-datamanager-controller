@@ -18,6 +18,7 @@ import getEtlWorkDir from "./tasks/utils/etlWorkDir";
 
 import { InitialEvent as CollectEventIdsIntialEvent } from "./tasks/collect_transcom_event_ids";
 import { InitialEvent as DownloadEventsInitialEvent } from "./tasks/download_transcom_events";
+import { InitialEvent as LoadEventsInitialEvent } from "./tasks/load_transcom_events";
 
 export enum TaskEventType {
   COLLECT_EVENT_IDS_QUEUED = ":COLLECT_EVENT_IDS_QUEUED",
@@ -186,6 +187,34 @@ export async function downloadTranscomEvents() {
   return doSubtask(subtask_config);
 }
 
+export async function loadTranscomEvents() {
+  const worker_path = join(__dirname, "./tasks/load_transcom_events/worker.ts");
+
+  const initial_event: LoadEventsInitialEvent = {
+    type: ":INITIAL",
+    payload: {
+      etl_work_dir: getEtlWorkDir(),
+    },
+  };
+
+  const dama_task_descriptor: DamaTaskDescriptor = {
+    worker_path,
+    dama_task_queue_name,
+    parent_context_id: getEtlContextId(),
+    // source_id: // TODO
+    initial_event,
+  };
+
+  const subtask_config: SubtaskConfig = {
+    subtask_name: "download_transcom_events",
+    dama_task_descriptor,
+    subtask_queued_event_type: TaskEventType.LOAD_EVENTS_QUEUED,
+    subtask_done_event_type: TaskEventType.LOAD_EVENTS_DONE,
+  };
+
+  return doSubtask(subtask_config);
+}
+
 export default async function main(initial_event: InitialEvent) {
   verifyIsInTaskEtlContext();
 
@@ -202,6 +231,7 @@ export default async function main(initial_event: InitialEvent) {
       end_timestamp
     ),
     downloadTranscomEvents,
+    loadTranscomEvents,
   ];
 
   for (const subtask of workflow) {
