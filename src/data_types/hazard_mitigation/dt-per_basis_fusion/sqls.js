@@ -1,54 +1,45 @@
-export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
+export const per_basis_swd = (table_name, view_id, fusion_schema, fusion_table) => `
   with   buildings as (
     select
-        'buildings' ctype,
-        event_id,
-        substring(geoid, 1, 5) geoid,
-        nri_category,
-        min(begin_date_time)::date     swd_begin_date,
-        max(end_date_time)  ::date      swd_end_date,
-        coalesce(sum(property_damage), 0)     damage
-    FROM ${ncei_schema}.${ncei_table}
-    WHERE year >= 1996 and year <= 2019
+      'buildings' ctype,
+      event_id,
+      substring(geoid, 1, 5) geoid,
+      nri_category nri_category,
+      min(coalesce(swd_begin_date, fema_incident_begin_date))::date     swd_begin_date,
+      max(coalesce(swd_end_date, fema_incident_end_date))  ::date      swd_end_date,
+      sum(fusion_property_damage)     damage
+    FROM ${fusion_schema}.${fusion_table}
+    WHERE extract(YEAR from coalesce(swd_begin_date, fema_incident_begin_date)) >= 1996 and extract(YEAR from coalesce(swd_end_date, fema_incident_end_date)) <= 2019
       AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
       AND geoid is not null
     GROUP BY 1, 2, 3, 4
 ),
        crop as (
            select
-               'crop' ctype,
-               event_id,
-               substring(geoid, 1, 5) geoid,
-               nri_category,
-               min(begin_date_time)::date      swd_begin_date,
-               max(end_date_time)::date        swd_end_date,
-               coalesce(sum(crop_damage), 0)         damage
-           FROM ${ncei_schema}.${ncei_table}
-           WHERE year >= 1996 and year <= 2019
+             'crop' ctype,
+             event_id,
+             substring(geoid, 1, 5) geoid,
+             nri_category nri_category,
+             min(coalesce(swd_begin_date, fema_incident_begin_date))::date      swd_begin_date,
+             max(coalesce(swd_end_date, fema_incident_end_date))::date        swd_end_date,
+             sum(fusion_crop_damage)         damage
+           FROM ${fusion_schema}.${fusion_table}
+           WHERE extract(YEAR from coalesce(swd_begin_date, fema_incident_begin_date)) >= 1996 and extract(YEAR from coalesce(swd_end_date, fema_incident_end_date)) <= 2019
              AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
              AND geoid is not null
            GROUP BY 1, 2, 3, 4
        ),
        population as (
            select
-               'population' ctype,
-               event_id,
-               substring(geoid, 1, 5) geoid,
-               nri_category,
-               min(begin_date_time)::date      swd_begin_date,
-               max(end_date_time)::date        swd_end_date,
-               coalesce(sum(
-                                    coalesce(deaths_direct::float,0) +
-                                    coalesce(deaths_indirect::float,0) +
-                                    (
-                                            (
-                                                    coalesce(injuries_direct::float,0) +
-                                                    coalesce(injuries_indirect::float,0)
-                                                ) / 10
-                                        )
-                            ), 0) * 7600000   damage
-           FROM ${ncei_schema}.${ncei_table}
-           WHERE year >= 1996 and year <= 2019
+             'population' ctype,
+             event_id,
+             substring(geoid, 1, 5) geoid,
+             nri_category nri_category,
+             min(coalesce(swd_begin_date, fema_incident_begin_date))::date      swd_begin_date,
+             max(coalesce(swd_end_date, fema_incident_end_date))::date        swd_end_date,
+             sum(swd_population_damage)   damage
+           FROM ${fusion_schema}.${fusion_table}
+           WHERE extract(YEAR from coalesce(swd_begin_date, fema_incident_begin_date)) >= 1996 and extract(YEAR from coalesce(swd_end_date, fema_incident_end_date)) <= 2019
              AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
              AND geoid is not null
            GROUP BY 1, 2, 3, 4
@@ -111,13 +102,22 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
            order by 1, 2, 3, 4
        )
 
-SELECT row_number() over () id, * INTO ${ncei_schema}.${table_name}_${view_id} FROM final;
+SELECT row_number() over () id, * INTO ${fusion_schema}.${table_name}_${view_id} FROM final;
 `;
 
-export const pad_zero_losses = (table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table) => `
+export const pad_zero_losses = ({
+                                  table_name,
+                                  view_id,
+                                  ncei_schema,
+                                  ncei_table,
+                                  fusion_schema,
+                                  fusion_table,
+                                  nri_schema,
+                                  nri_table
+                                }) => `
 with pb as (
     select pb.geoid geoid, pb.nri_category, ctype, event_day_date, tor_f_scale
-    from ${ncei_schema}.${table_name}_${view_id} pb
+    from ${fusion_schema}.${table_name}_${view_id} pb
              LEFT JOIN (
         SELECT DISTINCT substring(geoid, 1, 5) geoid,
                         nri_category cat,
@@ -206,12 +206,12 @@ with pb as (
            and ctype = 'population'
      )
 
-INSERT INTO ${ncei_schema}.${table_name}_${view_id}
+INSERT INTO ${fusion_schema}.${table_name}_${view_id}
 SELECT null id, ctype, nri_category, geoid, event_day_date::timestamp, event_ids::integer[], num_events::bigint, damage, damage_adjusted
 FROM records_to_insert
 `;
 
-export const adjusted_dollar = (table_name, view_id, ncei_schema) => `
+export const adjusted_dollar = (table_name, view_id, fusion_schema) => `
 with cpi as (
   SELECT unnest(array[1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020]) as YEAR,
     unnest(array[154.4, 159.1, 161.6, 164.3, 168.8, 175.1, 177.1, 181.7, 185.2, 190.7, 198.3, 202.4, 211.1, 211.143, 216.687, 220.223, 226.655, 230.28, 233.916, 233.707, 236.916, 242.839, 247.867, 251.712, 257.971]) as JAN,
@@ -267,7 +267,7 @@ with cpi as (
              WHEN extract(MONTH from event_day_date) = 12
                  THEN dec
             END AS month_2020_cpi
-    from ${ncei_schema}.${table_name}_${view_id}, cpi20
+    from ${fusion_schema}.${table_name}_${view_id}, cpi20
     where ctype != 'population'
       and event_day_date is not null
 ),
@@ -314,14 +314,14 @@ with cpi as (
                             ON t.year = cpi.year
      )
 
-update ${ncei_schema}.${table_name}_${view_id} dst
+update ${fusion_schema}.${table_name}_${view_id} dst
 set damage_adjusted = final.adjusted_damage
 from final
 where dst.id = final.id
 `;
 
-export const adjusted_dollar_pop = (table_name, view_id, ncei_schema) => `
-update ${ncei_schema}.${table_name}_${view_id}
+export const adjusted_dollar_pop = (table_name, view_id, fusion_schema) => `
+update ${fusion_schema}.${table_name}_${view_id}
 set damage_adjusted = damage
 where ctype = 'population'
 `;

@@ -14,11 +14,11 @@ export default async function publish(ctx: Context) {
 
   let {
     // @ts-ignore
-    params: { table_name,
-      ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table},
+    params: { table_name, start_year, end_year,
+      ncei_table, ncei_schema, tract_schema, tract_table, cousub_schema, cousub_table, state_schema, state_table, county_schema, county_table, ztc_schema, ztc_table},
   } = ctx;
 
-  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ncei_storm_events_enhanced'});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'ncei_storm_events_enhanced', metadata: {changelog_version: 2}});
 
   try {
     let res: QueryResult;
@@ -26,14 +26,20 @@ export default async function publish(ctx: Context) {
     // create table
     const createTableSql = `
                 SELECT * INTO ${ncei_schema}.${table_name || tables.details.name}${view_id ? `_${view_id}` : ``}
-                    FROM (SELECT * FROM ${ncei_schema}.${ncei_table}) t;
+                    FROM (SELECT * FROM ${ncei_schema}.${ncei_table} ${start_year && end_year ? `WHERE year BETWEEN ${start_year} AND ${end_year}` : ``}) t;
     `;
     sqlLog.push(createTableSql);
+    console.log(createTableSql)
     res = await ctx.call("dama_db.query", {
       text: createTableSql,
     });
 
-    await postProcess(ctx, `${table_name}${view_id ? `_${view_id}` : ``}`, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table);
+    await postProcess(ctx, `${table_name}${view_id ? `_${view_id}` : ``}`,
+      tract_schema, tract_table,
+      state_schema, state_table,
+      county_schema, county_table,
+      cousub_schema, cousub_table,
+      ztc_schema, ztc_table);
     console.log("post upload process finished.");
 
     await update_view({table_schema: ncei_schema, table_name, view_id, dbConnection, sqlLog});

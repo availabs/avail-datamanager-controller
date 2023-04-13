@@ -1,6 +1,6 @@
 import {Context} from "moleculer";
 import {QueryResult} from "pg";
-import {hlr} from "./sqls";
+import {fusion} from "./sqls";
 import {err, fin, init, update_view} from "../utils/macros";
 
 export default async function publish(ctx: Context) {
@@ -8,22 +8,18 @@ export default async function publish(ctx: Context) {
 
   let {
     params: {
-      table_name, startYear, endYear,
-      pb_table, pb_schema,
-      nri_schema, nri_table,
-      state_schema, state_table,
-      county_schema, county_table,
-      ncei_schema, ncei_table,
+      table_name,
+      dl_schema, dl_table, nceie_schema, nceie_table
     }
   } = ctx;
 
-  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'hlr'});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'fusion'});
 
   try {
     let res: QueryResult;
 
     // create schema
-    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${pb_schema};`;
+    const createSchema = `CREATE SCHEMA IF NOT EXISTS ${dl_schema};`;
     sqlLog.push(createSchema);
     res = await ctx.call("dama_db.query", {
       text: createSchema
@@ -31,9 +27,9 @@ export default async function publish(ctx: Context) {
 
 
     // create table
-    const createTableSql = hlr({
-      table_name, view_id, state_schema, state_table, county_schema, county_table,
-      ncei_schema, ncei_table, pb_schema, pb_table, nri_schema, nri_table, startYear, endYear
+    const createTableSql = fusion({
+      table_name, ofd_schema: dl_schema, view_id,
+      dl_table, nceie_schema, nceie_table
     });
 
     sqlLog.push(createTableSql);
@@ -43,7 +39,13 @@ export default async function publish(ctx: Context) {
     await dbConnection.query("COMMIT;");
 
     // update view meta
-    await update_view({table_schema: pb_schema, table_name, view_id, dbConnection, sqlLog});
+    await update_view({table_schema: dl_schema, table_name, view_id, dbConnection, sqlLog});
+
+    // update NCEI Enhanced table to add disaster_numbers
+    // await ctx.call("dama_db.query", {
+    //   text: updateNCEIEnhanced({
+    //     fusion_schema: dl_schema, fusion_table: `${table_name}_${view_id}`, nceie_schema, nceie_table
+    //   })});
 
     return fin({etl_context_id, ctx, dbConnection, payload: {
         view_id,

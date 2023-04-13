@@ -36,8 +36,10 @@ export default async function publish(ctx) {
   try {
     // txn.begin()
     let damaSource = null
+    let setSourceMetadata = false
     // create a source if necessary
     if(!source_id) {
+      setSourceMetadata = true
       damaSource = await createSource(ctx, source_values)
       source_id = damaSource.source_id
     }
@@ -72,12 +74,29 @@ export default async function publish(ctx) {
       view_id: damaViewId,
     } = damaView;
 
+    if(setSourceMetadata) {
+      await ctx.call("dama_db.query", {
+        text: `CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )`,
+        values: [damaViewId],
+      });
+    }
+
     await ctx.call("data_manager/events.setEtlContextSourceId", {
       etl_context_id,
       source_id: damaSourceId,
     });
 
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
+
+    ctx.params.damaViewId = damaViewId
+    ctx.meta.etl_context_id = etlContextId
+
+    await ctx.call('gis-dataset.createViewMbtiles', {
+      damaViewId,
+      damaSourceId
+    })
+
+    // console.log('mbtilesData', JSON.stringify(mbtilesData,null,3))
 
     const finalEvent = {
       type: EventTypes.FINAL,

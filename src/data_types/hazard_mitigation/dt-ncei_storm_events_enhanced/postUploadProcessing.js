@@ -21,115 +21,64 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
       update severe_weather_new.${details_table_name}
       set event_type_formatted =
             CASE
-              WHEN lower (event_type) IN (
-                                        'high wind','strong wind','marine high wind','marine strong wind','marine thunderstorm wind','thunderstorm wind','thunderstorm winds lightning','tornadoes, tstm wind, hail','thunderstorm wind/ trees','thunderstorm winds heavy rain','heavy wind','thunderstorm winds/flash flood','thunderstorm winds/ flood','thunderstorm winds/heavy rain','thunderstorm wind/ tree','thunderstorm winds funnel clou','thunderstorm winds/flooding'
-                )
+              WHEN event_type IN ('High Wind','Strong Wind','Marine High Wind','Marine Strong Wind',
+                                  'Marine Thunderstorm Wind','Thunderstorm Wind','THUNDERSTORM WINDS LIGHTNING',
+                                  'THUNDERSTORM WIND/ TREES','THUNDERSTORM WINDS HEAVY RAIN',
+                                  'Heavy Wind',
+                                  'THUNDERSTORM WINDS/HEAVY RAIN','THUNDERSTORM WIND/ TREE','THUNDERSTORM WINDS FUNNEL CLOU'
+                                  )
                 THEN 'wind'
-
-              WHEN lower (event_type) IN (
-                'wildfire'
-                )
+              WHEN event_type IN ('Wildfire')
                 THEN 'wildfire'
-
-
-              WHEN lower (event_type) IN (
-                                          'tsunami','seiche'
-                )
+              WHEN event_type IN ('Tsunami','Seiche')
                 THEN 'tsunami'
-
-
-              WHEN lower (event_type) IN (
-                                          'tornado','tornadoes, tstm wind, hail','tornado/waterspout','funnel cloud','waterspout'
-                )
-                THEN'tornado'
-
-
-              WHEN lower (event_type) IN (
-                                          'flood','flash flood','thunderstorm winds/flash flood','thunderstorm winds/ flood','coastal flood','lakeshore flood'
-                )
+              WHEN event_type IN ('Tornado','TORNADOES, TSTM WIND, HAIL','TORNADO/WATERSPOUT','Funnel Cloud','Waterspout')
+                THEN 'tornado'
+              WHEN event_type IN ('Flood','Flash Flood','THUNDERSTORM WINDS/FLASH FLOOD','THUNDERSTORM WINDS/ FLOOD','THUNDERSTORM WINDS/FLOODING', 'Lakeshore Flood')
                 THEN 'riverine'
-
-
-              WHEN lower (event_type) IN (
-                                          'lightning','thunderstorm winds lightning','marine lightning'
-                )
+              WHEN event_type IN ('Lightning','Marine Lightning')
                 THEN 'lightning'
-
-
-              WHEN lower (event_type) IN (
-                                          'landslide','debris flow'
-                )
+              WHEN event_type IN ('Landslide','Debris Flow')
                 THEN 'landslide'
-
-
-              WHEN lower (event_type) IN (
-                                          'ice storm','sleet'
-                )
+              WHEN event_type IN ('Ice Storm','Sleet')
                 THEN 'icestorm'
-
-
-              WHEN lower (event_type) IN (
-                                          'hurricane','hurricane (typhoon)','marine hurricane/typhoon','marine tropical storm','tropical storm','tropical depression','marine tropical depression','hurricane flood'
-                )
+              WHEN event_type IN ('Hurricane','Hurricane (Typhoon)','Marine Hurricane/Typhoon','Marine Tropical Storm',
+                                  'Tropical Storm','Tropical Depression','Marine Tropical Depression','Hurricane Flood')
                 THEN 'hurricane'
-
-
-              WHEN lower (event_type) IN (
-                                          'heat','excessive heat'
-                )
+              WHEN event_type IN ('Heat','Excessive Heat')
                 THEN 'heatwave'
-
-
-              WHEN lower (event_type) IN (
-                                          'hail','marine hail','tornadoes, tstm wind, hail','hail/icy roads','hail flooding'
-                )
+              WHEN event_type IN ('Hail','Marine Hail', 'HAIL/ICY ROADS','HAIL FLOODING')
                 THEN 'hail'
-
-
-              WHEN lower (event_type) IN (
-                'earthquake'
-                )
-                THEN 'earthquake'
-
-
-              WHEN lower (event_type) IN (
-                'drought'
-                )
+              WHEN event_type IN ('Drought')
                 THEN 'drought'
-
-
-              WHEN lower (event_type) IN (
-                'avalanche'
-                )
+              WHEN event_type IN ('Avalanche')
                 THEN 'avalanche'
-
-
-              WHEN lower (event_type) IN (
-                                          'cold/wind chill','extreme cold/wind chill','frost/freeze','cold/wind chill'
-                )
+              WHEN event_type IN ('Cold/Wind Chill','Extreme Cold/Wind Chill','Frost/Freeze','Cold/Wind Chill')
                 THEN 'coldwave'
-
-
-              WHEN lower (event_type) IN (
-                                          'winter weather','winter storm','heavy snow','blizzard','high snow','lake-effect snow'
-                )
+              WHEN event_type IN ('Winter Weather','Winter Storm','Heavy Snow','Blizzard','High Snow','Lake-Effect Snow')
                 THEN 'winterweat'
-
-
-              WHEN lower (event_type) IN (
-                                          'volcanic ash','volcanic ashfall'
-                )
+              WHEN event_type IN ('Volcanic Ash','Volcanic Ashfall')
                 THEN 'volcano'
-
-
-              WHEN lower (event_type) IN (
-                                          'high surf','sneakerwave','storm surge/tide','rip current'
-                )
+              WHEN event_type IN ('Coastal Flood', 'High Surf','Sneakerwave',
+                                  'Storm Surge/Tide',
+                                  'Rip Current')
                 THEN 'coastal'
-
-
-              ELSE event_type
               END;
+`
+  console.log(query)
+    return ctx.call("dama_db.query", {
+      text: query,
+    });
+}
+
+const updateNriCategory = async (ctx, details_table_name) => {
+    let query = `
+      update severe_weather_new.${details_table_name}
+      set nri_category = CASE
+                            WHEN event_type_formatted = 'coastal' and ((lower(event_narrative) like '%hurricane%') or (lower(episode_narrative) like '%hurricane%'))
+                            THEN 'hurricane'
+                            ELSE event_type_formatted
+                         END;
 `
     return ctx.call("dama_db.query", {
       text: query,
@@ -179,6 +128,7 @@ const updateGeoTracts = async (ctx, details_table_name, tract_schema, tract_tabl
                  from severe_weather_new.${details_table_name}
                  where geoid is null
                    and begin_coords_geom is not null
+                   and cz_type != 'M'
              ),
              a as (
                  select s.event_id, t.geoid geoid
@@ -198,11 +148,37 @@ const updateGeoTracts = async (ctx, details_table_name, tract_schema, tract_tabl
   });
 }
 
-const updateGeoCounties = async (ctx, details_table_name) => {
+const updateGeoCounties = async (ctx, details_table_name, county_schema, county_table) => { // shouldn't we be joining with county table to pull county level geoid?
+  // potential updates
+  // if there exists coords, use them
+  // exclude marine zones. those are shown by M cz_Type, and also through state_fips ('57', '58', '59', '61', '65', '73', '75', '77', '91', '92', '93', '94', '96', '97', '98')
     let query = `
-        UPDATE severe_weather_new.${details_table_name}
+    with t as (
+      select event_id, c.geoid
+      from severe_weather_new.${details_table_name} d
+             join ${county_schema}.${county_table} c
+                  on st_contains(c.geom, d.begin_coords_geom)
+      where d.geoid is null
+        and cz_type != 'M'
+    )
+        UPDATE severe_weather_new.${details_table_name} dst
+        SET geoid = dst.geoid
+        FROM t
+        WHERE dst.event_id = t.event_id
+        AND dst.geoid IS NULL
+        AND cz_type != 'M';
+    `
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
+
+const updateGeoCounties_cz_fips = async (ctx, details_table_name) => { // shouldn't we be joining with county table to pull county level geoid?
+   let query = `
+        UPDATE severe_weather_new.${details_table_name} dst
         SET geoid = LPAD(state_fips::TEXT, 2, '0') || LPAD(cz_fips::TEXT, 3, '0')
-        WHERE geoid IS NULL;
+        WHERE geoid IS NULL
+        AND cz_type != 'M';
     `
   return ctx.call("dama_db.query", {
     text: query,
@@ -243,71 +219,72 @@ const removeGeoidZzone = async (ctx, details_table_name) => {
   });
 }
 
-const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table) => { // severe_weather.zone_to_county
-    // todo first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
-    let query = `
-        UPDATE severe_weather_new.${details_table_name} d
-        SET geoid = lpad(fips::text, 5, '0')
-        FROM ${ztc_schema}.${ztc_table} z
-        WHERE z.zone = d.cz_fips
-        AND begin_lat = '0'
-        AND cz_type = 'Z';
-    `
-  return ctx.call("dama_db.query", {
-    text: query,
-  });
-}
-
-// const updateGeoZzoneV2 = async (ctx) => {
-//     // -- zone M should be null
-//     // -- records with begin_coords should map to geo.tl....
-//     // -- records with zone Z and no begin_coords should follow below sql
-//     // -- Z zone, no being_coords records with cz_name not mapping to county names remain null as there's no right way to map them
+// const updateGeoZzoneOld = async (ctx, details_table_name, ztc_schema, ztc_table) => { // severe_weather.zone_to_county
+//     // todo first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
 //     let query = `
-//         with states as (
-//             SELECT id, geoid, stusps, name
-//             FROM geo.tl_2017_us_state
-//         ),
-//         zone_to_county as (
-//             select zone, state, stusps, states.geoid, county, lpad(fips::text, 5, '0') fips
-//             from severe_weather.zone_to_county
-//             JOIN states
-//             ON states.stusps = state
-//             order by 1, 2, 3
-//         )
-//
-//         -- select
-//         -- cz_fips d_cz_fips, d.state d_state, state_fips d_state_fips, cz_name d_zone_name,
-//         -- zone ztc_zone, ztc.state ztc_state, county ztc_county, lpad(fips::text, 5, '0') ztc_fips, d.geoid, d.tmp_geoid,
-//         -- case when lpad(fips::text, 5, '0') = d.geoid then 1 else 0 end
-//         -- from severe_weather_new.${details_table_name} d
-//         -- JOIN zone_to_county ztc
-//         -- on d.cz_fips = ztc.zone
-//         -- AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
-//         -- AND lower(cz_name) like '%' || lower(county) || '%'
-//         -- where cz_type = 'Z' and begin_lat = '0' and lpad(fips::text, 5, '0') != d.geoid
-//         -- order by 1, 2
-//         -- limit 1000
-//
 //         UPDATE severe_weather_new.${details_table_name} d
-//         SET tmp_geoid = lpad(fips::text, 5, '0')
-//         FROM zone_to_county ztc
-//         WHERE (cz_type = 'Z' and begin_lat = '0')
-//         AND d.cz_fips = ztc.zone
-//         AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
-//         AND lower(cz_name) like '%' || lower(county) || '%'
-//         `
-//
+//         SET geoid = lpad(fips::text, 5, '0')
+//         FROM ${ztc_schema}.${ztc_table} z
+//         WHERE z.zone = d.cz_fips
+//         AND begin_lat = '0'
+//         AND cz_type = 'Z';
+//     `
 //   return ctx.call("dama_db.query", {
 //     text: query,
 //   });
 // }
 
+const updateGeoZzone = async (ctx, details_table_name, ztc_schema, ztc_table, state_schema, state_table) => {
+    // first set geoid to null for Z, where begin_coords = 0 (removeGeoidZzone), then run the following
+    // -- zone M should be null
+    // -- records with begin_coords should map to geo.tl....
+    // -- records with zone Z and no begin_coords should follow below sql
+    // -- Z zone, no being_coords records with cz_name not mapping to county names remain null as there's no right way to map them
+    let query = `
+        with states as (
+            SELECT geoid, stusps, name
+            FROM ${state_schema}.${state_table}
+        ),
+        zone_to_county as (
+            select zone, state, stusps, states.geoid, county, lpad(fips::text, 5, '0') fips
+            from ${ztc_schema}.${ztc_table}
+            JOIN states
+            ON states.stusps = state
+            order by 1, 2, 3
+        )
+
+        -- select
+        -- cz_fips d_cz_fips, d.state d_state, state_fips d_state_fips, cz_name d_zone_name,
+        -- zone ztc_zone, ztc.state ztc_state, county ztc_county, lpad(fips::text, 5, '0') ztc_fips, d.geoid, d.tmp_geoid,
+        -- case when lpad(fips::text, 5, '0') = d.geoid then 1 else 0 end
+        -- from severe_weather_new.${details_table_name} d
+        -- JOIN zone_to_county ztc
+        -- on d.cz_fips = ztc.zone
+        -- AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
+        -- AND lower(cz_name) like '%' || lower(county) || '%'
+        -- where cz_type = 'Z' and begin_lat = '0' and lpad(fips::text, 5, '0') != d.geoid
+        -- order by 1, 2
+        -- limit 1000
+
+        UPDATE severe_weather_new.${details_table_name} d
+        SET geoid = lpad(fips::text, 5, '0')
+        FROM zone_to_county ztc
+        WHERE (cz_type = 'Z' and begin_lat = '0')
+        AND d.cz_fips = ztc.zone
+        AND LPAD(state_fips::TEXT, 2, '0') = ztc.geoid
+        AND lower(cz_name) like '%' || lower(county) || '%'
+        `
+
+  return ctx.call("dama_db.query", {
+    text: query,
+  });
+}
+
 const updateGeoMzone = async (ctx, details_table_name) => {
     let query = `
         update severe_weather_new.${details_table_name}
-        set geoid = null
-        where cz_type = 'M';
+          set geoid = null
+          where cz_type = 'M';
     `
   return ctx.call("dama_db.query", {
     text: query,
@@ -428,7 +405,12 @@ const createIndices = async (ctx, details_table_name) => {
   });
 }
 
-export const postProcess = async (ctx, details_table_name, tract_schema, tract_table, cousub_schema, cousub_table, ztc_schema, ztc_table) => {
+export const postProcess = async (ctx, details_table_name,
+                                  tract_schema, tract_table,
+                                  state_schema, state_table,
+                                  county_schema, county_table,
+                                  cousub_schema, cousub_table,
+                                  ztc_schema, ztc_table) => {
   console.log("Welcome to post upload processing...", details_table_name);
   await createIndices(ctx, details_table_name);
   console.log('1');
@@ -439,30 +421,34 @@ export const postProcess = async (ctx, details_table_name, tract_schema, tract_t
   console.log('3');
 
   await updateEventTypeFormatted(ctx, details_table_name);
-  console.log('4');
+  console.log('4.1');
+
+  await updateNriCategory(ctx, details_table_name);
+  console.log('4.2');
 
   await updateGeoTracts(ctx, details_table_name, tract_schema, tract_table);
   console.log('5');
 
-  await updateGeoCounties(ctx, details_table_name);
-  console.log('6');
+  await updateGeoCounties(ctx, details_table_name, county_schema, county_table);
+  console.log('6.1');
 
-  await updateGeoCousubs(ctx, details_table_name, cousub_schema, cousub_table); // uses geoid
-  console.log('7');
+  await updateGeoCounties_cz_fips(ctx, details_table_name);
+  console.log('6.2');
 
   await removeGeoidZzone(ctx, details_table_name);
+  console.log('7');
+
+  await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table, state_schema, state_table);
   console.log('8');
 
-  await updateGeoZzone(ctx, details_table_name, ztc_schema, ztc_table);
+  await updateGeoMzone(ctx, details_table_name);
   console.log('9');
 
-  // await updateGeoZzoneV2(ctx);
-  await updateGeoMzone(ctx, details_table_name);
+  await updateGeoCousubs(ctx, details_table_name, cousub_schema, cousub_table);
   console.log('10');
 
   await updateDateTime(ctx, details_table_name);
   console.log('11');
-
 
   return Promise.resolve();
 }
