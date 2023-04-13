@@ -6,16 +6,17 @@ jest.mock("../utils/TranscomAuthTokenCollector");
 import fetch from "node-fetch";
 import tmp from "tmp";
 import { DateTime } from "luxon";
+import { v4 as uuid } from "uuid";
 
 import etl_dir from "constants/etlDir";
 import dama_events from "data_manager/events";
 import { runInDamaContext } from "data_manager/contexts";
 import { getLoggerForContext, LoggingLevel } from "data_manager/logger";
 
-import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
-import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
+import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
+import TranscomAuthTokenCollector from "../../utils/TranscomAuthTokenCollector";
 
-import getEtlWorkDir from "../utils/etlWorkDir";
+import getEtlWorkDir from "../../utils/etlWorkDir";
 
 import collectTranscomEventIdsForTimeRange, {
   url as historical_events_url,
@@ -23,7 +24,7 @@ import collectTranscomEventIdsForTimeRange, {
 
 const PG_ENV = "ephemeral_test_db";
 
-const mock_jwt = "foobarbaz";
+const mock_jwt = uuid();
 
 const parsed_historical_events_url = new URL(historical_events_url);
 

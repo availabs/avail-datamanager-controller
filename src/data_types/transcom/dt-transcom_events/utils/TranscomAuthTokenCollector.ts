@@ -1,6 +1,6 @@
 import puppeteer, { Browser } from "puppeteer";
 
-import credentials from "../../config/transcom_credentials.json";
+import credentials from "../config/transcom_credentials.json";
 
 import logger from "data_manager/logger";
 
@@ -42,14 +42,23 @@ export default class TranscomAuthTokenCollector {
       logger.debug("TranscomAuthTokenCollector: creating puppeteer page");
 
       await page.goto("https://xcmdfe1.xcmdata.org/SSO/#!/login");
+
+      await page.waitForNetworkIdle();
+
       await page.waitForSelector("#username");
 
       // Type into search box.
       await page.type("#username", credentials.username);
       await page.type(
         "#loginDiv > div > div.login-inner-box > form > div:nth-child(3) > input",
-        credentials.password
+        credentials.password,
+        {
+          delay: 100,
+        }
       );
+
+      await page.waitForTimeout(1000);
+
       await page.click(".btn");
 
       await page.waitForNetworkIdle();
@@ -58,7 +67,10 @@ export default class TranscomAuthTokenCollector {
 
       this.refresh_token_inteval = setInterval(async () => {
         try {
+          let retries = 0;
           logger.silly("TranscomAuthTokenCollector: refreshing token");
+
+          await new Promise((resolve) => setTimeout(resolve, 2000));
 
           this.jwt_token_p = page.evaluate(() => {
             try {
@@ -72,9 +84,10 @@ export default class TranscomAuthTokenCollector {
 
           //  If the page.evaluate above returns undefined, it will continue to do so.
           if ((await this.jwt_token_p) === undefined) {
-            await this.close();
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-            await this.start();
+            if (++retries === 10) {
+              await this.close();
+              return await this.start();
+            }
           }
 
           logger.debug(
@@ -89,7 +102,7 @@ export default class TranscomAuthTokenCollector {
         } catch (err) {
           console.error(err);
         }
-      }, 1000);
+      }, 5000);
     }
   }
 

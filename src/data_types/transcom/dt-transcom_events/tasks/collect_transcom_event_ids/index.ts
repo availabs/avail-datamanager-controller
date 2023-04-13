@@ -12,13 +12,13 @@ import {
   validateTranscomRequestTimestamp,
   partitionTranscomRequestTimestampsByMonth,
   TranscomApiRequestTimestamp,
-} from "../utils/dates";
+} from "../../utils/dates";
 
-import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
+import TranscomAuthTokenCollector from "../../utils/TranscomAuthTokenCollector";
+
+import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
 
 import { RawTranscomEvent } from "../../domain";
-
-import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
 
 const DEFAULT_SLEEP_MS = 10 * 1000; // 10 seconds
 

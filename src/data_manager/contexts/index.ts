@@ -1,3 +1,18 @@
+/*
+ * NOTE:  Could use AVAIL_DAMA_PG_ENV and AVAIL_DAMA_ETL_CONTEXT_ID in getContext.
+ *        Could also use require.main to determine if the main module is TaskRunner.
+ *
+ *          IF (
+ *            ( both AVAIL_DAMA_PG_ENV and AVAIL_DAMA_ETL_CONTEXT_ID are set )
+ *            AND
+ *            ( /\/src\/data_manager\/tasks\/TaskRunner.ts$/.test(require.main.filepath) )
+ *          ) THEN
+ *              IF dama_context_async_local_storage.getStore() returns undefined
+ *                THEN
+ *                  getContext returns { meta: { pgEnv: AVAIL_DAMA_PG_ENV, ... } }
+ *
+ */
+
 import { AsyncLocalStorage } from "async_hooks";
 import { inspect } from "util";
 
@@ -28,11 +43,24 @@ export type TaskEtlContext = EtlContext & {
 
 const dama_context_async_local_storage = new AsyncLocalStorage<EtlContext>();
 
+const TESTING_PG_ENV = "ephemeral_test_db";
+
 export function getContext(): EtlContext {
   const ctx = dama_context_async_local_storage.getStore();
 
   if (!ctx) {
     throw new Error("Unable to get context from dama_local_storage.");
+  }
+
+  // Because we drop entire SCHEMAs when testing...
+  // https://stackoverflow.com/a/52231746
+  if (
+    process.env.JEST_WORKER_ID !== undefined ||
+    process.env.NODE_ENV === "test"
+  ) {
+    if (ctx.meta.pgEnv !== TESTING_PG_ENV) {
+      throw new Error(`The ONLY pgEnv allowed in testing is ${TESTING_PG_ENV}`);
+    }
   }
 
   return ctx;
@@ -52,7 +80,8 @@ export function isInTaskEtlContext(): boolean {
   try {
     const ctx = getContext();
 
-    return !!(ctx?.meta?.pgEnv && ctx.meta.etl_context_id && ctx.initial_event);
+    // return !!(ctx?.meta?.pgEnv && ctx.meta.etl_context_id && ctx.initial_event);
+    return !!(ctx?.meta?.pgEnv && ctx.meta.etl_context_id);
   } catch (err) {
     return false;
   }

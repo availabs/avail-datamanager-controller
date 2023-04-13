@@ -8,17 +8,16 @@ import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 
-import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
-import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
-
-// NOTE: dbCols array ensures same order of columns in CSV and COPY FROM CSV statement.
-import { url } from "./data_schema";
-
 import { getTimestamp } from "data_utils/time";
+
+import TranscomAuthTokenCollector from "../../utils/TranscomAuthTokenCollector";
+import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
+import { getRawTranscomEventsFilePath } from "../../utils/etlWorkDir";
 
 import { RawTranscomEventExpanded } from "../../domain";
 
-import { getRawTranscomEventsFilePath } from "../utils/etlWorkDir";
+export const url =
+  "https://eventsearch.xcmdata.org/HistoricalEventSearch/xcmEvent/getEventById";
 
 export type InitialEvent = {
   type: ":INITIAL";

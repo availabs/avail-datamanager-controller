@@ -11,9 +11,9 @@ import { runInDamaContext } from "data_manager/contexts";
 import etl_dir from "constants/etlDir";
 
 import main from ".";
-import getEtlWorkDir, { getEtlWorkDirMeta } from "../utils/etlWorkDir";
-import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
-import getPostgresStagingSchemaName from "../utils/getPostgresStagingSchemaName";
+import getEtlWorkDir, { getEtlWorkDirMeta } from "../../utils/etlWorkDir";
+import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
+import getPostgresStagingSchemaName from "../../utils/getPostgresStagingSchemaName";
 
 const test_data_dir = join(
   __dirname,

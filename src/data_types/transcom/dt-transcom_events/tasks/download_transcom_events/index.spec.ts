@@ -10,10 +10,10 @@ import etl_dir from "constants/etlDir";
 import dama_events from "data_manager/events";
 import { runInDamaContext } from "data_manager/contexts";
 
-import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
-import TranscomAuthTokenCollector from "../utils/TranscomAuthTokenCollector";
+import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
+import TranscomAuthTokenCollector from "../../utils/TranscomAuthTokenCollector";
+import getEtlWorkDir from "../../utils/etlWorkDir";
 
-import getEtlWorkDir from "../utils/etlWorkDir";
 import downloadTranscomEventsExpanded from ".";
 
 const PG_ENV = "ephemeral_test_db";

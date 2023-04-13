@@ -128,7 +128,7 @@ test("first dispatched event MUST be :INITIAL", async () => {
     payload: { id: uuid() },
   };
 
-  expect(
+  await expect(
     dama_events.dispatch(invalid_first_event, etl_context_id, PG_ENV)
   ).rejects.toThrow();
 
@@ -166,7 +166,7 @@ test("EtlContexts can have ONLY ONE :INITIAL event", async () => {
 
   await dama_events.dispatch(initial_event, etl_context_id, PG_ENV);
 
-  expect(
+  await expect(
     dama_events.dispatch(initial_event, etl_context_id, PG_ENV)
   ).rejects.toThrow();
 });
@@ -192,7 +192,7 @@ test("last dispatched event MUST be :FINAL", async () => {
   await dama_events.dispatch(initial_event, etl_context_id, PG_ENV);
   await dama_events.dispatch(final_event, etl_context_id, PG_ENV);
 
-  expect(
+  await expect(
     dama_events.dispatch(invalid_last_event, etl_context_id, PG_ENV)
   ).rejects.toThrow();
 
@@ -313,7 +313,7 @@ test("listeners for :FINAL events called ONLY when :FINAL event COMMITTED to dat
     await dama_events.dispatch(final_event_a, eci_a);
   }, PG_ENV);
 
-  expect(
+  await expect(
     dama_db.runInTransactionContext(async () => {
       await dama_events.dispatch(final_event_b, eci_b);
 
@@ -694,7 +694,7 @@ test.only("getEtlContextFinalEvent vs getEventualEtlContextFinalEvent", async ()
   };
 
   // getEtlContextFinalEvent does not wait
-  expect(
+  await expect(
     Promise.all([
       dama_events.getEtlContextFinalEvent(eci_immediate, PG_ENV),
       eventually_dispatch_final_event(eci_immediate),

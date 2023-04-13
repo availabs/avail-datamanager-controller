@@ -19,7 +19,8 @@ import {
   logContextInfo,
 } from "data_manager/contexts";
 
-import getEtlContextLocalStateSqliteDb from "../utils/getEtlContextLocalStateSqliteDb";
+import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
+import { getRawTranscomEventsFilePath } from "../../utils/etlWorkDir";
 
 import initialize_database_tables from "../initialize_database_tables";
 
@@ -30,8 +31,6 @@ import {
   RawTranscomEventExpanded,
   ProtoTranscomEventExpanded,
 } from "../../domain";
-
-import { getRawTranscomEventsFilePath } from "../utils/etlWorkDir";
 
 export type InitialEvent = {
   type: ":INITIAL";

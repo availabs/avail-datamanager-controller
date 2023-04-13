@@ -28,6 +28,8 @@ export type QueryLogEntry = {
   result: NodePgQueryResult | string | null;
 };
 
+const TESTING_PG_ENV = "ephemeral_test_db";
+
 type LocalVariables = {
   // Promise because below we only want to getDb once and this._local_.db is our "once" check.
   dbs: Record<string, Promise<NodePgPool> | null>;
@@ -86,6 +88,21 @@ class DamaDb extends DamaContextAttachedResource {
    */
   private async getDb(pg_env = this.pg_env): Promise<NodePgPool> {
     logger.silly(`dama_db.getDb ${pg_env}`);
+
+    // Because we drop entire SCHEMAs when testing...
+    // https://stackoverflow.com/a/52231746
+    if (
+      process.env.JEST_WORKER_ID !== undefined ||
+      process.env.NODE_ENV === "test"
+    ) {
+      logger.silly(`Running tests. pg_env MUST be ${TESTING_PG_ENV}`);
+
+      if (pg_env !== TESTING_PG_ENV) {
+        throw new Error(
+          `The ONLY pg_env allowed in testing is ${TESTING_PG_ENV}`
+        );
+      }
+    }
 
     if (!this._local_.dbs[pg_env]) {
       let resolve: Function;
@@ -239,16 +256,16 @@ class DamaDb extends DamaContextAttachedResource {
   async runInTransactionContext(fn: () => unknown, pg_env = this.pg_env) {
     let current_context: EtlContext;
 
+    //  TODO: Implement SAVEPOINTs?
+    //        See: https://github.com/golergka/pg-tx/blob/master/src/transaction.ts
+    if (this.isInTransactionContext) {
+      throw new Error("Transaction contexts cannot be nested.");
+    }
+
     try {
       current_context = getContext();
     } catch (err) {
       current_context = { meta: { pgEnv: pg_env } };
-    }
-
-    //  TODO: Implement SAVEPOINTs
-    //        See: https://github.com/golergka/pg-tx/blob/master/src/transaction.ts
-    if (this.isInTransactionContext) {
-      throw new Error("Transaction contexts cannot be nested.");
     }
 
     // NOTE: Not yet isInTransactionContext, therefore release not disabled.

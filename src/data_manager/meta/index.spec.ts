@@ -97,7 +97,7 @@ test("does _NOT_ describe non-data_manager tables", async () => {
 
   await dama_db.query(ddl, PG_ENV);
 
-  expect(async () => {
+  await expect(async () => {
     await dama_meta.describeTable("public", table_name, PG_ENV);
   }).rejects.toThrow(`No such table in data_manager: public.${table_name}`);
 });
