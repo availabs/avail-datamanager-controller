@@ -1,7 +1,7 @@
 // https://www.lucasamos.dev/articles/mocknodefetch
 
 jest.mock("node-fetch");
-jest.mock("../utils/TranscomAuthTokenCollector");
+jest.mock("../../utils/TranscomAuthTokenCollector");
 
 import fetch from "node-fetch";
 import tmp from "tmp";

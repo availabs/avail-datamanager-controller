@@ -26,7 +26,7 @@ test("describes a data_manager schema table", async () => {
   expect(column_names.includes("type")).toBe(true);
 });
 
-test.only("describes DamaView tables", async () => {
+test("describes DamaView tables", async () => {
   const table_schema = getRandomTableName();
   const table_name = getRandomTableName();
 
