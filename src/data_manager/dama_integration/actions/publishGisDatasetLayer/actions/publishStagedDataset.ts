@@ -1,13 +1,14 @@
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
+import { Context as MoleculerContext } from "moleculer";
+
 import { NodePgQueryResult } from "../../../../dama_db/postgres/PostgreSQL";
-import { TransactionContext } from "../index.d";
 
 import GisDatasetIntegrationEventTypes from "../../../constants/EventTypes";
 
-export default async function generatePublishSql(txnCtx: TransactionContext) {
-  const { params } = txnCtx;
+export default async function publishStagedDataset(ctx: MoleculerContext) {
+  const { params } = ctx;
 
   const {
     eventsByType: {
@@ -56,7 +57,7 @@ export default async function generatePublishSql(txnCtx: TransactionContext) {
     )
   );
 
-  const indexesQueryResult: NodePgQueryResult = await txnCtx.call(
+  const indexesQueryResult: NodePgQueryResult = await ctx.call(
     "dama_db.query",
     indexesQuery
   );
@@ -73,16 +74,16 @@ export default async function generatePublishSql(txnCtx: TransactionContext) {
       )
     );
 
-    await txnCtx.call("dama_db.query", q);
+    await ctx.call("dama_db.query", q);
   }
 
-  await txnCtx.call(
+  await ctx.call(
     "dama_db.query",
     pgFormat("CREATE SCHEMA IF NOT EXISTS %I ;", tableSchema)
   );
 
   // NOTE: This will fail if there exists a table stagedTableSchema.table_name
-  await txnCtx.call(
+  await ctx.call(
     "dama_db.query",
     pgFormat(
       "ALTER TABLE %I.%I RENAME TO %I ;",
@@ -92,7 +93,7 @@ export default async function generatePublishSql(txnCtx: TransactionContext) {
     )
   );
 
-  await txnCtx.call(
+  await ctx.call(
     "dama_db.query",
     pgFormat(
       "ALTER TABLE %I.%I SET SCHEMA %I ;",

@@ -2,17 +2,17 @@ import _ from "lodash";
 import pgFormat from "pg-format";
 import dedent from "dedent";
 
-import { TransactionContext } from "../index.d";
+import { Context as MoleculerContext } from "moleculer";
 
 export default async function conformDamaSourceViewTableSchema(
-  txnCtx: TransactionContext
+  ctx: MoleculerContext
 ) {
   const {
     params: {
       // @ts-ignore
       newDamaView: { source_id: damaSourceId, view_id: damaViewId },
     },
-  } = txnCtx;
+  } = ctx;
 
   const tableSchemasSummarySql = dedent(`
     SELECT
@@ -21,13 +21,10 @@ export default async function conformDamaSourceViewTableSchema(
       WHERE ( source_id = $1 )
   `);
 
-  const { rows: tableSchemasSummaryResult } = await txnCtx.call(
-    "dama_db.query",
-    {
-      text: tableSchemasSummarySql,
-      values: [damaSourceId],
-    }
-  );
+  const { rows: tableSchemasSummaryResult } = await ctx.call("dama_db.query", {
+    text: tableSchemasSummarySql,
+    values: [damaSourceId],
+  });
 
   if (!tableSchemasSummaryResult.length) {
     throw new Error(`Invalid DaMa SourceID: ${damaSourceId}`);
@@ -81,7 +78,7 @@ export default async function conformDamaSourceViewTableSchema(
 
   const {
     rows: [{ all_other_schemas_consistent }],
-  } = await txnCtx.call("dama_db.query", {
+  } = await ctx.call("dama_db.query", {
     text: otherSchemasConsistentWithDataSourceMetadataSql,
     values: [otherViewIds],
   });
@@ -134,7 +131,7 @@ export default async function conformDamaSourceViewTableSchema(
 
   const {
     rows: [{ table_schema, table_name }],
-  } = await txnCtx.call("dama_db.query", {
+  } = await ctx.call("dama_db.query", {
     text: viewDataTableSql,
     values: [damaViewId],
   });
@@ -155,7 +152,7 @@ export default async function conformDamaSourceViewTableSchema(
 
     console.log(addColSql);
 
-    await txnCtx.call("dama_db.query", addColSql);
+    await ctx.call("dama_db.query", addColSql);
   }
 
   return schemasDiff;

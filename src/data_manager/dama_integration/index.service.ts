@@ -7,7 +7,9 @@ import { join } from "path";
 import { Context } from "moleculer";
 import _ from "lodash";
 
-import etlDir from "../../constants/etlDir";
+import etlDir from "constants/etlDir";
+
+import dama_db from "data_manager/dama_db";
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
@@ -17,7 +19,6 @@ import EventTypes from "./constants/EventTypes";
 import uploadGeospatialDataset from "./actions/uploadGeospatialDataset";
 import stageLayerData from "./actions/stageLayerData";
 import publishGisDatasetLayer from "./actions/publishGisDatasetLayer";
-
 
 export default {
   name: serviceName,
@@ -190,7 +191,11 @@ export default {
       return result;
     },
 
-    publishGisDatasetLayer,
+    async publishGisDatasetLayer(ctx: Context) {
+      return await dama_db.runInTransactionContext(async () =>
+        publishGisDatasetLayer(ctx)
+      );
+    },
 
     async testDbIterator(ctx: Context) {
       const iter = await ctx.call("dama_db.makeIterator", ctx.params);

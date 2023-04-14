@@ -10,7 +10,7 @@ module.exports = {
     project: "tsconfig.json",
     sourceType: "module",
   },
-  plugins: ["import", "@typescript-eslint"],
+  plugins: ["import", "@typescript-eslint", "eslint-plugin-tsdoc"],
   rules: {
     "@typescript-eslint/adjacent-overload-signatures": "error",
     "@typescript-eslint/array-type": "off",
@@ -82,7 +82,7 @@ module.exports = {
     "guard-for-in": "error",
     "id-blacklist": "off",
     "id-match": "error",
-    "import/order": "error",
+    "import/order": "off",
     "max-classes-per-file": ["error", 1],
     "max-len": [
       "error",
@@ -131,6 +131,7 @@ module.exports = {
       },
     ],
     "spaced-comment": "error",
+    "tsdoc/syntax": "warn",
     "use-isnan": "error",
     "valid-typeof": "off",
   },

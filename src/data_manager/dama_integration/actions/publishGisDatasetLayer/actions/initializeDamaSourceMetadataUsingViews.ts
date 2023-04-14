@@ -1,17 +1,17 @@
 import _ from "lodash";
 import dedent from "dedent";
 
-import { TransactionContext } from "../index.d";
+import { Context as MoleculerContext } from "moleculer";
 
 export default async function initializeDamaSourceMetadataUsingViews(
-  txnCtx: TransactionContext
+  ctx: MoleculerContext
 ) {
   const {
     params: {
       // @ts-ignore
       newDamaView: { source_id: damaSourceId },
     },
-  } = txnCtx;
+  } = ctx;
 
   const damaSrcMetaSql = dedent(`
     SELECT
@@ -20,7 +20,7 @@ export default async function initializeDamaSourceMetadataUsingViews(
       WHERE ( source_id = $1 )
   `);
 
-  const { rows: damaSrcMetaResult } = await txnCtx.call("dama_db.query", {
+  const { rows: damaSrcMetaResult } = await ctx.call("dama_db.query", {
     text: damaSrcMetaSql,
     values: [damaSourceId],
   });
@@ -45,7 +45,7 @@ export default async function initializeDamaSourceMetadataUsingViews(
       )
   `);
 
-  const { rows: damaViewMetadataSummaryResult } = await txnCtx.call(
+  const { rows: damaViewMetadataSummaryResult } = await ctx.call(
     "dama_db.query",
     {
       text: damaViewMetadataSummarySql,
@@ -53,13 +53,13 @@ export default async function initializeDamaSourceMetadataUsingViews(
     }
   );
 
-  const testQuery = `SELECT * FROM information_schema.tables WHERE table_name = '${txnCtx.params.newDamaView.table_name}'`;
-  const { rows: testRows } = await txnCtx.call("dama_db.query", testQuery);
+  const testQuery = `SELECT * FROM information_schema.tables WHERE table_name = '${ctx.params.newDamaView.table_name}'`;
+  const { rows: testRows } = await ctx.call("dama_db.query", testQuery);
 
   console.log(
     JSON.stringify(
       {
-        params: txnCtx.params,
+        params: ctx.params,
         text: damaViewMetadataSummarySql,
         values: [damaSourceId],
         damaViewMetadataSummaryResult,
@@ -95,7 +95,7 @@ export default async function initializeDamaSourceMetadataUsingViews(
     CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 );
   `);
 
-  await txnCtx.call("dama_db.query", {
+  await ctx.call("dama_db.query", {
     text: initDataSrcMetadataSql,
     values: [view_id],
   });

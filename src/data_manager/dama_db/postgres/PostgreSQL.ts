@@ -1,6 +1,7 @@
 /* eslint-disable max-len */
 
 import { readFileSync } from "fs";
+import { readdir as readdirAsync } from "fs/promises";
 import { join } from "path";
 
 import dotenv from "dotenv";
@@ -71,6 +72,7 @@ export const getPostgresConfigurationFilePath = (pgEnv: PgEnv) => {
   return join(configDir, `postgres.${pgEnv}.env`);
 };
 
+// See: https://www.postgresql.org/docs/current/libpq-envars.html
 export const postgresEnvVariables = {
   PGHOST: "the host connection parameter",
 
@@ -139,6 +141,11 @@ export const postgresEnvVariables = {
     "sets the directory containing the locale files for message localization",
 };
 
+export const listAllPgEnvs = async () =>
+  (await readdirAsync(configDir))
+    .filter((fname) => /^postgres\..*\.env$/.test(fname))
+    .map((fname) => fname.replace(/^postgres\./, "").replace(/\.env$/, ""));
+
 export const getPsqlCredentials = (pgEnv: PgEnv): PsqlConfig => {
   const configPath = getPostgresConfigurationFilePath(pgEnv);
   const configContents = readFileSync(configPath);
@@ -154,12 +161,12 @@ export function postgresEnvVariablesToNodePgCreds(pgCreds: PsqlConfig) {
   return nodePgCreds;
 }
 
-export const getNodePgCredentials = (pgEnv: PgEnv) => {
+export const getNodePgCredentials = (pgEnv: PgEnv): NodePgConfig => {
   const pgCreds = getPsqlCredentials(pgEnv);
 
-  console.log(
-    JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
-  );
+  // console.log(
+  // JSON.stringify({ ...pgCreds, PGPASSWORD: "x".repeat(10) }, null, 4)
+  // );
 
   return postgresEnvVariablesToNodePgCreds(pgCreds);
 };
@@ -176,6 +183,47 @@ export const getPostgresConnectionString = (pgEnv: PgEnv) => {
   const connStr = `host='${host}' user='${user}' dbname='${database}' password='${password}' port='${port}'`;
 
   return connStr;
+};
+
+export const getPostgresConnectionUriForNodePgCredentials = (
+  creds: NodePgConfig
+) => {
+  const {
+    user = null,
+    host = "localhost",
+    database = null,
+    password = null,
+    port = 5432,
+  } = creds;
+
+  let url = "postgresql://";
+
+  // add the userspec
+  if (user) {
+    url = `${url}${user}`;
+
+    if (password) {
+      url = `${url}:${password}`;
+    }
+
+    url = `${url}@`;
+  }
+
+  // add the hostspec
+  url = `${url}${host}:${port}`;
+
+  if (database) {
+    url = `${url}/${database}`;
+  }
+
+  return url;
+};
+
+// https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+export const getPostgresConnectionUri = (pgEnv: PgEnv) => {
+  const creds = getNodePgCredentials(pgEnv);
+
+  return getPostgresConnectionUriForNodePgCredentials(creds);
 };
 
 // Make sure to call db.end() or Node will hang.
@@ -197,7 +245,6 @@ export async function getConnectedNodePgPool(
   const nodePgCreds = getNodePgCredentials(pgEnv);
 
   const db = new Pool(nodePgCreds);
-  await db.connect();
 
   return db;
 }

@@ -5,15 +5,15 @@ import EventTypes from "../EventTypes";
 
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import { createSource, createView } from './actions' 
+import { createSource, createView } from './actions'
 
 export default async function publish(ctx) {
   // params come from post data
   let {
     // @ts-ignore
     params: {
-      etlContextId, 
-      userId, 
+      etlContextId,
+      userId,
 
       gisUploadId,
       layerName,
@@ -23,7 +23,8 @@ export default async function publish(ctx) {
       source_values,
 
       schemaName,
-      tableName
+      tableName,
+      customViewAttributes,
     },
     meta: {
       pgEnv,
@@ -32,7 +33,7 @@ export default async function publish(ctx) {
   } = ctx;
 
   //const txn = await ctx.call("dama_db.createTransaction");
-  
+
   try {
     // txn.begin()
     let damaSource = null
@@ -47,10 +48,9 @@ export default async function publish(ctx) {
     if (!source_id) {
       throw new Error('Source not created')
     }
-    
-  
+
     // create a view
-    let damaView = await createView(ctx, {source_id, user_id: userId})
+    const damaView = await createView(ctx, {source_id, user_id: userId, customViewAttributes });
     console.log('created view', JSON.stringify( damaView , null, 4));
 
     // -- Stage the dataset directly into final location --

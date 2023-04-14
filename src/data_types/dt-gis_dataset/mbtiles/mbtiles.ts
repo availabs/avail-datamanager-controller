@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import _, { rest } from 'lodash'
 import dedent from "dedent";
 import pgFormat from "pg-format";
 import { spawn } from "child_process";
@@ -43,19 +43,19 @@ export async function createViewMbtiles(ctx) {
   const {
     // @ts-ignore
     params: {
-      damaViewId, 
+      damaViewId,
       damaSourceId
     },
-    meta: { 
+    meta: {
       pgEnv,
       etl_context_id
     }
   } = ctx;
 
-  console.log('createGisDatasetViewMbtiles context_id: ', 
-    etl_context_id, 
-    ctx.meta, 
-    damaViewId, 
+  console.log('createGisDatasetViewMbtiles context_id: ',
+    etl_context_id,
+    ctx.meta,
+    damaViewId,
     damaSourceId)
 
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
@@ -86,11 +86,11 @@ export async function createViewMbtiles(ctx) {
 
   await ctx.call("data_manager/events.dispatch", initialEvent);
 
-  
+
   const featuresAsyncIterator = (
     await ctx.call(
       "gis-dataset.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator",
-      { ...ctx.params, config: { properties: ['ogc_fid'] } } 
+      { ...ctx.params, config: { properties: ['ogc_fid'] } }
     )
   );
 
@@ -131,7 +131,7 @@ export async function createViewMbtiles(ctx) {
 
     //console.log('mbtiles created', newRow)
 
-    const tiles = { 
+    const tiles = {
       "tiles": {
         "sources": [
           {
@@ -158,7 +158,7 @@ export async function createViewMbtiles(ctx) {
       text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(tiles)}'::jsonb WHERE view_id = $1;`,
       values: [damaViewId],
     });
-    
+
     // const {
     //   rows: [{ mbtiles_id }],
     // } = await ctx.call("dama_db.insertNewRow", {
@@ -420,7 +420,7 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
   } = await ctx.call('gis-dataset.getDamaGisDatasetViewTableSchemaSummary',
     {
       damaViewId ,
-      parentCtx: ctx 
+      parentCtx: ctx
     }
   );
 
