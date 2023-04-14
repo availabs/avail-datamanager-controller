@@ -9,7 +9,7 @@
 
 CREATE SCHEMA IF NOT EXISTS _data_manager_admin ;
 
---  DROP VIEW IF EXISTS _data_manager_admin.table_column_types CASCADE ;
+DROP VIEW IF EXISTS _data_manager_admin.table_column_types CASCADE ;
 CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
   AS
     SELECT
@@ -20,6 +20,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
         column_type,
         column_not_null,
         column_number,
+        column_pkey_number,
 
         CASE
           WHEN ( is_array )
@@ -42,6 +43,7 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
             a.column_type,
             a.column_not_null,
             a.column_number,
+            a.column_pkey_number,
 
             ( b.json_schema IS NOT NULL ) AS is_geometry_col,
 
@@ -225,18 +227,54 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
                 b.attname AS column_name,
                 format_type(b.atttypid, b.atttypmod) AS column_type,
                 b.attnotnull AS column_not_null,
-                b.attnum AS column_number
+                b.attnum AS column_number,
+                (
+                  array_position(
+                    string_to_array(d.indkey::text, ' ')::int2[],
+                    b.attnum
+                  )
+                ) AS column_pkey_number
               FROM pg_catalog.pg_class AS a
+                INNER JOIN pg_catalog.pg_type AS x
+                  ON (
+                    ( a.reltype = x.oid )
+                    -- -- FIXME FIXME FIXME: Need to filter out indexes and other no-data objects.
+                    -- AND
+                    -- ( x.typname = ANY(ARRAY['tables', 'views', 'sources']) )
+                  )
                 INNER JOIN pg_catalog.pg_attribute AS b
                   ON (a.oid = b.attrelid)
-                --  Tried the following to speed up _data_manager_admin.dama_views_comprehensive
-                --    Did not work.
-                -- INNER JOIN data_manager.views AS c
-                --   ON (
-                --     ( a.relnamespace::regnamespace::TEXT = c.table_schema )
-                --     AND
-                --     ( a.relname::TEXT = c.table_name )
-                --   )
+                INNER JOIN (
+                  SELECT
+                      table_schema,
+                      table_name
+                    FROM data_manager.views
+                    WHERE (
+                      ( table_schema IS NOT NULL )
+                      AND
+                      ( table_name IS NOT NULL )
+                    )
+                  UNION ALL
+                  SELECT
+                      schemaname AS table_schema,
+                      tablename AS table_name
+                    FROM pg_tables
+                    WHERE (
+                      ( schemaname = 'data_manager' )
+                      OR
+                      ( schemaname = '_data_manager_admin' )
+                    )
+
+                ) AS c
+                  ON ( a.oid = format('%I.%I', c.table_schema, c.table_name)::regclass::oid )
+                LEFT OUTER JOIN pg_catalog.pg_index AS d
+                  ON (
+                    ( d.indisprimary )
+                    AND
+                    ( a.oid = d.indrelid )
+                    AND
+                    ( b.attnum = ANY(d.indkey) )
+                  )
               WHERE (
                 ( NOT b.attisdropped )
                 AND
@@ -307,6 +345,3 @@ CREATE OR REPLACE VIEW _data_manager_admin.dama_table_json_schema
         INNER JOIN _data_manager_admin.table_json_schema AS b
           USING (table_schema, table_name)
 ;
-
-
-COMMIT ;

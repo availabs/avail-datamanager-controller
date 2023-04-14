@@ -1,90 +1,31 @@
-# DataManager Database Tables, Views, and Functions
+# TODO
 
-## Governance
+## PgEnv
 
-The `_data_manager_admin` schema contains some VIEWs that will help enforce
-conformity between a DamaSource's metadata and its DamaViews' table schemas.
+ There MUST exist a corresponding file in the project's config directory. For
+ example, if pg_env = foo, there must be a config/postgres.foo.env file with
+ the database connection credentials. Because DamaDb extends
+ DamaContextAttachedResource, pg_env is an optional variable if getDb is called
+ within an EtlContext.
 
-### \_data_manager_admin.dama_source_distinct_view_metadata
+## Testing
 
-For each source, shows the consistency of views metadata.
+* https://stackoverflow.com/questions/59540432/how-to-mock-postgresql-pg-in-node-js-using-jest
+* https://github.com/oguimbal/pg-mem
+* https://dev.to/oguimbal/how-to-really-unit-test-code-that-uses-a-db-3gmg
 
-The `distinct_view_metadata_count` value SHOULD be 1.
 
-```sql
-dama_dev_1=# \d dama_source_distinct_view_metadata
-      View "_data_manager_admin.dama_source_distinct_view_metadata"
-            Column            |  Type   | Collation | Nullable | Default
-------------------------------+---------+-----------+----------+---------
- source_id                    | integer |           |          |
- distinct_view_metadata_count | bigint  |           |          |
- views_metadata_summary       | jsonb   |           |          |
-```
+## JSONB columns
 
-### \_data_manager_admin.dama_source_distinct_view_table_schemas
+* (not-yet) Native PostgreSQL [json_table](https://www.depesz.com/2022/04/06/waiting-for-postgresql-15-json_table/)
+  * https://www.depesz.com/tag/sql-json/
+  * https://pganalyze.com/blog/5mins-postgres-sql-json-table-postgres15
 
-For each DamaSource, shows the consistency of views table schemas.
 
-The `distinct_view_table_schemas` value SHOULD be 1.
+* Look into [pg_jsonschema](https://github.com/supabase/pg_jsonschema)
+  * See [article](https://supabase.com/blog/pg-jsonschema-a-postgres-extension-for-json-validation)
+  * HN [post](https://news.ycombinator.com/item?id=35258323)
 
-```sql
-dama_dev_1=# \d dama_source_distinct_view_table_schemas
-   View "_data_manager_admin.dama_source_distinct_view_table_schemas"
-           Column            |  Type   | Collation | Nullable | Default
------------------------------+---------+-----------+----------+---------
- source_id                   | integer |           |          |
- distinct_view_table_schemas | bigint  |           |          |
- table_schemas_summary       | jsonb   |           |          |
-```
+## More
 
-### \_data_manager_admin.dama_views_column_type_variance
-
-For each DamaSource, shows the consistency of DamaViews' table columns.
-
-The `distinct_db_types_count` and `distinct_meta_types_count` values SHOULD be 1.
-
-```sql
-dama_dev_1=# \d dama_views_column_type_variance
-      View "_data_manager_admin.dama_views_column_type_variance"
-          Column           |  Type   | Collation | Nullable | Default
----------------------------+---------+-----------+----------+---------
- source_id                 | integer |           |          |
- column_name               | text    |           |          |
- distinct_db_types_count   | bigint  |           |          |
- distinct_meta_types_count | bigint  |           |          |
- db_type_instances         | jsonb   |           |          |
- meta_type_instances       | jsonb   |           |          |
-```
-
-### \_data_manager_admin.dama_views_metadata_conformity
-
-For each DamaView, compare the (data table derived) view metadata
-with the DamaSource metadata.
-
-The `source_metadata_only` and `view_metadata_only` values SHOULD be null.
-The `view_metadata_is_comformant` value SHOULD be true.
-
-```sql
-dama_dev_1=# \d dama_views_metadata_conformity
-       View "_data_manager_admin.dama_views_metadata_conformity"
-           Column            |  Type   | Collation | Nullable | Default
------------------------------+---------+-----------+----------+---------
- source_id                   | integer |           |          |
- view_id                     | integer |           |          |
- source_metadata_only        | jsonb   |           |          |
- view_metadata_only          | jsonb   |           |          |
- view_metadata_is_comformant | boolean |           |          |
-```
-
-### \_data_manager_admin.dama_views_missing_tables
-
-Shows the DamaView where the data_table does not exist.
-
-```sql
-dama_dev_1=# \d dama_views_missing_tables
- View "_data_manager_admin.dama_views_missing_tables"
-  Column   |  Type   | Collation | Nullable | Default
------------+---------+-----------+----------+---------
- source_id | integer |           |          |
- view_id   | integer |           |          |
-```
+* https://martinfowler.com/articles/evodb.html

@@ -274,7 +274,6 @@ CREATE OR REPLACE PROCEDURE _data_manager_admin.initialize_dama_src_metadata_usi
 ;
 
 -- Query based on https://stackoverflow.com/a/9985338/3970755
-
 CREATE OR REPLACE VIEW _data_manager_admin.dama_views_int_ids
   AS
     SELECT

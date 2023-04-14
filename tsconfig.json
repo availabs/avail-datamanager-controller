@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "baseUrl": "./",
+    "baseUrl": "src",
+    "paths": {
+      "src/*": ["src/*"]
+    },
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -9,7 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "module": "CommonJS",
     "target": "ES6",
-    "lib": ["ES6"],
+    "lib": ["ES6", "DOM"],
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
