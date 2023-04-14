@@ -134,6 +134,15 @@
         },
         "pan_s43_v653_1679342604995": {
             "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s43_v653_1679342604995.mbtiles"
+        },
+        "pan_s49_v661_1681154274799": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s49_v661_1681154274799.mbtiles"
+        },
+        "pan_s51_v663_1681154742460": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s51_v663_1681154742460.mbtiles"
+        },
+        "pan_s52_v664_1681155891902": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s52_v664_1681155891902.mbtiles"
         }
     }
 }
