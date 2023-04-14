@@ -719,7 +719,6 @@ export default {
 
       await dama_events.dispatch(initialEvent, etl_context_id);
 
-<<<<<<< HEAD
       // @ts-ignore
       const req = {};
       //  createNpmrdsDataRangeDownloadRequest({
@@ -730,15 +729,7 @@ export default {
       //   // @ts-ignore
       //   etl_context: { pgEnv, etl_context_id, dama_controller_host },
       // });
-=======
-      const req = createNpmrdsDataRangeDownloadRequest({
-        state,
-        start_date,
-        end_date,
-        is_expanded,
-        etl_context: { pgEnv, etl_context_id, dama_host_id },
-      });
->>>>>>> 5c4206a1bdc2bc28fd11ddafe062bd87d00a1b31
+
 
       console.log(
         "=".repeat(5),
