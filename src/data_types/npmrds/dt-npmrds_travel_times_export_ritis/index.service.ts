@@ -11,7 +11,7 @@ import _ from "lodash";
 
 import { FSA } from "flux-standard-action";
 
-import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
+// import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
 import { stateAbbr2FipsCode } from "../../../data_utils/constants/stateFipsCodes";
 
@@ -729,14 +729,15 @@ export default {
       await ctx.call("data_manager/events.dispatch", initialEvent);
 
       // @ts-ignore
-      const req = createNpmrdsDataRangeDownloadRequest({
-        state,
-        start_date,
-        end_date,
-        is_expanded,
-        // @ts-ignore
-        etl_context: { pgEnv, etl_context_id, dama_controller_host },
-      });
+      const req = {};
+      //  createNpmrdsDataRangeDownloadRequest({
+      //   state,
+      //   start_date,
+      //   end_date,
+      //   is_expanded,
+      //   // @ts-ignore
+      //   etl_context: { pgEnv, etl_context_id, dama_controller_host },
+      // });
 
       console.log(
         "=".repeat(5),
@@ -751,7 +752,7 @@ export default {
       //        NpmrdsDownloadName is not known until PENDING QUEUE_STATUS_UPDATE event received.
       await this.queueNpmrdsExportRequest(req);
 
-      return req;
+      return req || {};
     },
 
     async getNpmrdsDataDateExtent() {

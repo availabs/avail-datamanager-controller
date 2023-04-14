@@ -1,7 +1,7 @@
 import { Context } from "moleculer";
 import uploadFile from './upload/upload'
 import publish from './publish/publish'
-import { 
+import {
   createViewMbtiles,
   getDamaGisDatasetViewTableSchemaSummary,
   generateGisDatasetViewGeoJsonSqlQuery,
@@ -13,7 +13,7 @@ import {
   getTableDescriptor,
   getLayerAnalysis
 } from './stage/stageLayer'
- 
+
 
 import GeospatialDatasetIntegrator from "../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
@@ -28,12 +28,12 @@ export default {
     // uploads a file and unzips it into tmp-etl
     // then returns the client a staged_data_id
     //---------------------------------------------
-    uploadFile,    
+    uploadFile,
     // --------------------------------------------
-    // -- STAGING Routes 
+    // -- STAGING Routes
     // these routes recieve staged_data_id
-    // to return data to client so user can 
-    // make choices about how to publish 
+    // to return data to client so user can
+    // make choices about how to publish
     // --------------------------------------------
     getLayerNames,
     getTableDescriptor,
@@ -42,7 +42,7 @@ export default {
     //-----------------------------------------------
     // -- PUBLISH function
     // takes staged_data_id, and params
-    // updates datamanager and writes data to db 
+    // updates datamanager and writes data to db
     // (not currently atomic sorry Paul)
     // by default automatically calls crateViewMbTiles
     //-----------------------------------------------
@@ -58,6 +58,6 @@ export default {
     getDamaGisDatasetViewTableSchemaSummary,
     generateGisDatasetViewGeoJsonSqlQuery,
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator
-    
+
   }
 }

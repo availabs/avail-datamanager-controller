@@ -3,20 +3,22 @@ import pgFormat from "pg-format";
 
 
 export async function createView(ctx, view_values) {
- 
+
   const {
     source_id,
-    user_id
-  } = view_values
+    user_id,
+    customViewAttributes,
+  } = view_values;
 
   let newDamaView = (
-    await ctx.call("dama/metadata.createNewDamaView", {source_id, user_id})
+    await ctx.call("dama/metadata.createNewDamaView", {source_id, user_id, metadata: {...customViewAttributes}})
   );
 
   const {
     view_id: damaViewId,
     table_schema: origTableSchema,
     table_name: origTableName,
+    metadata,
   } = newDamaView;
 
   const table_schema = origTableSchema || "gis_datasets";
