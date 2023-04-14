@@ -169,9 +169,11 @@ export default {
       "../../../lib/tileserver-gl-light/src/main.js"
     );
 
+    console.log('tileserverConfig', this.__local__.tileserverConfig)
     const tileserverArgs = Object.entries(
       this.__local__.tileserverConfig
     ).reduce((acc: string[], [k, v]: [string, any]) => {
+      console.log('tileserverargs death', acc, k,v)
       if (typeof v === "boolean" && v) {
         acc.push(`--${k}`);
       } else {

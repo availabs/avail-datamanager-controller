@@ -23,7 +23,6 @@ export default async function publish(ctx) {
       source_values,
 
       schemaName,
-      tableName,
       customViewAttributes,
     },
     meta: {
@@ -34,7 +33,7 @@ export default async function publish(ctx) {
 
   //const txn = await ctx.call("dama_db.createTransaction");
 
-  try {
+  //try {
     // txn.begin()
     let damaSource = null
     let setSourceMetadata = false
@@ -50,6 +49,7 @@ export default async function publish(ctx) {
     }
 
     // create a view
+    console.log('Do I get to view create?')
     const damaView = await createView(ctx, {source_id, user_id: userId, customViewAttributes });
     console.log('created view', JSON.stringify( damaView , null, 4));
 
@@ -64,7 +64,7 @@ export default async function publish(ctx) {
     try {
       const migration_result = await gdi.loadTable({ layerName, pgEnv });
     } catch( err ) {
-
+      console.log('migration error', JSON.stringify(err,null,3))
     }
 
     const {
@@ -119,30 +119,32 @@ export default async function publish(ctx) {
     //await txn.commit();
 
     return finalEvent;
-  } catch (err) {
-    console.error(err);
+  // } catch (err) {
+  //   console.error(err);
 
-    const errEvent = {
-      type: EventTypes.PUBLISH_ERROR,
-      payload: {
-        message: err.message
-      },
-      meta: {
-        etl_context_id: etlContextId,
-        user_id: userId,
-        timestamp: new Date().toISOString(),
-      },
-    };
+  //   const errEvent = {
+  //     type: EventTypes.PUBLISH_ERROR,
+  //     payload: {
+  //       message: err.message
+  //     },
+  //     meta: {
+  //       etl_context_id: etlContextId,
+  //       user_id: userId,
+  //       timestamp: new Date().toISOString(),
+  //     },
+  //   };
 
-    // Back to the parentCtx
-    await ctx.call("data_manager/events.dispatch", errEvent);
+  //   console.log('ERROR event', err)
 
-    try {
-      //await txn.rollback();
-    } catch (err2) {
-      //
-      cosole.log('transaction rollback error')
-    }
-    throw err;
-  }
+  //   // Back to the parentCtx
+  //   await ctx.call("data_manager/events.dispatch", errEvent);
+
+  //   try {
+  //     //await txn.rollback();
+  //   } catch (err2) {
+  //     //
+  //     cosole.log('transaction rollback error')
+  //   }
+  //   throw err;
+  // }
 }
