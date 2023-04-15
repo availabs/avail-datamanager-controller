@@ -13,7 +13,9 @@ import dama_db from "data_manager/dama_db";
 import dama_events, { EtlEvent } from "data_manager/events";
 import dama_meta from "data_manager/meta";
 
-// import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
+//  If you need to disable this service, change the name from index.service.ts to index.disabled.ts,
+//    but please do not commit and push the change.
+import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
 import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";
 
@@ -719,17 +721,13 @@ export default {
 
       await dama_events.dispatch(initialEvent, etl_context_id);
 
-      // @ts-ignore
-      const req = {};
-      //  createNpmrdsDataRangeDownloadRequest({
-      //   state,
-      //   start_date,
-      //   end_date,
-      //   is_expanded,
-      //   // @ts-ignore
-      //   etl_context: { pgEnv, etl_context_id, dama_controller_host },
-      // });
-
+      const req = createNpmrdsDataRangeDownloadRequest({
+        state,
+        start_date,
+        end_date,
+        is_expanded,
+        etl_context: { pgEnv, etl_context_id, dama_host_id },
+      });
 
       console.log(
         "=".repeat(5),
@@ -744,7 +742,7 @@ export default {
       //        NpmrdsDownloadName is not known until PENDING QUEUE_STATUS_UPDATE event received.
       await this.queueNpmrdsExportRequest(req);
 
-      return req || {};
+      return req;
     },
 
     async getNpmrdsDataDateExtent() {
