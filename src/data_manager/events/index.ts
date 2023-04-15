@@ -1,3 +1,5 @@
+/* eslint-disable max-classes-per-file */
+
 import dedent from "dedent";
 import pgFormat from "pg-format";
 import _ from "lodash";
@@ -37,6 +39,13 @@ export type DamaEvent = EtlEvent & {
   etl_context_id: number;
   _created_timestamp: Date;
 };
+
+class NoFinalEventForEtlContextError extends Error {
+  constructor(etl_context_id: number) {
+    super(`No :FINAL event for EtlContext ${etl_context_id}`);
+    this.name = "NoFinalEventForEtlContextError";
+  }
+}
 
 class DamaEvents extends DamaContextAttachedResource {
   protected readonly pglisten_subscribers_by_pgenv: Record<
@@ -351,10 +360,143 @@ class DamaEvents extends DamaContextAttachedResource {
     );
 
     if (!final_event) {
-      throw new Error(`No :FINAL event for EtlContext ${etl_context_id}`);
+      throw new NoFinalEventForEtlContextError(<number>etl_context_id);
     }
 
     return final_event;
+  }
+
+  /**
+   * Returns a Promise for an EtlContext's :FINAL event.
+   *   If the :FINAL event already exists, the Promise immediately resolves with the event.
+   *   If the :FINAL event does not yet exists, the Promise will resolve when
+   *     the :FINAL event is written to the database.
+   *
+   * @remarks
+   *    Uses registerEtlContextFinalEventListener.
+   *    NOTE: This method may need to wait for a long-running task to finish.
+   *          The getEtlContextFinalEvent does not wait for tasks.
+   *            It will throw an error if the :FINAL event does not exist.
+   *
+   * @param etl_context_id - The EtlContext ID whose :FINAL event will be passed to the listener.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
+   */
+  getEventualEtlContextFinalEvent(
+    etl_context_id: number,
+    pg_env = this.pg_env
+  ) {
+    return new Promise<DamaEvent>((resolve) =>
+      this.registerEtlContextFinalEventListener(etl_context_id, resolve, pg_env)
+    );
+  }
+
+  /**
+   * Private method used to notify :FINAL event listeners.
+   *
+   * @param etl_context_id - The EtlContext ID whose :FINAL event will be passed to the listener.
+   *
+   * @param pg_env - The database to connect to.
+   *
+   * @param log_missing_events - Whether to log error messages when the :FINAL event
+   *    cannot be found in data_manager.event_store.
+   */
+  private async notifyFinalEventListeners(
+    etl_context_id: number | string,
+    pg_env: string,
+    log_missing_events = true
+  ) {
+    etl_context_id = +etl_context_id;
+
+    logger.silly(
+      `dama_events.notifyFinalEventListeners etl_context_id=${etl_context_id} start`
+    );
+
+    try {
+      let listeners =
+        this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
+          etl_context_id
+        ];
+
+      // If this (pg_env, etl_context_id) does not have any :FINAL event listeners, we're done.
+      if (!listeners) {
+        return;
+      }
+
+      // NOTE: Throws if no :FINAL event. So, if no :FINAL event, we go to the catch block.
+      const final_event = await this.getEtlContextFinalEvent(
+        etl_context_id,
+        pg_env
+      );
+
+      // If we have reached this point, the EtlContext has a :FINAL event.
+
+      logger.silly(
+        `dama_events.notifyFinalEventListeners etl_context_id=${etl_context_id} final_event=${JSON.stringify(
+          final_event,
+          null,
+          4
+        )}`
+      );
+
+      // NOTE: We refresh the listeners array in case one was added
+      //        during the async getEtlContextFinalEvent call
+      //
+      // NOTE:  The following two synchronous lines get the listeners, then unregister them.
+      //
+      //        While they are executing, because Node is single-threaded,
+      //          not new listeners can be registered.
+      //
+      //        If a new listener is registered after they finish,
+      //          the registerEtlContextDoneListener method calls that listener
+      //          because it bypasses the Postgres NOTIFY/LISTEN mechanism
+      //          and calls the listener immediately if the :FINAL event already exists.
+      listeners =
+        this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
+          etl_context_id
+        ];
+
+      // deleting the listeners array (?SHOULD?) guarantee listeners called ONLY ONCE.
+      delete this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
+        etl_context_id
+      ];
+
+      if (listeners) {
+        // Call all the listeners.
+        //
+        // NOTE: Could interleave listeners. May be better to use a for loop and call them sequentially.
+        //        That would be close to how Node's EventEmitter works.
+        await Promise.all(
+          listeners.map((listener) => {
+            try {
+              return listener(final_event);
+            } catch (err) {
+              // CONISIDER: The listener should catch this Error?
+              //            If we do not discard it here, other listeners will not get notified.
+              logger.warn(
+                `dama_events.notifyFinalEventListeners ignoring error for pg_env=${pg_env} etl_context_id=${etl_context_id}`
+              );
+              logger.warn((<Error>err).message);
+              logger.warn((<Error>err).stack);
+            }
+          })
+        );
+      }
+    } catch (err) {
+      if (err instanceof NoFinalEventForEtlContextError) {
+        if (log_missing_events) {
+          logger.warn(
+            `dama_events.notifyFinalEventListeners pg_env=${pg_env} etl_context_id=${etl_context_id} no :FINAL event`
+          );
+        }
+      } else {
+        logger.warn(
+          `dama_events.notifyFinalEventListeners ignoring error for pg_env=${pg_env} etl_context_id=${etl_context_id}`
+        );
+        logger.error((<Error>err).message);
+        logger.error((<Error>err).stack);
+      }
+    }
   }
 
   /**
@@ -390,10 +532,6 @@ class DamaEvents extends DamaContextAttachedResource {
 
       return process.nextTick(() => listener(final_event));
     } catch (err) {
-      // Note:  I believe there is no race condition here.
-      //        If getEtlContextFinalEvent threw, this catch block will execute synchronously.
-      //        While it is executing, no new event notifications from the db can be processed.
-      //        Once this block completes, this listener is registered.
       this.final_event_listeners_by_etl_context_by_pg_env[pg_env] =
         this.final_event_listeners_by_etl_context_by_pg_env[pg_env] || {};
 
@@ -410,31 +548,6 @@ class DamaEvents extends DamaContextAttachedResource {
 
       await this.addPgListenSubscriber(pg_env);
     }
-  }
-
-  /**
-   * Returns a Promise for an EtlContext's :FINAL event.
-   *   If the :FINAL event already exists, the Promise immediately resolves with the event.
-   *   If the :FINAL event does not yet exists, the Promise will resolve when
-   *     the :FINAL event is written to the database.
-   *
-   * @remarks
-   *    Uses registerEtlContextFinalEventListener.
-   *    NOTE: This method may need to wait for a long-running task to finish.
-   *          The getEtlContextFinalEvent does not wait for tasks.
-   *            It will throw an error if the :FINAL event does not exist.
-   *
-   * @param etl_context_id - The EtlContext ID whose :FINAL event will be passed to the listener.
-   *
-   * @param pg_env - The database to connect to. Optional if running in a dama_context EtlContext.
-   */
-  getEventualEtlContextFinalEvent(
-    etl_context_id: number,
-    pg_env = this.pg_env
-  ) {
-    return new Promise<DamaEvent>((resolve) =>
-      this.registerEtlContextFinalEventListener(etl_context_id, resolve, pg_env)
-    );
   }
 
   /**
@@ -466,126 +579,56 @@ class DamaEvents extends DamaContextAttachedResource {
       }
     );
 
-    const notifyListeners = async (
-      etl_context_id: number | string,
-      log_missing_events = true
-    ) => {
-      logger.silly(
-        `dama_events.notifyListeners etl_context_id=${etl_context_id} start`
-      );
-
-      etl_context_id = +etl_context_id;
-
-      try {
-        let listeners =
-          this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
-            etl_context_id
-          ];
-
-        if (!listeners) {
-          logger.silly(
-            `dama_events.notifyListeners pg_env=${pg_env} etl_context_id=${etl_context_id} has no listeners`
-          );
-
-          return;
-        }
-
-        // Throws if no :FINAL event.
-        const final_event = await this.getEtlContextFinalEvent(
-          etl_context_id,
-          pg_env
-        );
-
-        logger.silly(
-          `dama_events.notifyListeners etl_context_id=${etl_context_id} final_event=${JSON.stringify(
-            final_event,
-            null,
-            4
-          )}`
-        );
-
-        // NOTE:  At this point, if a new listener is registered,
-        //        the registerEtlContextDoneListener method calls that listener.
-        listeners =
-          this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
-            etl_context_id
-          ];
-
-        // deleting the listeners array (?SHOULD?) guarantee listeners called ONLY ONCE.
-        delete this.final_event_listeners_by_etl_context_by_pg_env[pg_env]?.[
-          etl_context_id
-        ];
-
-        if (listeners) {
-          logger.silly(
-            `dama_events.notifyListeners etl_context_id=${etl_context_id} notifying listeners`
-          );
-
-          await Promise.all(
-            listeners.map((listener) => {
-              try {
-                listener(final_event);
-              } catch (err) {
-                // CONISIDER: The listener should catch this Error.
-                //            If we do not discard it here, other listeners will not get notified.
-                logger.warn(
-                  `dama_events.notifyListeners ignoring error for pg_env=${pg_env} etl_context_id=${etl_context_id}`
-                );
-                logger.warn((<Error>err).message);
-                logger.warn((<Error>err).stack);
-              }
-            })
-          );
-        }
-      } catch (err) {
-        if (/^No :FINAL event for EtlContext/.test((<Error>err).message)) {
-          if (log_missing_events) {
-            logger.warn(
-              `dama_events.notifyListeners pg_env=${pg_env} etl_context_id=${etl_context_id} no :FINAL event`
-            );
-          }
-        } else {
-          logger.warn(
-            `dama_events.notifyListeners ignoring error for pg_env=${pg_env} etl_context_id=${etl_context_id}`
-          );
-          logger.error((<Error>err).message);
-          logger.error((<Error>err).stack);
-        }
-      }
-    };
-
     try {
       const subscriber = createPostgresSubscriber({
         connectionString: getPostgresConnectionUri(pg_env),
       });
 
+      // Will call notifyFinalEventListeners when an EtlContext gets a :FINAL event.
       subscriber.notifications.on("ETL_CONTEXT_FINAL_EVENT", (eci) =>
-        notifyListeners(eci, true)
+        this.notifyFinalEventListeners(eci, pg_env, true)
       );
 
-      //  NOTE: The following sequence will cause a missed :FINAL event
+      //  NOTE: The following async sequence would cause the subscriber to miss a :FINAL event
       //
-      //    t0       t1        t2     t3
-      //    connect, register, event, listen
+      //          t0       t1        t2     t3
+      //          connect, register, event, listen
+      //
+      //        Therefore, after we start listening, we call directly call notifyFinalEventListeners
+      //          outside of the subscriber.notifications callback.
+      //
+      //        If the :FINAL event exists in the data_manager.event_store,
+      //          it'll notify the listeners and unregister them.
+      //
+      //        If the :FINAL event does not exist, it is essentially a no-op, which should ensure
+      //          listeners get called ONCE.
       //
       await subscriber.connect();
       await subscriber.listenTo("ETL_CONTEXT_FINAL_EVENT");
 
       // I believe this handles the potentially missed :FINAL event case described above.
       process.nextTick(async () => {
-        if (!this.final_event_listeners_by_etl_context_by_pg_env[pg_env]) {
-          return;
-        }
-
         const final_event_listeners_by_etl_context =
           this.final_event_listeners_by_etl_context_by_pg_env[pg_env];
+
+        if (!final_event_listeners_by_etl_context) {
+          return;
+        }
 
         const etl_context_ids = Object.keys(
           final_event_listeners_by_etl_context
         );
 
+        //  Calling notifyFinalEventListeners outside of subscriber.notifications so that
+        //    if we missed the :FINAL event because it happened while we were subscribing to it,
+        //    the listeners will still be notified.
+        //
+        //  NOTE: notifyFinalEventListeners unregisters listeners before they are called
+        //        so it should be safe to call multiple times.
         await Promise.all(
-          etl_context_ids.map((eci) => notifyListeners(eci, false))
+          etl_context_ids.map((eci) =>
+            this.notifyFinalEventListeners(eci, pg_env, false)
+          )
         );
       });
 
