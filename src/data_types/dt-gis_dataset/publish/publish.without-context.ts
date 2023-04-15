@@ -1,3 +1,5 @@
+// WARNING: Code has not been run.
+
 import { inspect } from "util";
 
 import EventTypes from "../EventTypes";
@@ -11,7 +13,22 @@ import { TaskEtlContext } from "data_manager/contexts";
 
 import { createSource, createView } from "./actions.without-context";
 
-export default async function publish(etl_context: TaskEtlContext) {
+export type InitialEvent = {
+  payload: {
+    source_id: number;
+    gisUploadId: string;
+    layerName: string;
+    tableDescriptor: any;
+    source_values: any;
+    userId: number;
+  };
+};
+
+export type ThisTaskEtlContext = TaskEtlContext & {
+  initial_event: InitialEvent;
+};
+
+export default async function main(etl_context: ThisTaskEtlContext) {
   const {
     initial_event: {
       payload: {

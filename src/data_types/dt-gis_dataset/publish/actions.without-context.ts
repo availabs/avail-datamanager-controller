@@ -1,3 +1,5 @@
+// WARNING: Code has not been run.
+
 import { inspect } from "util";
 
 import dedent from "dedent";

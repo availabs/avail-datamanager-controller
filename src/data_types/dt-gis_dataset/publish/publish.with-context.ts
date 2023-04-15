@@ -1,3 +1,5 @@
+// WARNING: Code has not been run.
+
 import { inspect } from "util";
 
 import EventTypes from "../EventTypes";
@@ -25,7 +27,7 @@ export type InitialEvent = {
   };
 };
 
-export default async function publish(initial_event: InitialEvent) {
+export default async function main(initial_event: InitialEvent) {
   //  verify that all methods in the call tree will be able to get pg_env and etl_context_id
   //    from the DamaContext (data_manager/contexts)
   verifyIsInTaskEtlContext();
