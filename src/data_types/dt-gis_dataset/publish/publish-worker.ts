@@ -5,15 +5,15 @@ import EventTypes from "../EventTypes";
 
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import { createSource, createView } from './actions'
+import { createSource, createView } from './actions' 
 
 export default async function publish(ctx) {
   // params come from post data
   let {
     // @ts-ignore
     params: {
-      etlContextId,
-      userId,
+      etlContextId, 
+      userId, 
 
       gisUploadId,
       layerName,
@@ -23,7 +23,7 @@ export default async function publish(ctx) {
       source_values,
 
       schemaName,
-      customViewAttributes,
+      tableName
     },
     meta: {
       pgEnv,
@@ -32,14 +32,12 @@ export default async function publish(ctx) {
   } = ctx;
 
   //const txn = await ctx.call("dama_db.createTransaction");
-
-  //try {
+  
+  try {
     // txn.begin()
     let damaSource = null
-    let setSourceMetadata = false
     // create a source if necessary
     if(!source_id) {
-      setSourceMetadata = true
       damaSource = await createSource(ctx, source_values)
       source_id = damaSource.source_id
     }
@@ -47,10 +45,10 @@ export default async function publish(ctx) {
     if (!source_id) {
       throw new Error('Source not created')
     }
-
+    
+  
     // create a view
-    console.log('Do I get to view create?')
-    const damaView = await createView(ctx, {source_id, user_id: userId, customViewAttributes });
+    let damaView = await createView(ctx, {source_id, user_id: userId})
     console.log('created view', JSON.stringify( damaView , null, 4));
 
     // -- Stage the dataset directly into final location --
@@ -64,7 +62,7 @@ export default async function publish(ctx) {
     try {
       const migration_result = await gdi.loadTable({ layerName, pgEnv });
     } catch( err ) {
-      console.log('migration error', JSON.stringify(err,null,3))
+
     }
 
     const {
@@ -74,29 +72,12 @@ export default async function publish(ctx) {
       view_id: damaViewId,
     } = damaView;
 
-    if(setSourceMetadata) {
-      await ctx.call("dama_db.query", {
-        text: `CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )`,
-        values: [damaViewId],
-      });
-    }
-
     await ctx.call("data_manager/events.setEtlContextSourceId", {
       etl_context_id,
       source_id: damaSourceId,
     });
 
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
-
-    ctx.params.damaViewId = damaViewId
-    ctx.meta.etl_context_id = etlContextId
-
-    await ctx.call('gis-dataset.createViewMbtiles', {
-      damaViewId,
-      damaSourceId
-    })
-
-    // console.log('mbtilesData', JSON.stringify(mbtilesData,null,3))
 
     const finalEvent = {
       type: EventTypes.FINAL,
@@ -119,32 +100,30 @@ export default async function publish(ctx) {
     //await txn.commit();
 
     return finalEvent;
-  // } catch (err) {
-  //   console.error(err);
+  } catch (err) {
+    console.error(err);
 
-  //   const errEvent = {
-  //     type: EventTypes.PUBLISH_ERROR,
-  //     payload: {
-  //       message: err.message
-  //     },
-  //     meta: {
-  //       etl_context_id: etlContextId,
-  //       user_id: userId,
-  //       timestamp: new Date().toISOString(),
-  //     },
-  //   };
+    const errEvent = {
+      type: EventTypes.PUBLISH_ERROR,
+      payload: {
+        message: err.message
+      },
+      meta: {
+        etl_context_id: etlContextId,
+        user_id: userId,
+        timestamp: new Date().toISOString(),
+      },
+    };
 
-  //   console.log('ERROR event', err)
+    // Back to the parentCtx
+    await ctx.call("data_manager/events.dispatch", errEvent);
 
-  //   // Back to the parentCtx
-  //   await ctx.call("data_manager/events.dispatch", errEvent);
-
-  //   try {
-  //     //await txn.rollback();
-  //   } catch (err2) {
-  //     //
-  //     cosole.log('transaction rollback error')
-  //   }
-  //   throw err;
-  // }
+    try {
+      //await txn.rollback();
+    } catch (err2) {
+      //
+      cosole.log('transaction rollback error')
+    }
+    throw err;
+  }
 }

@@ -35,7 +35,6 @@ export const getLayerAnalysis = async function getLayerAnalysis(ctx) {
   } = ctx;
 
   const gdi = new GeospatialDatasetIntegrator(id);
-
   const layerAnalysis = await gdi.getGeoDatasetLayerAnalysis(layerName);
 
   return layerAnalysis;

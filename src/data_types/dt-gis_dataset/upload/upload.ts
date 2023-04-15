@@ -1,11 +1,10 @@
 import { ReadStream } from "fs";
 import round from "lodash/round";
 
-
-//import { receiveDataset } from './utils'
+// import { receiveDataset } from './utils'
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import EventTypes from '../EventTypes'
+import EventTypes from "../EventTypes";
 
 export default async function uploadGeospatialDataset(ctx) {
   const {
@@ -26,7 +25,7 @@ export default async function uploadGeospatialDataset(ctx) {
     +uploadMetadata.progressUpdateIntervalMs,
     2500
   );
-  
+
   if (!(etlContextId && user_id)) {
     throw new Error(
       "gis_dataset.uploadGeospatialDataset requires etlContextId, pgEnv, and user_id"
@@ -134,7 +133,7 @@ export default async function uploadGeospatialDataset(ctx) {
 
     const errEvent = {
       type: EventTypes.GIS_FILE_UPLOAD_ERROR,
-      payload: err.message,
+      payload: (err as any).message,
       meta: {
         etl_context_id: etlContextId,
       },
