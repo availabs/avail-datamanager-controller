@@ -50,20 +50,12 @@ export default {
       visibility: "public",
 
       handler(ctx: Context) {
-        let {
+        const {
           // @ts-ignore
           params: { etl_context_id, event_id },
         } = ctx;
 
-        
-        console.log('I am here', event_id, typeof event_id, typeof event_id !== 'number')
-        if(typeof event_id !== 'number') {
-          console.log('what', event_id)
-          event_id = -1
-        }
-        console.log('event_id', event_id, event_id || -1, typeof event_id)
-
-        return dama_events.queryEvents(-1 , etl_context_id);
+        return dama_events.queryEvents(event_id || -1, etl_context_id);
       },
     },
 
