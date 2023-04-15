@@ -266,7 +266,7 @@ CREATE OR REPLACE VIEW data_manager.views_primary_keys
             ( a.atttypid = x.oid )
           )
         INNER JOIN (
-          SELECT
+          SELECT 
               a.view_id,
               a.source_id,
               a.table_schema,
@@ -280,7 +280,7 @@ CREATE OR REPLACE VIEW data_manager.views_primary_keys
                   AND
                   ( a.table_name = b.tablename )
                 )
-        ) as v
+        ) as v 
           ON ( i.indrelid = ( format('%I.%I', table_schema, table_name) )::regclass )
       GROUP BY 1
 ;

@@ -9,7 +9,7 @@ sql.setDialect('postgres');
 export const loadFiles = async (ctx,view_id, table) => {
   console.log('uploading');
 
-  let dataFolder = 'data/sba/';
+  let dataFolder = 'tmp-etl/sba/';
 
   const details = sql.define(tables[table](view_id))
 
@@ -37,18 +37,21 @@ export const loadFiles = async (ctx,view_id, table) => {
                 .replace(/\//g, '_or_'))
 
           headers.push('loan_type')
-
+          headers.push('entry_id')
+          console.log(headers)
           let values =
             d.split(/\r?\n/)
               .slice(1, d.split(/\r?\n/).length)
               .map(d1 => d1.split('|'))
               .filter(d2 => d2.length > 2)
-              .map((d2) => {
+              .map((d2, d2I) => {
                 return d2.reduce((acc, value, index) => {
 
                   if (tables[table](view_id).floatColumns.includes(headers[index])) {
                     value = value.replace(/,/g, '')
-                    // console.log(value, value.replace(/,/g, ''), parseFloat(value))
+                  }
+                  if(headers[index] === 'entry_id'){
+                    value = `${fileI + 1}${d2I + 1}`
                   }
                   if (tables[table](view_id).columns.map(c => c.name).includes(headers[index])) { // discarding extra columns
                     acc[headers[index]] =

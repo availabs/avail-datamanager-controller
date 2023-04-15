@@ -218,12 +218,15 @@ SELECT
            FROM (select distinct substring(geoid, 1, 5) geoid from ${ncei_schema}.${ncei_table} where geoid is not null) s
            where geoid is not null
 `
-export const hlr = (table_name, view_id,
-                    state_schema, state_table,
-                    county_schema, county_table,
-                    ncei_schema, ncei_table,
-                    pb_schema, pb_table,
-                    nri_schema, nri_table
+export const hlr = ({
+                      table_name, view_id,
+                      state_schema, state_table,
+                      county_schema, county_table,
+                      ncei_schema, ncei_table,
+                      pb_schema, pb_table,
+                      nri_schema, nri_table,
+                      startYear, endYear
+                    }
 ) => `
 ${grid_fn()}
 
@@ -254,7 +257,7 @@ with grid as (${grid(state_schema, state_table)}),
                WHEN ctype = 'buildings'
                    THEN
                    coalesce(CASE
-                                WHEN nri_category IN ('wind')
+                                WHEN nri_category IN ('wind') -- NRI uses old data for exposure, so EXPB should only be used until the year NRI pulls data for. After that year, damage_adjusted should be used if it's > expb
                                     THEN (CASE WHEN damage_adjusted > SWND_EXPB THEN SWND_EXPB ELSE damage_adjusted END):: double precision / NULLIF (SWND_EXPB, 0)
                                 WHEN nri_category IN ('wildfire')
                                     THEN (CASE WHEN damage_adjusted > WFIR_EXPB THEN WFIR_EXPB ELSE damage_adjusted END):: double precision / NULLIF (WFIR_EXPB, 0)
@@ -351,6 +354,10 @@ with grid as (${grid(state_schema, state_table)}),
     FROM ${pb_schema}.${pb_table}  pb
              JOIN ${nri_schema}.${nri_table} nri
                   ON pb.geoid = nri.stcofips
+                  and ((EXTRACT(YEAR from pb.event_day_date) >= ${startYear}
+                        and EXTRACT(YEAR from pb.event_day_date) <= ${endYear})
+                        OR event_day_date is null)
+
 -- \tWHERE nri_category = 'hurricane' and geoid = '37013' and event_day_date = '1996-07-12 10:00:00'
 ),
        national as (

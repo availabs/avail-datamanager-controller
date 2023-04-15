@@ -13,6 +13,8 @@ import dama_db from "data_manager/dama_db";
 import dama_events, { EtlEvent } from "data_manager/events";
 import dama_meta from "data_manager/meta";
 
+//  If you need to disable this service, change the name from index.service.ts to index.disabled.ts,
+//    but please do not commit and push the change.
 import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
 import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";

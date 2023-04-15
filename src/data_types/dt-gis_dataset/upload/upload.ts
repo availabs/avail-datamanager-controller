@@ -1,12 +1,10 @@
 import { ReadStream } from "fs";
-import _ from "lodash";
+import round from "lodash/round";
 
-
-//import { receiveDataset } from './utils'
+// import { receiveDataset } from './utils'
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import EventTypes from '../EventTypes'
-
+import EventTypes from "../EventTypes";
 
 export default async function uploadGeospatialDataset(ctx) {
   const {
@@ -18,10 +16,8 @@ export default async function uploadGeospatialDataset(ctx) {
       $multipart: uploadMetadata,
     },
   } = ctx;
-
   // https://moleculer.services/docs/0.14/moleculer-web.html#File-upload-aliases
   const fileStream = <ReadStream>params;
-
   const etlContextId = +uploadMetadata.etlContextId;
   const user_id = +uploadMetadata.user_id;
   const fileSizeBytes = +uploadMetadata.fileSizeBytes;
@@ -32,10 +28,9 @@ export default async function uploadGeospatialDataset(ctx) {
 
   if (!(etlContextId && user_id)) {
     throw new Error(
-      "dama_integration.uploadGeospatialDataset requires etlContextId, pgEnv, and user_id"
+      "gis_dataset.uploadGeospatialDataset requires etlContextId, pgEnv, and user_id"
     );
   }
-
   try {
     const startEvent = {
       type: EventTypes.START_GIS_FILE_UPLOAD,
@@ -51,11 +46,9 @@ export default async function uploadGeospatialDataset(ctx) {
         user_id,
       },
     };
-
     await ctx.call("data_manager/events.dispatch", startEvent);
 
     const gdi = new GeospatialDatasetIntegrator();
-
     const receiveDatasetDoneData = gdi.receiveDataset(
       <string>filename,
       fileStream
@@ -70,7 +63,7 @@ export default async function uploadGeospatialDataset(ctx) {
           return;
         }
 
-        const progress = _.round((fileStream.bytesRead / fileSizeBytes) * 100);
+        const progress = round((fileStream.bytesRead / fileSizeBytes) * 100);
 
         // CONSIDER: May want to clean these out of the store after upload complete.
         const progressEvent = {
@@ -140,7 +133,7 @@ export default async function uploadGeospatialDataset(ctx) {
 
     const errEvent = {
       type: EventTypes.GIS_FILE_UPLOAD_ERROR,
-      payload: err.message,
+      payload: (err as any).message,
       meta: {
         etl_context_id: etlContextId,
       },

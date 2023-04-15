@@ -268,7 +268,9 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
                     )
 
                 ) AS c
-                  ON ( a.oid = format('%I.%I', c.table_schema, c.table_name)::regclass::oid )
+                  ON (
+                    a.oid = format('%I.%I', c.table_schema, c.table_name)::regclass::oid
+                  )
                 LEFT OUTER JOIN pg_catalog.pg_index AS d
                   ON (
                     ( d.indisprimary )

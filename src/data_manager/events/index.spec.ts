@@ -674,7 +674,7 @@ test("queryNonOpenEtlProcessesLatestEventForDataSourceType", async () => {
   expect(cur_latest[1].type).toBe(":FINAL");
 });
 
-test.only("getEtlContextFinalEvent vs getEventualEtlContextFinalEvent", async () => {
+test("getEtlContextFinalEvent vs getEventualEtlContextFinalEvent", async () => {
   const eci_immediate = await dama_events.spawnEtlContext(null, null, PG_ENV);
   const eci_eventual = await dama_events.spawnEtlContext(null, null, PG_ENV);
 

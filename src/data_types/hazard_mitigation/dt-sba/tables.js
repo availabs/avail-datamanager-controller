@@ -1,4 +1,4 @@
-const numericColumns = ["year"],
+const numericColumns = ["year", "entry_id"],
   floatColumns = [
     "total_verified_loss",
     "verified_loss_real_estate",
@@ -36,7 +36,7 @@ const tables = {
             "incidenttype",
             "geoid",
             "fema_date",
-            // "entry_id",
+            "entry_id",
         ].map(col => ({
           name: col,
           dataType:

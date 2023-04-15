@@ -3,10 +3,10 @@ import {PoolClient} from "pg";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
-export const init = async ({ctx, type, createSource = true}) => {
+export const init = async ({ctx, type, createSource = true, metadata = {}}) => {
   let {
     // @ts-ignore
-    params: {source_name, existing_source_id, version = 1, view_dependencies = '{}'}
+    params: {source_name, existing_source_id, existing_view_id, version = 1, view_dependencies = '{}'}
   } = ctx;
 
   let source_id, view_id;
@@ -22,7 +22,8 @@ export const init = async ({ctx, type, createSource = true}) => {
     ({source_id} = parseInt(existing_source_id) ? {source_id: parseInt(existing_source_id)} :
       await ctx.call("dama/metadata.createNewDamaSource", {name: source_name, type}));
 
-    ({view_id} = await ctx.call("dama/metadata.createNewDamaView", {source_id, view_dependencies: JSON.parse(view_dependencies), version}));
+    ({view_id} = parseInt(existing_view_id) ? {view_id: parseInt(existing_view_id)} :
+      await ctx.call("dama/metadata.createNewDamaView", {source_id, view_dependencies: JSON.parse(view_dependencies), version, metadata}));
   }
 
   // get etl id
