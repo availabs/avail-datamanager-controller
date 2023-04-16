@@ -15,9 +15,7 @@ CREATE TABLE IF NOT EXISTS _transcom_admin.transcom_event_administative_geograph
     mpo_code                                        TEXT,
 
     ua_name                                         TEXT,
-    ua_code                                         TEXT,
-
-    _latest_modified_timestamp                      TIMESTAMP WITHOUT TIME ZONE NOT NULL
+    ua_code                                         TEXT
   ) WITH (fillfactor=100, autovacuum_enabled=off)
 ;
 

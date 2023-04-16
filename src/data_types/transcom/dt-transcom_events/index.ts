@@ -19,7 +19,8 @@ import getEtlWorkDir from "./utils/etlWorkDir";
 import { InitialEvent as CollectEventIdsIntialEvent } from "./tasks/collect_transcom_event_ids";
 import { InitialEvent as DownloadEventsInitialEvent } from "./tasks/download_transcom_events";
 import { InitialEvent as LoadEventsInitialEvent } from "./tasks/load_transcom_events";
-import { InitialEvent as PostprocessingInitialEvent } from "./tasks/postprocessing";
+import { InitialEvent as GenerateDerivativeDataInitialEvent } from "./tasks/generate_derivative_datasources";
+import { InitialEvent as PublishInitialEvent } from "./tasks/publish";
 
 export enum TaskEventType {
   COLLECT_EVENT_IDS_QUEUED = ":COLLECT_EVENT_IDS_QUEUED",
@@ -31,8 +32,11 @@ export enum TaskEventType {
   LOAD_EVENTS_QUEUED = ":LOAD_EVENTS_QUEUED",
   LOAD_EVENTS_DONE = ":LOAD_EVENTS_DONE",
 
-  POSTPROCESSING_QUEUED = ":POSTPROCESSING_QUEUED",
-  POSTPROCESSING_DONE = ":POSTPROCESSING_DONE",
+  GENERATE_DERIVATIVE_DATA_QUEUED = ":GENERATE_DERIVATIVE_DATA_QUEUED",
+  GENERATE_DERIVATIVE_DATA_DONE = ":GENERATE_DERIVATIVE_DATA_DONE",
+
+  PUBLISH_QUEUED = ":PUBLISH_QUEUED",
+  PUBLISH_DONE = ":PUBLISH_DONE",
 }
 
 export type InitialEvent = {
@@ -128,6 +132,8 @@ export async function collectTranscomEventIdsForTimeRange(
   start_timestamp: string,
   end_timestamp: string
 ) {
+  const subtask_name = "collect_transcom_event_ids";
+
   const worker_path = join(
     __dirname,
     "./tasks/collect_transcom_event_ids/worker.ts"
@@ -140,6 +146,7 @@ export async function collectTranscomEventIdsForTimeRange(
       start_timestamp,
       end_timestamp,
     },
+    meta: { subtask_name },
   };
 
   const dama_task_descriptor: DamaTaskDescriptor = {
@@ -151,7 +158,7 @@ export async function collectTranscomEventIdsForTimeRange(
   };
 
   const subtask_config: SubtaskConfig = {
-    subtask_name: "collect_transcom_event_ids",
+    subtask_name,
     dama_task_descriptor,
     subtask_queued_event_type: TaskEventType.COLLECT_EVENT_IDS_QUEUED,
     subtask_done_event_type: TaskEventType.COLLECT_EVENT_IDS_DONE,
@@ -161,6 +168,8 @@ export async function collectTranscomEventIdsForTimeRange(
 }
 
 export async function downloadTranscomEvents() {
+  const subtask_name = "download_transcom_events";
+
   const worker_path = join(
     __dirname,
     "./tasks/download_transcom_events/worker.ts"
@@ -171,6 +180,7 @@ export async function downloadTranscomEvents() {
     payload: {
       etl_work_dir: getEtlWorkDir(),
     },
+    meta: { subtask_name },
   };
 
   const dama_task_descriptor: DamaTaskDescriptor = {
@@ -182,7 +192,7 @@ export async function downloadTranscomEvents() {
   };
 
   const subtask_config: SubtaskConfig = {
-    subtask_name: "download_transcom_events",
+    subtask_name,
     dama_task_descriptor,
     subtask_queued_event_type: TaskEventType.DOWNLOAD_EVENTS_QUEUED,
     subtask_done_event_type: TaskEventType.DOWNLOAD_EVENTS_DONE,
@@ -192,6 +202,8 @@ export async function downloadTranscomEvents() {
 }
 
 export async function loadTranscomEvents() {
+  const subtask_name = "load_transcom_events";
+
   const worker_path = join(__dirname, "./tasks/load_transcom_events/worker.ts");
 
   const initial_event: LoadEventsInitialEvent = {
@@ -199,6 +211,7 @@ export async function loadTranscomEvents() {
     payload: {
       etl_work_dir: getEtlWorkDir(),
     },
+    meta: { subtask_name },
   };
 
   const dama_task_descriptor: DamaTaskDescriptor = {
@@ -210,7 +223,7 @@ export async function loadTranscomEvents() {
   };
 
   const subtask_config: SubtaskConfig = {
-    subtask_name: "download_transcom_events",
+    subtask_name,
     dama_task_descriptor,
     subtask_queued_event_type: TaskEventType.LOAD_EVENTS_QUEUED,
     subtask_done_event_type: TaskEventType.LOAD_EVENTS_DONE,
@@ -219,10 +232,44 @@ export async function loadTranscomEvents() {
   return doSubtask(subtask_config);
 }
 
-export async function postprocessing() {
-  const worker_path = join(__dirname, "./tasks/postprocessing/worker.ts");
+export async function generateDerivativeData() {
+  const subtask_name = "generate_derivative_datasources";
 
-  const initial_event: PostprocessingInitialEvent = {
+  const worker_path = join(
+    __dirname,
+    "./tasks/generate_derivative_datasources/worker.ts"
+  );
+
+  const initial_event: GenerateDerivativeDataInitialEvent = {
+    type: ":INITIAL",
+    payload: {
+      etl_work_dir: getEtlWorkDir(),
+    },
+    meta: { subtask_name },
+  };
+
+  const dama_task_descriptor: DamaTaskDescriptor = {
+    worker_path,
+    dama_task_queue_name,
+    parent_context_id: getEtlContextId(),
+    // source_id: // TODO
+    initial_event,
+  };
+
+  const subtask_config: SubtaskConfig = {
+    subtask_name,
+    dama_task_descriptor,
+    subtask_queued_event_type: TaskEventType.GENERATE_DERIVATIVE_DATA_QUEUED,
+    subtask_done_event_type: TaskEventType.GENERATE_DERIVATIVE_DATA_DONE,
+  };
+
+  return doSubtask(subtask_config);
+}
+
+export async function publish() {
+  const worker_path = join(__dirname, "./tasks/publish/worker.ts");
+
+  const initial_event: PublishInitialEvent = {
     type: ":INITIAL",
     payload: {
       etl_work_dir: getEtlWorkDir(),
@@ -238,10 +285,10 @@ export async function postprocessing() {
   };
 
   const subtask_config: SubtaskConfig = {
-    subtask_name: "postprocessing",
+    subtask_name: "publish",
     dama_task_descriptor,
-    subtask_queued_event_type: TaskEventType.POSTPROCESSING_QUEUED,
-    subtask_done_event_type: TaskEventType.POSTPROCESSING_DONE,
+    subtask_queued_event_type: TaskEventType.PUBLISH_QUEUED,
+    subtask_done_event_type: TaskEventType.PUBLISH_DONE,
   };
 
   return doSubtask(subtask_config);
@@ -264,7 +311,8 @@ export default async function main(initial_event: InitialEvent) {
     ),
     downloadTranscomEvents,
     loadTranscomEvents,
-    postprocessing,
+    generateDerivativeData,
+    publish,
   ];
 
   for (const subtask of workflow) {

@@ -1,8 +1,7 @@
-CREATE SCHEMA IF NOT EXISTS _transcom_admin;
+CREATE SCHEMA IF NOT EXISTS _transcom_admin ;
 
--- ===== Archive table for modified TranscomEvents =====
 CREATE OR REPLACE FUNCTION _transcom_admin.update_modified_timestamp_trigger_fn()
-  RETURNS TRIGGER AS $$
+  RETURNS TRIGGER AS $trigger_fn$
     DECLARE
         old_as_json JSONB;
         new_as_json JSONB;
@@ -11,7 +10,6 @@ CREATE OR REPLACE FUNCTION _transcom_admin.update_modified_timestamp_trigger_fn(
         is_modified BOOLEAN := FALSE;
 
     BEGIN
-RAISE NOTICE 'TRIGGER %', column_name;
       -- https://stackoverflow.com/a/65359512/3970755
       old_as_json := to_jsonb(old) ;
       new_as_json := to_jsonb(new) ;
@@ -32,9 +30,10 @@ RAISE NOTICE 'TRIGGER %', column_name;
               NEW._modified_timestamp = NOW() ;
               RETURN NEW ;
           END IF;
-RAISE NOTICE '  UNCHANGED' ;
       END LOOP;
 
       RETURN OLD ;
     END;
-$$ LANGUAGE plpgsql ;
+$trigger_fn$ LANGUAGE plpgsql ;
+
+

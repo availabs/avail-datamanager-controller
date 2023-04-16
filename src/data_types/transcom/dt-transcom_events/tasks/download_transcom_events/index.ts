@@ -24,6 +24,7 @@ export type InitialEvent = {
   payload: {
     etl_work_dir: string;
   };
+  meta: { subtask_name: "download_transcom_events" };
 };
 
 export type FinalEvent = {

@@ -14,10 +14,7 @@ import dama_db from "data_manager/dama_db";
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
-import {
-  verifyIsInTaskEtlContext,
-  logContextInfo,
-} from "data_manager/contexts";
+import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 
 import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
 import { getRawTranscomEventsFilePath } from "../../utils/etlWorkDir";
@@ -37,6 +34,7 @@ export type InitialEvent = {
   payload: {
     etl_work_dir: string;
   };
+  meta: { subtask_name: "load_transcom_events" };
 };
 
 export type FinalEvent = {
@@ -205,7 +203,6 @@ export async function loadProtoTranscomEventsExpandedIntoDatabase(
 }
 
 export default async function main(etl_work_dir: string) {
-  logContextInfo();
   verifyIsInTaskEtlContext();
 
   const events = await dama_events.getAllEtlContextEvents();

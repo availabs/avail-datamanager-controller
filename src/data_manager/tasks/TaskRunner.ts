@@ -91,6 +91,8 @@ class TaskRunner {
       },
     } = this.initial_event;
 
+    this.logger.debug(`==> TaskRunner worker_path=${worker_path}`);
+
     try {
       // https://mariusschulz.com/blog/dynamic-import-expressions-in-typescript
       const {

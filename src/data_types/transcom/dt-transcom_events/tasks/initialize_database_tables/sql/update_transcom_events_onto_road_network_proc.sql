@@ -7,7 +7,7 @@ CREATE OR REPLACE PROCEDURE _transcom_admin.update_transcom_events_onto_road_net
   AS $$
     DECLARE
       -- These variables are relevant for the PROCEDURE versioning.
-      procedure_version TEXT := 'v0_0_1' ;
+      procedure_version TEXT := 'v0_0_2' ;
       conflation_map_version TEXT := 'v0_6_0' ;
 
       table_name TEXT ;

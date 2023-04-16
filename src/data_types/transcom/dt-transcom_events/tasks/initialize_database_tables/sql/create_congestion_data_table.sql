@@ -1,3 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS _transcom_admin;
+
 CREATE TABLE IF NOT EXISTS _transcom_admin.transcom_event_congestion_data (
   event_id          TEXT PRIMARY KEY,
   congestion_data   JSONB

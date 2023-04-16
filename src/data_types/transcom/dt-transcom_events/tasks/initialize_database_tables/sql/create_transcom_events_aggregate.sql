@@ -1,3 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS transcom;
+
 CREATE OR REPLACE VIEW transcom.transcom_events_aggregate
   AS
     SELECT

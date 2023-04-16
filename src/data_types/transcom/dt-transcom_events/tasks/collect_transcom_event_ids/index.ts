@@ -29,6 +29,7 @@ export type InitialEvent = {
     start_timestamp: string;
     end_timestamp: string;
   };
+  meta: { subtask_name: "collect_transcom_event_ids" };
 };
 
 export type FinalEvent = {

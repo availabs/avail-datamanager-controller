@@ -7,7 +7,7 @@ import logger from "data_manager/logger";
 const sql_dir = join(__dirname, "./sql");
 
 const fnames = [
-  "update_modified_timestamp_trigger_fn.sql",
+  "create_update_modified_timestamp_trigger_fn.sql",
   "create_congestion_data_table.sql",
   "create_nysdot_transcom_event_classifications.sql",
   "create_transcom_events_expanded.sql",
@@ -15,8 +15,10 @@ const fnames = [
   "create_transcom_events_aggregate.sql",
   "create_transcom_event_administative_geographies.sql",
   "create_nysdot_transcom_event_classifications.sql",
+  "create_transcom_events_onto_conflation_map.sql",
 ];
 
+// NOTE: Does not need to run in a TaskEtlContext
 export default async function main(
   etl_context = { meta: { pgEnv: getPgEnv() } }
 ) {
