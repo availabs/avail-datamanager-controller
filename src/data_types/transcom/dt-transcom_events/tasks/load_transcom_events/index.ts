@@ -19,10 +19,11 @@ import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
 import { getRawTranscomEventsFilePath } from "../../utils/etlWorkDir";
 
+import { apiResponsePropsToDbCols, dbCols } from "../../domain";
+
 import initialize_database_tables from "../initialize_database_tables";
 
 // NOTE: dbCols array ensures same order of columns in CSV and COPY FROM CSV statement.
-import { apiResponsePropsToDbCols, dbCols } from "./data_schema";
 
 import {
   RawTranscomEventExpanded,

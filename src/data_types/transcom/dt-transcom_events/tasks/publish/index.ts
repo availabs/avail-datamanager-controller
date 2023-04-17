@@ -6,11 +6,11 @@ import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 
+import { dbCols } from "../../domain";
+
 import { conflation_version } from "../../constants/conflation_map_meta";
 
 import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
-
-import { dbCols } from "./data_schema";
 
 export type InitialEvent = {
   type: ":INITIAL";
@@ -111,6 +111,7 @@ async function publishTranscomEventsToAdminGeoms(staging_schema: string) {
   await dama_db.query(sql);
 }
 
+// FIXME: This currently does not support changing the authoritative conflation_version.
 async function publishTranscomEventsToConflationMap(staging_schema: string) {
   const table_name = `transcom_events_onto_conflation_map_${conflation_version}`;
 
@@ -166,6 +167,8 @@ async function publishTranscomEventsToConflationMap(staging_schema: string) {
     await dama_db.query(sql);
 
     // Does the root table already have a child table?
+    // Note:  This could be a previous conflation_version.
+    //        FIXME: We need to support updating the authoritative conflation_version via data_manager.
     const {
       rows: [{ must_inherit_table }],
     } = await dama_db.query(
