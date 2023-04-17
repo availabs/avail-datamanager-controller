@@ -251,31 +251,75 @@ async function publishTranscomEventsToConflationMap(staging_schema: string) {
   await dama_db.query(publish_sql);
 }
 
-async function createTranscomEventsOntoRoadNetworkView() {
-  const events_onto_cmap_table_name = `transcom_events_onto_conflation_map_${conflation_version}`;
-
-  const get_years_sql = dedent(
+async function updateTranscomEventsOntoRoadNetwork() {
+  const must_create_matview_sql = dedent(
     pgFormat(
       `
-        SELECT DISTINCT
-            year
-          FROM _transcom_admin.%I
-      `,
-      events_onto_cmap_table_name
+        -- Check if the MATERIALIZED VIEW does not exist
+        SELECT NOT EXISTS (
+          SELECT
+              1
+            FROM pg_catalog.pg_matviews
+            WHERE (
+              ( schemaname = 'transcom' )
+              AND
+              ( matviewname = 'transcom_events_onto_road_network' )
+            )
+        ) AS must_create_matview
+      `
     )
   );
 
-  const { rows } = await dama_db.query(get_years_sql);
+  let {
+    rows: [{ must_create_matview }],
+  } = await dama_db.query(must_create_matview_sql);
 
-  const event_years = rows.map(({ year }) => year);
+  if (!must_create_matview) {
+    const has_new_years_sql = dedent(
+      pgFormat(
+        `
+          -- Check if the MATERIALIZED VIEW needs to be redefined because there are new event years.
+          SELECT EXISTS (
+            SELECT
+                year
+              FROM transcom.transcom_events_onto_conflation_map
+            EXCEPT
+            SELECT
+                year
+              FROM transcom.transcom_events_onto_road_network
+          ) AS has_new_years
+        `
+      )
+    );
 
-  const view_sql_select_stmts: string[] = [];
+    const {
+      rows: [{ has_new_years }],
+    } = await dama_db.query(has_new_years_sql);
 
-  for (let event_year of event_years) {
-    event_year = +event_year;
+    must_create_matview = has_new_years;
+  }
 
-    const sql = pgFormat(
+  if (must_create_matview) {
+    const get_years_sql = dedent(
       `
+        SELECT DISTINCT
+            year
+          FROM transcom.transcom_events_onto_conflation_map
+          ORDER BY year
+      `
+    );
+
+    const { rows } = await dama_db.query(get_years_sql);
+
+    const event_years = rows.map(({ year }) => year);
+
+    const view_sql_select_stmts: string[] = [];
+
+    for (let event_year of event_years) {
+      event_year = +event_year;
+
+      const sql = pgFormat(
+        `
           SELECT
               a.event_id,
               a.year,
@@ -319,7 +363,7 @@ async function createTranscomEventsOntoRoadNetworkView() {
               c.wkb_geometry  AS conflation_map_way_geom,
               d.wkb_geometry  AS conflation_map_node_geom
 
-            FROM _transcom_admin.%I AS a
+            FROM transcom.transcom_events_onto_conflation_map AS a
               INNER JOIN _transcom_admin.transcom_events_expanded_view AS b
                 USING (event_id)
               INNER JOIN conflation.%I AS c
@@ -331,31 +375,166 @@ async function createTranscomEventsOntoRoadNetworkView() {
 
             WHERE ( a.year = %s )
         `,
-      `${event_year}-01-01`,
-      `${event_year + 1}-01-01`,
-      events_onto_cmap_table_name,
-      `conflation_map_${event_year}_${conflation_version}`,
-      `conflation_map_${event_year}_nodes_${conflation_version}`,
-      event_year
-    );
+        `${event_year}-01-01`,
+        `${event_year + 1}-01-01`,
+        `conflation_map_${event_year}_${conflation_version}`,
+        `conflation_map_${event_year}_nodes_${conflation_version}`,
+        event_year
+      );
 
-    view_sql_select_stmts.push(sql);
-  }
+      view_sql_select_stmts.push(sql);
+    }
 
-  const query_sql = view_sql_select_stmts.join(`
+    const query_sql = view_sql_select_stmts.join(`
           UNION ALL`);
 
-  const create_view_sql = dedent(
+    const create_view_sql = dedent(
+      `
+        DROP MATERIALIZED VIEW IF EXISTS transcom.transcom_events_onto_road_network ;
+
+        CREATE MATERIALIZED VIEW transcom.transcom_events_onto_road_network
+          AS ${query_sql}
+        ;
+
+        CREATE INDEX transcom_events_onto_road_network_pkey
+          ON transcom.transcom_events_onto_road_network (event_id, year)
+          WITH (fillfactor=100)
+        ;
+
+        CREATE INDEX transcom_events_onto_road_network_tmc_idx
+          ON transcom.transcom_events_onto_road_network (tmc, year)
+          WITH (fillfactor=100)
+        ;
+
+        CLUSTER transcom.transcom_events_onto_road_network
+          USING transcom_events_onto_road_network_pkey
+        ;
+      `
+    );
+
+    await dama_db.query(create_view_sql);
+  } else {
+    const refresh_matview_sql = dedent(
+      `
+        REFRESH MATERIALIZED VIEW transcom.transcom_events_onto_road_network ;
+
+        CLUSTER transcom.transcom_events_onto_road_network ;
+      `
+    );
+
+    await dama_db.query(refresh_matview_sql);
+  }
+}
+
+async function updateTranscomEventsByTmcSummary() {
+  const must_create_matview_sql = dedent(
     pgFormat(
       `
-        CREATE OR REPLACE VIEW _transcom_admin.%I
-          AS ${query_sql}
-      `,
-      `transcom_events_onto_road_network_${conflation_version}`
+        SELECT NOT EXISTS (
+          SELECT
+              1
+            FROM pg_catalog.pg_matviews
+            WHERE (
+              ( schemaname = 'transcom' )
+              AND
+              ( matviewname = 'transcom_events_by_tmc_summary' )
+            )
+        ) AS must_create_matview
+      `
     )
   );
 
-  await dama_db.query(create_view_sql);
+  const {
+    rows: [{ must_create_matview }],
+  } = await dama_db.query(must_create_matview_sql);
+
+  if (must_create_matview) {
+    const create_matview_sql = dedent(
+      `
+        DROP MATERIALIZED VIEW IF EXISTS transcom.transcom_events_by_tmc_summary ;
+
+        CREATE MATERIALIZED VIEW transcom.transcom_events_by_tmc_summary
+          AS
+            SELECT
+                tmc,
+                year,
+                COALESCE(t1.accident_counts_by_type, '{}'::JSONB) AS accident_counts_by_type,
+                COALESCE(t1.total_accidents, 0)::INTEGER AS total_accidents,
+                COALESCE(t3.total_construction_days, 0)::INTEGER AS total_construction_days
+              FROM (
+                SELECT DISTINCT
+                    tmc,
+                    year
+                  FROM transcom.transcom_events_onto_road_network
+              ) AS t0
+                LEFT OUTER JOIN (
+                  SELECT
+                      tmc,
+                      year,
+                      jsonb_object_agg(
+                        x.nysdot_detailed_category,
+                        x.event_type_ct
+                      ) AS accident_counts_by_type,
+
+                      SUM(x.event_type_ct) AS total_accidents
+
+                    FROM (
+                      SELECT
+                          tmc,
+                          year,
+                          nysdot_detailed_category,
+                          count(1) AS event_type_ct
+                      FROM transcom.transcom_events_onto_road_network AS a
+                      WHERE ( nysdot_sub_category = 'Crash' )
+                      GROUP BY tmc, year, nysdot_detailed_category
+                    ) AS x
+
+                    GROUP BY tmc, year
+                ) AS t1 USING (tmc, year)
+                LEFT OUTER JOIN (
+                  SELECT
+                      tmc,
+                      year,
+                      COUNT(DISTINCT event_date) AS total_construction_days
+                    FROM (
+                      SELECT
+                          tmc,
+                          year,
+                          generate_series(
+                            date_trunc('day', close_date),
+                            date_trunc('day', start_date_time),
+                            '1 day'::interval
+                          ) AS event_date
+                        FROM transcom.transcom_events_onto_road_network AS a
+                        WHERE ( nysdot_sub_category = 'Construction' )
+                    ) AS x
+                    GROUP BY tmc, year
+                ) AS t3 USING (tmc, year)
+        ;
+
+        CREATE INDEX transcom_events_by_tmc_summary_pkey
+          ON transcom.transcom_events_by_tmc_summary (tmc, year)
+          WITH (fillfactor=100)
+        ;
+
+        CLUSTER transcom.transcom_events_by_tmc_summary
+          USING transcom_events_by_tmc_summary_pkey
+        ;
+      `
+    );
+
+    await dama_db.query(create_matview_sql);
+  } else {
+    const refresh_matview_sql = dedent(
+      `
+        REFRESH MATERIALIZED VIEW transcom.transcom_events_by_tmc_summary ;
+
+        CLUSTER transcom.transcom_events_by_tmc_summary ;
+      `
+    );
+
+    await dama_db.query(refresh_matview_sql);
+  }
 }
 
 // NOTE:  Should not be run as a Queued Subtask because will need to be
@@ -388,7 +567,8 @@ export default async function main(etl_work_dir: string) {
     await publishTranscomEvents(staging_schema);
     await publishTranscomEventsToAdminGeoms(staging_schema);
     await publishTranscomEventsToConflationMap(staging_schema);
-    await createTranscomEventsOntoRoadNetworkView();
+    await updateTranscomEventsOntoRoadNetwork();
+    await updateTranscomEventsByTmcSummary();
   });
 
   final_event = { type: ":FINAL" };
