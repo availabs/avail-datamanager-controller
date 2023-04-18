@@ -393,7 +393,7 @@ async function updateTranscomEventsOntoRoadNetwork() {
 
     const create_view_sql = dedent(
       `
-        DROP MATERIALIZED VIEW IF EXISTS transcom.transcom_events_onto_road_network ;
+        DROP MATERIALIZED VIEW IF EXISTS transcom.transcom_events_onto_road_network CASCADE ;
 
         CREATE MATERIALIZED VIEW transcom.transcom_events_onto_road_network
           AS ${query_sql}
@@ -454,7 +454,7 @@ async function updateTranscomEventsByTmcSummary() {
   if (must_create_matview) {
     const create_matview_sql = dedent(
       `
-        DROP MATERIALIZED VIEW IF EXISTS transcom.transcom_events_by_tmc_summary ;
+        DROP MATERIALIZED VIEW IF EXISTS transcom.transcom_events_by_tmc_summary CASCADE;
 
         CREATE MATERIALIZED VIEW transcom.transcom_events_by_tmc_summary
           AS
