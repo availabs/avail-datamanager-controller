@@ -73,7 +73,7 @@ class TaskRunner {
   }
 
   async run() {
-    this.logger.debug("==> TaskRunner.run()");
+    this.logger.info(`==> TaskRunner.run() pid=${process.pid}`);
 
     try {
       // @ts-ignore
