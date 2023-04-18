@@ -230,11 +230,14 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
 
   private async startDamaTask(pg_env: PgEnv, dama_job: DamaTaskJob) {
     let {
+      // eslint-disable-next-line prefer-const
       id: etl_task_id,
       // @ts-ignore
       // eslint-disable-next-line prefer-const
       data: { worker_path, etl_context_id, initial_event, source_id },
     } = dama_job;
+
+    this.logger.debug(`Starting DamaTask ${JSON.stringify(dama_job, null, 4)}`);
 
     //  When jobs are queued, the EtlContext is created and the initial_event is dispatched.
     //    dama_job.data.etl_context_id will be defined and the :INITIAL event is already in the database.
@@ -278,7 +281,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
               SET etl_task_id = $1
             WHERE ( etl_context_id = $2 )
           `),
-          values: [etl_task_id, etl_context_id],
+          values: [etl_task_id, eci],
         });
 
         return eci;
@@ -288,8 +291,6 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
         `===== spawned EtlContext etl_context_id=${etl_context_id}`
       );
     }
-
-    this.logger.debug(`Starting DamaTask ${JSON.stringify(dama_job, null, 4)}`);
 
     const AVAIL_DAMA_ETL_CONTEXT_ID = `${etl_context_id}`;
 
