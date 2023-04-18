@@ -307,7 +307,7 @@ async function updateTranscomEventsOntoRoadNetwork() {
       `
         SELECT DISTINCT
             year
-          FROM transcom.transcom_events_onto_conflation_map
+          FROM transcom.transcom_events_aggregate
           ORDER BY year
       `
     );
