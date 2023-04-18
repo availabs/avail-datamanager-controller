@@ -95,7 +95,9 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       const fpath = join(__dirname, "./sql/create_dama_pgboss_view.sql");
       const sql = await readFileAsync(fpath, { encoding: "utf8" });
 
+      await db.query("BEGIN ;");
       await db.query(sql);
+      await db.query("COMMIT ;");
 
       // process.nextTick() so the original caller of this method proceeds first.
       process.nextTick(() => done(pgboss));

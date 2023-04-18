@@ -192,9 +192,11 @@ class TaskRunner {
         FOR UPDATE OF b SKIP LOCKED
     `);
 
+    this.logger.silly("before SELECT FOR UPDATE");
     const {
       rows: [initial_event],
     } = await this._ctx_lock_cxn.query(sql, [ETL_CONTEXT_ID, dama_host_id]);
+    this.logger.silly("after SELECT FOR UPDATE");
 
     if (!initial_event) {
       this.logger.error("Unable to aquire :INITIAL event lock.");

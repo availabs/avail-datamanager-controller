@@ -1,7 +1,21 @@
+--  DROP VIEW IF EXISTS data_manager.dama_task_queue ;
+
 CREATE OR REPLACE VIEW data_manager.dama_task_queue
   AS
     SELECT
-        a.*,
+        a.etl_context_id,
+        a.parent_context_id,
+
+        a.source_id,
+
+        a.etl_task_id,
+        a.etl_status,
+
+        a.initial_event_id,
+        a.latest_event_id,
+
+        a._created_timestamp,
+        a._modified_timestamp,
         b.id              AS task_id,
         b.name            AS task_queue_name,
         b.priority        AS task_priority,
