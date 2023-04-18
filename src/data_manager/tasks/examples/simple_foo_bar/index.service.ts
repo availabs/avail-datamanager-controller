@@ -5,6 +5,7 @@ import { Context as MoleculerContext } from "moleculer";
 import dama_host_id from "constants/damaHostId";
 
 import dama_events, { EtlEvent } from "data_manager/events";
+import dama_tasks from "data_manager/tasks";
 import { getPgEnv, runInDamaContext } from "data_manager/contexts";
 import { getLoggerForContext } from "data_manager/logger";
 
@@ -85,6 +86,39 @@ export default {
             console.log("==========================");
           }
         );
+      },
+    },
+
+    scheduleTranscomEventsEtl: {
+      visibility: "public",
+
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { cron },
+        } = ctx;
+
+        const dama_task_descr = {
+          worker_path: join(__dirname, "./worker.with-context.ts"),
+
+          dama_task_queue_name,
+
+          cron,
+
+          initial_event: {
+            type: ":INITIAL",
+            payload: { msg: "scheduled Hello, World!", delay: 500 },
+          },
+        };
+
+        const options = { retryLimit: 1, expireInHours: 10 };
+
+        const scheduled = await dama_tasks.scheduleDamaTask(
+          dama_task_descr,
+          options
+        );
+
+        return scheduled;
       },
     },
 

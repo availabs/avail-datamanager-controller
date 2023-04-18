@@ -127,6 +127,9 @@ class TaskRunner {
 
       await this.shutdown(DamaTaskExitCodes.DONE);
     } catch (err) {
+      this.logger.error((<Error>err).message);
+      this.logger.error((<Error>err).stack);
+
       const payload = {
         message: (<Error>err).message,
         stack: (<Error>err).stack,
@@ -180,6 +183,8 @@ class TaskRunner {
         WHERE (
           ( etl_context_id = $1 )
           AND
+          -- NOTE: Can obtain :INITIAL event lock IFF Task was queued/scheduled on same dama_host.
+          --       This prevents dev laptops from picking up production ETL tasks.
           ( meta->'__dama_task_manager__'->>'dama_host_id' = $2 )
           AND
           ( a.initial_event_id = b.event_id )

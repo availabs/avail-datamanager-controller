@@ -1,8 +1,11 @@
 import { inspect } from "util";
 import { join } from "path";
 
-import _ from "lodash";
+import _, { now } from "lodash";
+import dedent from "dedent";
+import { DateTime, Interval } from "luxon";
 
+import dama_db from "data_manager/dama_db";
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
@@ -42,8 +45,8 @@ export enum TaskEventType {
 export type InitialEvent = {
   type: ":INITIAL";
   payload: {
-    start_timestamp: string;
-    end_timestamp: string;
+    start_timestamp?: string;
+    end_timestamp?: string;
   };
 };
 
@@ -294,14 +297,119 @@ export async function publish() {
   return doSubtask(subtask_config);
 }
 
+async function getStartTimestamp(): Promise<string> {
+  const events_table_exists_sql = dedent(
+    `
+      SELECT EXISTS (
+        SELECT
+            1
+          FROM pg_catalog.pg_tables
+          WHERE (
+            ( schemaname = '_transcom_admin' )
+            AND
+            ( tablename = 'transcom_events_expanded' )
+          )
+      ) AS events_table_exists ;
+    `
+  );
+
+  const {
+    rows: [{ events_table_exists }],
+  } = await dama_db.query(events_table_exists_sql);
+
+  if (events_table_exists) {
+    try {
+      const sql = dedent(
+        `
+          SELECT
+              to_char(
+                GREATEST (
+                  -- If table is empty, start with this timestamp.
+                  '2016-01-01T00:00'::TIMESTAMP,
+
+                  --  Otherwise, use the current max start_date_time's previous day start.
+                  --    EG: '2023-01-01T12:00:00' becomes '2022-12-31T00:00:00'
+
+                  (
+                    DATE_TRUNC(
+                      'day',
+                      MAX(start_date_time)
+                    ) - '1 day'::INTERVAL
+                  )
+
+                  -- For development/debugging
+                  -- MAX(start_date_time) - '5 minutes'::INTERVAL
+                ),
+                'YYYY-MM-DD"T"HH24:MI:SS'
+              ) AS latest_start_time
+            FROM _transcom_admin.transcom_events_expanded
+          ;
+        `
+      );
+
+      const {
+        rows: [{ latest_start_time }],
+      } = await dama_db.query(sql);
+
+      return latest_start_time;
+    } catch (err) {
+      logger.error(
+        "ERROR: Could not connect to retreive the latest event from the database."
+      );
+
+      throw err;
+    }
+  }
+
+  return "2016-01-01T00:00:00";
+}
+
 export default async function main(initial_event: InitialEvent) {
   verifyIsInTaskEtlContext();
 
   logger.debug(`starting ${new Date().toISOString()}`);
 
-  const {
-    payload: { start_timestamp, end_timestamp },
-  } = initial_event;
+  const payload = initial_event.payload || {};
+
+  let { start_timestamp, end_timestamp } = payload;
+
+  // The nightly ETL does not specify either. Instead it resumes from the latest event in the db.
+  if (!start_timestamp) {
+    start_timestamp = await getStartTimestamp();
+  }
+
+  if (!end_timestamp) {
+    // ===== for development/debugging =====
+    // const now_timestamp = DateTime.now().toISO().replace(/\..*/, "");
+    // end_timestamp = DateTime.fromISO(start_timestamp)
+    //   .plus({ hour: 1 })
+    //   .toISO()
+    //   .replace(/\..*/, "");
+    // end_timestamp =
+    //   now_timestamp < end_timestamp ? now_timestamp : end_timestamp;
+
+    end_timestamp = DateTime.now().toISO().replace(/\..*/, "");
+  }
+
+  const interval = Interval.fromISO(`${start_timestamp}/${end_timestamp}`);
+  if (interval.length("minutes") < 10) {
+    const message =
+      "Skipping TRANSCOM Events ETL. start_timestamp/end_timestamp interval less than 10 minutes.";
+
+    logger.info(message);
+
+    await dama_events.dispatch({ type: ":MESSAGE", payload: { message } });
+
+    const fin = { type: ":FINAL" };
+
+    await dama_events.dispatch(fin);
+
+    return fin;
+  }
+
+  logger.debug(
+    `start_timestamp=${start_timestamp}; end_timestamp=${end_timestamp}`
+  );
 
   const workflow = [
     collectTranscomEventIdsForTimeRange.bind(

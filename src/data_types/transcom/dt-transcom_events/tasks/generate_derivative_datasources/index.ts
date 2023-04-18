@@ -114,6 +114,7 @@ export default async function main(etl_work_dir: string) {
   const initial_steps = [
     "create_transcom_events_gis_optimized_table.sql",
     "assign_events_to_admin_areas.sql",
+    "create_transcom_events_onto_conflation_map.sql",
   ];
 
   for (const filename of initial_steps) {
@@ -147,7 +148,7 @@ export default async function main(etl_work_dir: string) {
   const event_years = rows.map(({ year }) => year);
 
   for (const event_year of event_years) {
-    const filename = "transcom_events_onto_conflation_map.sql";
+    const filename = "snap_transcom_events_onto_conflation_map.sql";
 
     const done_type = `${filename}/${event_year}:DONE`;
 

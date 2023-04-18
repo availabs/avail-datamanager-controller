@@ -1,4 +1,4 @@
-import { Context } from "moleculer";
+import { Context as MoleculerContext } from "moleculer";
 
 import dama_tasks from ".";
 
@@ -9,7 +9,7 @@ export default {
     registerTaskQueue: {
       visibility: "protected",
 
-      async handler(ctx: Context) {
+      async handler(ctx: MoleculerContext) {
         const {
           // @ts-ignore
           params: { dama_task_queue_name, options } = {},
@@ -22,7 +22,7 @@ export default {
     startDamaQueueWorker: {
       visibility: "protected",
 
-      async handler(ctx: Context) {
+      async handler(ctx: MoleculerContext) {
         const {
           // @ts-ignore
           params: { dama_task_queue_name } = {},
@@ -35,7 +35,7 @@ export default {
     queueDamaTask: {
       visibility: "protected",
 
-      async handler(ctx: Context) {
+      async handler(ctx: MoleculerContext) {
         const {
           // @ts-ignore
           params: { dama_task_descr, options },
@@ -50,7 +50,7 @@ export default {
     getDamaTaskStatus: {
       visibility: "protected",
 
-      async handler(ctx: Context) {
+      async handler(ctx: MoleculerContext) {
         const {
           // @ts-ignore
           params: { etl_context_id },

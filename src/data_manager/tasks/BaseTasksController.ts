@@ -11,6 +11,8 @@ import { Lock } from "semaphore-async-await";
 import dedent from "dedent";
 
 import dama_db from "../dama_db";
+import dama_events from "../events";
+import logger from "../logger";
 
 import dama_host_id from "../../constants/damaHostId";
 
@@ -21,7 +23,11 @@ import {
 
 import DamaContextAttachedResource from "../contexts/index";
 
-import { DamaTaskQueueName, DamaTaskDescriptor } from "./domain";
+import {
+  DamaTaskQueueName,
+  ScheduledDamaTaskDescriptor,
+  QueuedDamaTaskDescriptor,
+} from "./domain";
 
 const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 
@@ -104,7 +110,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
   }
 
   async queueDamaTask(
-    dama_task_descr: DamaTaskDescriptor,
+    dama_task_descr: QueuedDamaTaskDescriptor,
     pgboss_send_options: PgBossSendOptions = {},
     pg_env = this.pg_env
   ) {
@@ -116,7 +122,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
 
     const trace_id = uuid();
 
-    this.logger.debug(
+    logger.debug(
       `dama_queue.queueDamaTask trace_id=${trace_id} ${JSON.stringify({
         dama_task_descr,
       })}`
@@ -147,51 +153,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       );
     }
 
-    const db = await dama_db.getDbConnection(pg_env);
-
     try {
-      await db.query("BEGIN ;");
-
-      // NOTE: duplicating dama_event.spawnEtlContext so we can run in TRANSACTION.
-      const {
-        rows: [{ etl_context_id }],
-      } = await db.query({
-        text: dedent(`
-          INSERT INTO data_manager.etl_contexts (
-            parent_context_id,
-            source_id
-          ) VALUES ( $1, $2 )
-          RETURNING etl_context_id
-        `),
-        values: [parent_context_id, source_id],
-      });
-
-      const { type = null, payload = null, meta = {} } = initial_event;
-
-      const task_meta = {
-        ...meta,
-        __dama_task_manager__: {
-          worker_path,
-          dama_host_id,
-          dama_task_queue_name: prefixed_dama_task_queue_name,
-          pgboss_send_options,
-        },
-      };
-
-      // NOTE: duplicating dama_event.dispatch so we can run in TRANSACTION.
-      await db.query({
-        text: dedent(`
-          INSERT INTO data_manager.event_store (
-            etl_context_id,
-            type,
-            payload,
-            meta
-          ) VALUES ( $1, $2, $3, $4 )
-          RETURNING event_id
-        `),
-        values: [etl_context_id, type, payload, task_meta],
-      });
-
       //  FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
       //    It is possible to dispatch an :INITIAL event but pg-boss fails to queue task.
       //      The problem is the :INITIAL event MUST be available when the Job started,
@@ -204,7 +166,35 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       //          * See https://github.com/timgit/pg-boss/blob/master/docs/readme.md#newoptions
       //          * Draw back is we don't know if pg-boss will issue a BEGIN statement.
       //            * Currently, I don't see any BEGIN statement in the pg-boss SQL for queueing tasks.
-      await db.query("COMMIT ;");
+      const etl_context_id = await dama_db.runInTransactionContext(async () => {
+        const eci = await dama_events.spawnEtlContext(
+          source_id,
+          parent_context_id,
+          pg_env
+        );
+
+        const { type = null, payload = null, meta = {} } = initial_event;
+
+        const task_meta = {
+          ...meta,
+          __dama_task_manager__: {
+            // The following two pieces of information are required by the TaskRunner.
+            worker_path,
+            dama_host_id,
+          },
+        };
+
+        const task_initial_event = {
+          type,
+          payload,
+          meta: task_meta,
+        };
+
+        // @ts-ignore
+        await dama_events.dispatch(task_initial_event, eci, pg_env);
+
+        return eci;
+      }, pg_env);
 
       const pgboss = await this.getPgBoss(pg_env);
 
@@ -218,7 +208,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       );
 
       if (etl_task_id) {
-        await db.query({
+        await dama_db.query({
           text: dedent(`
             UPDATE data_manager.etl_contexts
               SET etl_task_id = $1
@@ -227,7 +217,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
           values: [etl_task_id, etl_context_id],
         });
       } else {
-        this.logger.warn(
+        throw new Error(
           `pg-boss failed to queue the task ${JSON.stringify(
             dama_task_descr,
             null,
@@ -244,8 +234,8 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         { header: { alignment: "center", content: "Queued Task" } }
       );
 
-      this.logger.info(`\n${d}\n`);
-      this.logger.debug(
+      logger.info(`\n${d}\n`);
+      logger.debug(
         `dama_tasks queueing ${JSON.stringify(
           { dama_task_descr, etl_context_id, etl_task_id },
           null,
@@ -259,10 +249,76 @@ export default class BaseTasksController extends DamaContextAttachedResource {
 
       return { etl_context_id, etl_task_id };
     } catch (err) {
-      console.error(err);
-      await db.query("ROLLBACK ;");
-    } finally {
-      db.release();
+      logger.error((<Error>err).message);
+      logger.error((<Error>err).stack);
+
+      throw err;
+    }
+  }
+
+  async scheduleDamaTask(
+    dama_task_descr: ScheduledDamaTaskDescriptor,
+    pgboss_send_options: PgBossSendOptions = {},
+    pg_env = this.pg_env
+  ) {
+    //  pg-boss drops jobs. ??? Due to throttling ???
+    //    https://github.com/timgit/pg-boss/blob/master/docs/readme.md#send
+    //  This seems to fix the problem, here.
+    //    If put immediately around pgboss.send, it does not.
+    await this.queue_lock.acquire();
+
+    logger.debug(
+      `dama_queue.scheduleDamaTask ${JSON.stringify({
+        dama_task_descr,
+      })}`
+    );
+
+    const {
+      dama_task_queue_name = DEFAULT_QUEUE_NAME,
+      cron,
+      source_id = null,
+      initial_event,
+      worker_path,
+    } = dama_task_descr;
+
+    if (!worker_path) {
+      throw new Error("ALL DamaTasks MUST have a worker_path.");
+    }
+
+    if (!isAbsolute(worker_path)) {
+      throw new Error("ALL DamaTasks worker_path must be absolute.");
+    }
+
+    const prefixed_dama_task_queue_name =
+      this.prefixDamaTaskQueueNameWithHostId(dama_task_queue_name);
+
+    if (!/:INITIAL$/.test(initial_event.type)) {
+      throw new Error(
+        "DamaTask Invariant Violation: initial_event MUST be an :INITIAL event."
+      );
+    }
+
+    try {
+      const pgboss = await this.getPgBoss(pg_env);
+
+      const options = { ...pgboss_send_options, tz: "EST" };
+
+      pgboss.schedule(
+        prefixed_dama_task_queue_name,
+        cron,
+        { initial_event, source_id, worker_path },
+        options
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      this.queue_lock.release();
+
+      return true;
+    } catch (err) {
+      logger.error((<Error>err).message);
+      logger.error((<Error>err).stack);
+      throw err;
     }
   }
 

@@ -1,32 +1,13 @@
-CREATE TABLE IF NOT EXISTS :staging_schema.transcom_events_onto_conflation_map_:conflation_version (
-  event_id                      TEXT,
-  year                          SMALLINT,
-
-  conflation_way_id             BIGINT NOT NULL,
-  conflation_node_id            BIGINT,
-  osm_fwd                       SMALLINT,
-  both_directions               SMALLINT,
-  n                             SMALLINT,
-
-  snap_pt_geom                  public.geometry(Point, 4326) NOT NULL,
-
-  PRIMARY KEY (event_id, year)
-) WITH (fillfactor=100, autovacuum_enabled=false)
-;
-
-
 CREATE TABLE :staging_schema.event_to_cways_knn_:event_year (
   event_id            TEXT,
   c_way_id            BIGINT,
   snap_dist           DOUBLE PRECISION,
   snap_pt_geom        public.geometry(Geometry,4326),
   PRIMARY KEY (event_id, c_way_id)
-) WITH (fillfactor=100)
-;
+) WITH (fillfactor=100) ;
 
 CREATE INDEX event_to_cways_knn_:event_year_idx -- placeholder is :event_year, not :event_year_idx
-  ON :staging_schema.event_to_cways_knn_:event_year (c_way_id)
-;
+  ON :staging_schema.event_to_cways_knn_:event_year (c_way_id) ;
 
 INSERT INTO :staging_schema.event_to_cways_knn_:event_year (
   event_id,

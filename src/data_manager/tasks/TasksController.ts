@@ -15,6 +15,7 @@ import pgFormat from "pg-format";
 import { table } from "table";
 
 import dama_db from "../dama_db";
+import dama_events from "../events";
 
 import dama_host_id from "../../constants/damaHostId";
 
@@ -228,15 +229,72 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
   }
 
   private async startDamaTask(pg_env: PgEnv, dama_job: DamaTaskJob) {
-    const {
-      data: { etl_context_id },
+    let {
+      id: etl_task_id,
+      // @ts-ignore
+      // eslint-disable-next-line prefer-const
+      data: { worker_path, etl_context_id, initial_event, source_id },
     } = dama_job;
+
+    //  When jobs are queued, the EtlContext is created and the initial_event is dispatched.
+    //    dama_job.data.etl_context_id will be defined and the :INITIAL event is already in the database.
+    //
+    //  For scheduled jobs, we have create the EtlContext and dispatch the initial_event here.
+    //    dama_job.data.etl_context_id will be undefined and
+    //    dama_job.data.initial_event MUST be defined if the task needs configuration data.
+    //
+    if (!etl_context_id) {
+      this.logger.debug("===== spawning EtlContext");
+      etl_context_id = await dama_db.runInTransactionContext(async () => {
+        const eci = await dama_events.spawnEtlContext(source_id, null, pg_env);
+
+        initial_event = initial_event || {
+          type: ":INTITIAL",
+        };
+
+        const { type = null, payload = null, meta = {} } = initial_event;
+
+        const task_meta = {
+          ...meta,
+          __dama_task_manager__: {
+            // The following two pieces of information are required by the TaskRunner.
+            worker_path,
+            dama_host_id,
+          },
+        };
+
+        const task_initial_event = {
+          type,
+          payload,
+          meta: task_meta,
+        };
+
+        // @ts-ignore
+        await dama_events.dispatch(task_initial_event, eci, pg_env);
+
+        await dama_db.query({
+          text: dedent(`
+            UPDATE data_manager.etl_contexts
+              SET etl_task_id = $1
+            WHERE ( etl_context_id = $2 )
+          `),
+          values: [etl_task_id, etl_context_id],
+        });
+
+        return eci;
+      }, pg_env);
+
+      this.logger.debug(
+        `===== spawned EtlContext etl_context_id=${etl_context_id}`
+      );
+    }
 
     this.logger.debug(`Starting DamaTask ${JSON.stringify(dama_job, null, 4)}`);
 
     const AVAIL_DAMA_ETL_CONTEXT_ID = `${etl_context_id}`;
 
     try {
+      this.logger.debug("execa");
       await execa(
         "node",
         [
@@ -250,7 +308,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
         {
           env: {
             ...process.env,
-            AVAIL_DAMA_PG_ENV: this.pg_env,
+            AVAIL_DAMA_PG_ENV: pg_env,
             AVAIL_DAMA_ETL_CONTEXT_ID,
           },
           detached: true,
@@ -394,45 +452,37 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     return null;
   }
 
-  async queueDamaTask(
-    dama_task_descr: DamaTaskDescriptor,
-    pgboss_send_options: PgBossSendOptions,
-    pg_env = this.pg_env
+  async startDefaultQueueWorkerOrWarnIfNonDefaultWorkerNotActive(
+    dama_task_queue_name: string,
+    task_meta: any,
+    pg_env: PgEnv
   ) {
-    const task_meta = await super.queueDamaTask(
-      dama_task_descr,
-      pgboss_send_options,
-      pg_env
-    );
-
-    const { dama_task_queue_name = DEFAULT_QUEUE_NAME } = dama_task_descr;
-
     const prefixed_dama_task_queue_name =
       this.prefixDamaTaskQueueNameWithHostId(dama_task_queue_name);
 
+    if (prefixed_dama_task_queue_name === DEFAULT_QUEUE_NAME) {
+      return await this.startDamaQueueWorker(dama_task_queue_name, pg_env);
+    }
+
     if (!this.getTaskQueueWorkerOptions(dama_task_queue_name)) {
-      if (prefixed_dama_task_queue_name === DEFAULT_QUEUE_NAME) {
-        await this.registerTaskQueue(prefixed_dama_task_queue_name);
-      } else {
-        const warning =
-          "WARNING: Queued tasks will not start until the TaskQueue is registered and Workers started.";
+      const warning =
+        "WARNING: Queued tasks will not start until the TaskQueue is registered and Workers started.";
 
-        const t = table(
-          [
-            ["pg_env", "dama_task_queue_name", "etl_context_id"],
-            [pg_env, dama_task_queue_name, task_meta?.etl_context_id],
-          ],
-          {
-            header: {
-              alignment: "center",
-              content: "Task sent to unregistered queue",
-            },
-          }
-        );
+      const t = table(
+        [
+          ["pg_env", "dama_task_queue_name", "etl_context_id"],
+          [pg_env, dama_task_queue_name, task_meta?.etl_context_id],
+        ],
+        {
+          header: {
+            alignment: "center",
+            content: "Task sent to unregistered queue",
+          },
+        }
+      );
 
-        const msg = `${warning}\n${t}`;
-        this.logger.warn(msg);
-      }
+      const msg = `${warning}\n${t}`;
+      this.logger.warn(msg);
     } else if (
       !this.pgboss_worker_id_by_queue_name_by_pgenv[pg_env]?.[
         prefixed_dama_task_queue_name
@@ -447,6 +497,48 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
 
       this.logger.warn(msg);
     }
+  }
+
+  async queueDamaTask(
+    dama_task_descr: DamaTaskDescriptor,
+    pgboss_send_options: PgBossSendOptions,
+    pg_env = this.pg_env
+  ) {
+    const task_meta = await super.queueDamaTask(
+      dama_task_descr,
+      pgboss_send_options,
+      pg_env
+    );
+
+    const { dama_task_queue_name = DEFAULT_QUEUE_NAME } = dama_task_descr;
+
+    await this.startDefaultQueueWorkerOrWarnIfNonDefaultWorkerNotActive(
+      dama_task_queue_name,
+      task_meta,
+      pg_env
+    );
+
+    return task_meta;
+  }
+
+  async scheduleDamaTask(
+    dama_task_descr: DamaTaskDescriptor,
+    pgboss_send_options: PgBossSendOptions,
+    pg_env = this.pg_env
+  ) {
+    const task_meta = await super.scheduleDamaTask(
+      dama_task_descr,
+      pgboss_send_options,
+      pg_env
+    );
+
+    const { dama_task_queue_name = DEFAULT_QUEUE_NAME } = dama_task_descr;
+
+    await this.startDefaultQueueWorkerOrWarnIfNonDefaultWorkerNotActive(
+      dama_task_queue_name,
+      task_meta,
+      pg_env
+    );
 
     return task_meta;
   }

@@ -1,9 +1,5 @@
 import _ from "lodash";
-
-import {
-  PgEnv,
-  getConnectedNodePgClient,
-} from "data_manager/dama_db/postgres/PostgreSQL";
+import { DateTime } from "luxon";
 
 export type TranscomApiRequestTimestamp = string;
 
@@ -25,23 +21,37 @@ export function decomposeDate(date: Date) {
   };
 }
 
-// Date format 'YYYY-MM-DD HH:MI:SS'
+// The TRANSCOM API requires the following timestamp format: 'YYYY-MM-DD HH:MI:SS'
 export const transcomRequestFormattedTimestamp =
   /^\d{4}-\d{1,2}-\d{1,2} \d{2}:\d{2}:\d{2}$/;
 
-// Required for using timestamp to TRANSCOM API request body.
+/**
+ * Checks that a timestamp is in the required TRANSCOM 'YYYY-MM-DD HH:MI:SS' format.
+ *
+ * @param timestamp - timestamp whose format to verify
+ *
+ * @throws Throw an error if the timestamp is not in the TRANSCOM required 'YYYY-MM-DD HH:MI:SS' format.
+ */
 export function validateTranscomRequestTimestamp(timestamp: string) {
   if (!transcomRequestFormattedTimestamp.test(timestamp)) {
     throw new Error('Timestamps must be in "yyyy-mm-dd HH:MM:SS" format.');
   }
 }
 
-export function getTranscomRequestFormattedTimestamp(date: string | Date) {
-  date = typeof date === "string" ? new Date(date) : date;
+/**
+ * Get the TRANSCOM 'YYYY-MM-DD HH:MI:SS' format timestamp for the date.
+ *
+ * @param time - Date or timestamp to convert to TRANSCOM timestamp format.
+ *
+ * @returns The time formatted in TRANSCOM's required format.
+ */
+export function getTranscomRequestFormattedTimestamp(time: string | Date) {
+  const dt =
+    typeof time === "string"
+      ? DateTime.fromISO(time)
+      : DateTime.fromJSDate(time);
 
-  const { yyyy, mm, dd, HH, MM, SS } = decomposeDate(date);
-
-  return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}`;
+  return dt.toFormat("yyyy-MM-dd HH:mm:ss");
 }
 
 export function getTimestamp(date: Date) {
@@ -50,56 +60,42 @@ export function getTimestamp(date: Date) {
   return `${yyyy}${mm}${dd}T${HH}${MM}${SS}`;
 }
 
-export function getDateFromTimestamp(timestamp: string) {
-  const yyyy = timestamp.slice(0, 4);
-  const mm = timestamp.slice(4, 6);
-  const dd = timestamp.slice(6, 8);
-  const HH = timestamp.slice(9, 11);
-  const MM = timestamp.slice(11, 13);
-  const SS = timestamp.slice(13, 15);
-
-  const ts = `${yyyy}-${mm}-${dd}T${HH}:${MM}:${SS}`;
-
-  const date = new Date(ts);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(`INVALID TIMESTAMP: ${timestamp}`);
-  }
-
-  return date;
-}
-
-export function getNowTimestamp(transcomFormat: boolean = false) {
-  const now = new Date();
-
-  return transcomFormat
-    ? getTranscomRequestFormattedTimestamp(now)
-    : getTimestamp(now);
-}
-
+/**
+ *  This function partitions a date range into months.
+ *
+ *  @remarks
+ *    We politely request the non-expanded TRANSCOM events one month at a time.
+ *
+ * @param start_timestamp
+ * @param end_timestamp
+ *
+ * @returns An Array of [start_timestamp, end_timestamp] pairs. No pair extends beyond a calendar month.
+ *
+ * @throws If either start_timestamp or end_timestamp are not in the TRANSCOM 'YYYY-MM-DD HH:MI:SS' format.
+ */
 export function partitionTranscomRequestTimestampsByMonth(
-  startTimestamp: string,
-  endTimestamp: string
+  start_timestamp: string,
+  end_timestamp: string
 ): [TranscomApiRequestTimestamp, TranscomApiRequestTimestamp][] {
-  validateTranscomRequestTimestamp(startTimestamp);
-  validateTranscomRequestTimestamp(endTimestamp);
+  validateTranscomRequestTimestamp(start_timestamp);
+  validateTranscomRequestTimestamp(end_timestamp);
 
-  const [startYearStr] = startTimestamp.split(/-/);
-  const [endYearStr] = endTimestamp.split(/-/);
+  const [startYearStr] = start_timestamp.split(/-/);
+  const [endYearStr] = end_timestamp.split(/-/);
 
   const startYear = +startYearStr;
   const endYear = +endYearStr;
 
-  const start = new Date(startTimestamp);
-  const end = new Date(endTimestamp);
+  const start = new Date(start_timestamp);
+  const end = new Date(end_timestamp);
 
   const startMonth = start.getMonth() + 1;
   const startDate = start.getDate();
-  const [, startTime] = startTimestamp.split(" ");
+  const [, startTime] = start_timestamp.split(" ");
 
   const endMonth = end.getMonth() + 1;
   const endDate = end.getDate();
-  const [, endTime] = endTimestamp.split(" ");
+  const [, endTime] = end_timestamp.split(" ");
 
   const partitionedDateTimes = _.range(startYear, endYear + 1).reduce(
     (acc, year) => {
@@ -144,36 +140,4 @@ export function partitionTranscomRequestTimestampsByMonth(
   );
 
   return partitionedDateTimes;
-}
-
-export async function getTranscomEventsMaxCreationTimestamp(
-  pgEnv: PgEnv
-): Promise<string | null> {
-  throw new Error("FIXME: use dama_db");
-
-  const db = await getConnectedNodePgClient(pgEnv);
-
-  try {
-    const {
-      rows: [start_timestamp = null],
-    } = await db.query(`
-        SELECT
-            to_char(
-              MAX(creation),
-              'YYYY-MM-DD HH24:MI:SS'
-            ) AS latest
-          FROM transcom.transcom_historical_events
-        ;
-      `);
-
-    return start_timestamp;
-  } catch (err) {
-    console.error(
-      "ERROR: Could not connect to retreive the latest event from the database."
-    );
-
-    throw err;
-  } finally {
-    db.end();
-  }
 }

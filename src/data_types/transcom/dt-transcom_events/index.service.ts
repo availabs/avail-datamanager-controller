@@ -66,5 +66,37 @@ export default {
         return { etl_context_id };
       },
     },
+
+    scheduleTranscomEventsEtl: {
+      visibility: "public",
+
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { cron },
+        } = ctx;
+
+        const dama_task_descr = {
+          worker_path: join(__dirname, "./worker.ts"),
+
+          dama_task_queue_name: task_queue_name,
+
+          cron,
+
+          initial_event: {
+            type: ":INITIAL",
+          },
+        };
+
+        const options = { retryLimit: 1, expireInHours: 10 };
+
+        const etl_context_id = await dama_tasks.scheduleDamaTask(
+          dama_task_descr,
+          options
+        );
+
+        return { etl_context_id };
+      },
+    },
   },
 };
