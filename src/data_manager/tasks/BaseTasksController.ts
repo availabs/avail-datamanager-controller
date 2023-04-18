@@ -312,15 +312,42 @@ export default class BaseTasksController extends DamaContextAttachedResource {
         options
       );
 
+      return true;
+    } catch (err) {
+      logger.error((<Error>err).message);
+      logger.error((<Error>err).stack);
+      throw err;
+    } finally {
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       this.queue_lock.release();
+    }
+  }
+
+  async unscheduleDamaTask(dama_task_queue_name: string, pg_env = this.pg_env) {
+    //  pg-boss drops jobs. ??? Due to throttling ???
+    //    https://github.com/timgit/pg-boss/blob/master/docs/readme.md#send
+    //  This seems to fix the problem, here.
+    //    If put immediately around pgboss.send, it does not.
+    await this.queue_lock.acquire();
+
+    const prefixed_dama_task_queue_name =
+      this.prefixDamaTaskQueueNameWithHostId(dama_task_queue_name);
+
+    try {
+      const pgboss = await this.getPgBoss(pg_env);
+
+      pgboss.unschedule(prefixed_dama_task_queue_name);
 
       return true;
     } catch (err) {
       logger.error((<Error>err).message);
       logger.error((<Error>err).stack);
       throw err;
+    } finally {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      this.queue_lock.release();
     }
   }
 

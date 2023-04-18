@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS data_manager.etl_contexts (
     ON DELETE CASCADE
 ) ;
 
+-- NOTE: This causes the TaskRunner to lock up.
+-- ALTER TABLE data_manager.etl_contexts
+--   ADD COLUMN IF NOT EXISTS etl_task_id TEXT
+-- ;
 
 CREATE TABLE IF NOT EXISTS data_manager.event_store (
   event_id                  SERIAL PRIMARY KEY,

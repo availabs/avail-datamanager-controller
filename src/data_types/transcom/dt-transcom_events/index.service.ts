@@ -90,12 +90,15 @@ export default {
 
         const options = { retryLimit: 1, expireInHours: 10 };
 
-        const etl_context_id = await dama_tasks.scheduleDamaTask(
-          dama_task_descr,
-          options
-        );
+        await dama_tasks.scheduleDamaTask(dama_task_descr, options);
+      },
+    },
 
-        return { etl_context_id };
+    unscheduleTranscomEventsEtl: {
+      visibility: "public",
+
+      async handler() {
+        await dama_tasks.unscheduleDamaTask(task_queue_name);
       },
     },
   },

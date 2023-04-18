@@ -89,7 +89,7 @@ export default {
       },
     },
 
-    scheduleTranscomEventsEtl: {
+    scheduleIt: {
       visibility: "public",
 
       async handler(ctx: MoleculerContext) {
@@ -107,7 +107,7 @@ export default {
 
           initial_event: {
             type: ":INITIAL",
-            payload: { msg: "scheduled Hello, World!", delay: 500 },
+            payload: { msg: "scheduled Hello, World!", delay: 100 },
           },
         };
 
@@ -119,6 +119,14 @@ export default {
         );
 
         return scheduled;
+      },
+    },
+
+    unscheduleIt: {
+      visibility: "public",
+
+      async handler() {
+        await dama_tasks.unscheduleDamaTask(dama_task_queue_name);
       },
     },
 
