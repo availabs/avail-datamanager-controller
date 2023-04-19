@@ -263,7 +263,13 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
                 ) AS c
                   ON (
                     -- https://stackoverflow.com/a/10956124
-                    a.oid = to_regclass( format('%I.%I', c.table_schema, c.table_name) )::oid
+                    a.oid = to_regclass(
+                              format(
+                                '%I.%I',
+                                COALESCE(c.table_schema, ''),
+                                COALESCE(c.table_name, '')
+                              )
+                            )::oid
                   )
                 LEFT OUTER JOIN pg_catalog.pg_index AS d
                   ON (
