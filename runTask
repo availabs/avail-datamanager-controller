@@ -7,7 +7,9 @@ const execa = require("execa");
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
 
-const { pg_env, etl_context_id, logging_level } = yargs(hideBin(process.argv))
+const { pg_env, etl_context_id, logging_level, debug } = yargs(
+  hideBin(process.argv)
+)
   .usage(
     "Usage $0 --pg_env [PostgresSQL Database] --etl_context_id [Etl Context ID]"
   )
@@ -32,6 +34,14 @@ const { pg_env, etl_context_id, logging_level } = yargs(hideBin(process.argv))
       default: "debug",
       choices: ["error", "warn", "info", "debug", "silly"],
     },
+    debug: {
+      alias: "d",
+      boolean: true,
+      describe:
+        "Run in debug mode (attached to Chrome debugger at chrome://inspect/#devices)",
+      demandOption: false,
+      default: false,
+    },
   }).argv;
 
 if (Number.isNaN(etl_context_id)) {
@@ -43,28 +53,30 @@ const task_runner_path = join(
   "./src/data_manager/tasks/TaskRunner.ts"
 );
 
+const node_args = debug ? ["--inspect-brk"] : [];
+
+node_args.push(
+  ...[
+    // https://www.npmjs.com/package/tsconfig-paths#register
+    "--require",
+    "tsconfig-paths/register",
+    "--require",
+    "ts-node/register",
+    task_runner_path,
+  ]
+);
+
 async function main() {
-  await execa(
-    "node",
-    [
-      // https://www.npmjs.com/package/tsconfig-paths#register
-      "--require",
-      "tsconfig-paths/register",
-      "--require",
-      "ts-node/register",
-      task_runner_path,
-    ],
-    {
-      env: {
-        ...process.env,
-        AVAIL_DAMA_PG_ENV: pg_env,
-        AVAIL_DAMA_ETL_CONTEXT_ID: etl_context_id,
-        AVAIL_LOGGING_LEVEL: logging_level,
-      },
-      detached: false,
-      stdio: "inherit",
-    }
-  );
+  await execa("node", node_args, {
+    env: {
+      ...process.env,
+      AVAIL_DAMA_PG_ENV: pg_env,
+      AVAIL_DAMA_ETL_CONTEXT_ID: etl_context_id,
+      AVAIL_LOGGING_LEVEL: logging_level,
+    },
+    detached: false,
+    stdio: "inherit",
+  });
 }
 
 main();
