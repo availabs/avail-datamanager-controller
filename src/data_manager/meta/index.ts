@@ -286,14 +286,14 @@ class DamaMeta extends DamaContextAttachedResource {
   ): Promise<NodePgQueryConfig> {
     const new_row_keys = Object.keys(row);
 
-    console.log('1')
+    console.log("1");
     const table_description = await this.describeTable(
       table_schema,
       table_name,
       pg_env
     );
 
-    console.log('2')
+    console.log("2");
     const table_columns = Object.keys(table_description);
 
     const insert_stmt_cols = _.intersection(new_row_keys, table_columns);
@@ -313,7 +313,7 @@ class DamaMeta extends DamaContextAttachedResource {
           v = null;
         }
 
-        if (Array.isArray(v)) {
+        if (Array.isArray(v) && /^json/i.test(column_type)) {
           v = JSON.stringify(v);
         }
 
@@ -329,7 +329,7 @@ class DamaMeta extends DamaContextAttachedResource {
       }
     );
 
-    console.log('3')
+    console.log("3");
     const text = dedent(
       pgFormat(
         `
@@ -834,7 +834,7 @@ class DamaMeta extends DamaContextAttachedResource {
     new_row: Record<string, any>,
     pg_env = this.pg_env
   ) {
-    console.log('generateCreateDamaSourceQuery', new_row, pg_env)
+    console.log("generateCreateDamaSourceQuery", new_row, pg_env);
     return this.generateInsertStatement(
       "data_manager",
       "sources",
@@ -856,10 +856,10 @@ class DamaMeta extends DamaContextAttachedResource {
     new_row: Record<string, any>,
     pg_env = this.pg_env
   ) {
-    console.log('got here', new_row)
+    console.log("got here", new_row);
     const q = await this.generateCreateDamaSourceQuery(new_row, pg_env);
-    console.log('show me the query',q )
-    console.log('do I have a pg env', pg_env)
+    console.log("show me the query", q);
+    console.log("do I have a pg env", pg_env);
 
     const {
       rows: [new_dama_source],

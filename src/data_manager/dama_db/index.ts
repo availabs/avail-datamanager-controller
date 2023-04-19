@@ -358,6 +358,11 @@ class DamaDb extends DamaContextAttachedResource {
       }
 
       return (multi_queries ? results : results[0]) as DamaDbQueryReturnType<T>;
+    } catch (err) {
+      // Because the node-pg library causes us to lose a meaningful call stack.
+      throw new Error(
+        `dama_db.query encountered the following error: ${(<Error>err).message}`
+      );
     } finally {
       db.release();
     }
