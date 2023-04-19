@@ -281,6 +281,7 @@ CREATE OR REPLACE VIEW data_manager.views_primary_keys
                   ( a.table_name = b.tablename )
                 )
         ) as v 
-          ON ( i.indrelid = ( format('%I.%I', table_schema, table_name) )::regclass )
+          -- https://stackoverflow.com/a/10956124
+          ON ( i.indrelid = to_regclass(format('%I.%I', table_schema, table_name) ) )
       GROUP BY 1
 ;

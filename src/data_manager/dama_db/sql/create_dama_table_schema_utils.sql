@@ -249,13 +249,6 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
                       a.table_schema,
                       a.table_name
                     FROM data_manager.views AS a
-                      -- make sure the tables actually exist so ::regclass::oid below does not raise exception
-                      INNER JOIN pg_catalog.pg_tables AS b
-                        ON (
-                          ( a.table_schema = b.schemaname )
-                          AND
-                          ( a.table_name = b.tablename )
-                        )
                   UNION ALL
                   SELECT
                       schemaname AS table_schema,
@@ -269,7 +262,8 @@ CREATE OR REPLACE VIEW _data_manager_admin.table_column_types
 
                 ) AS c
                   ON (
-                    a.oid = format('%I.%I', c.table_schema, c.table_name)::regclass::oid
+                    -- https://stackoverflow.com/a/10956124
+                    a.oid = to_regclass('%I.%I', c.table_schema, c.table_name)::oid
                   )
                 LEFT OUTER JOIN pg_catalog.pg_index AS d
                   ON (
