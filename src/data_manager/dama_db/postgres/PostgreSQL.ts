@@ -147,7 +147,13 @@ export const listAllPgEnvs = async () =>
     .map((fname) => fname.replace(/^postgres\./, "").replace(/\.env$/, ""));
 
 export const getPsqlCredentials = (pgEnv: PgEnv): PsqlConfig => {
+  if(typeof pgEnv === 'object') {
+    console.log('hello',pgEnv?.meta?.pgEnv)
+    pgEnv = pgEnv?.meta?.pgEnv
+  }
   const configPath = getPostgresConfigurationFilePath(pgEnv);
+  
+  console.log('configPath', configPath, pgEnv)
   const configContents = readFileSync(configPath);
 
   const envVars = dotenv.parse(configContents);
