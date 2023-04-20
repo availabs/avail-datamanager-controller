@@ -4,10 +4,6 @@ import { PoolClient, QueryConfig, QueryResult } from "pg";
 import EventTypes from "../constants/EventTypes";
 import {err, fin, init} from "../utils/macros";
 
-export const ReadyToPublishPrerequisites = [
-  EventTypes.QA_APPROVED,
-  EventTypes.VIEW_METADATA_SUBMITTED,
-];
 // mol $ call 'dama/data_source_integrator.csvUploadAction' --table_name details --#pgEnv dama_dev_1
 
 

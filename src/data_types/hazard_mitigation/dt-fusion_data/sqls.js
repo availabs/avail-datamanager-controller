@@ -53,16 +53,11 @@ export const fusion = ({
       max (end_date_time:: date) swd_end_date,
       sum (property_damage)/ coalesce (edf.division_factor, 1) as swd_property_damage,
       sum (crop_damage)/ coalesce (edf.division_factor, 1) as swd_crop_damage,
-      (sum (
-    coalesce (deaths_direct:: float, 0) +
-    coalesce (deaths_indirect:: float, 0) +
-    (
-    (
-    coalesce (injuries_direct:: float, 0) +
-    coalesce (injuries_indirect:: float, 0)
-    ) / 10
-    )
-    ) * 7600000)/ coalesce (edf.division_factor, 1) as swd_population_damage
+      (
+        sum (
+                coalesce (deaths_direct:: float, 0) + coalesce (deaths_indirect:: float, 0) +
+                ((coalesce (injuries_direct:: float, 0) + coalesce (injuries_indirect:: float, 0)) / 10)
+            ) * 7600000)/ coalesce (edf.division_factor, 1) as swd_population_damage
   FROM ${nceie_schema}.${nceie_table} sw
     LEFT JOIN disaster_number_to_event_id_mapping_without_hazard_type dn_eid
   on sw.event_id = dn_eid.event_id
@@ -70,67 +65,112 @@ export const fusion = ({
     ON edf.event_id = sw.event_id
   WHERE year >= 1996
     and year <= 2019
-    AND nri_category not in ('Dense Fog'
-      , 'Marine Dense Fog'
-      , 'Dense Smoke'
-      , 'Dust Devil'
-      , 'Dust Storm'
-      , 'Astronomical Low Tide'
-      , 'Northern Lights'
-      , 'OTHER')
+    AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
     AND (sw.geoid is not null)
   group by 1, 2, 3, 4, division_factor
   order by 1, 2, 3, 4
     ),
     full_data as (
   SELECT coalesce (swd.geoid, ofd.geoid) geoid,
-      event_id, ofd.disaster_number,
+      event_id,
+      ofd.disaster_number,
       coalesce (nri_category, incident_type) nri_category,
+    incident_type fema_incident_type,
       swd_begin_date, swd_end_date,
-      fema_incident_begin_date, fema_incident_end_date,
-      fema_property_damage, fema_crop_damage,
-      swd_property_damage, swd_crop_damage, swd_population_damage
+      fema_incident_begin_date,
+      fema_incident_end_date,
+      coalesce(fema_property_damage, 0) fema_property_damage,
+      coalesce(fema_crop_damage, 0) fema_crop_damage,
+
+      coalesce(swd_property_damage, 0) swd_property_damage,
+      coalesce(swd_crop_damage, 0) swd_crop_damage,
+      coalesce(swd_population_damage, 0) swd_population_damage,
+
+    coalesce(swd_property_damage, 0) fusion_property_damage,
+    coalesce(swd_crop_damage, 0) fusion_crop_damage
+
   FROM swd
-    FULL OUTER JOIN ${ofd_schema}.${dl_table} ofd
+  FULL OUTER JOIN ${ofd_schema}.${dl_table} ofd
   ON swd.disaster_number = ofd.disaster_number
     AND swd.geoid = ofd.geoid
     ),
+
+
+
     disaster_division_factor as (
-  select disaster_number, geoid, count (1) ddf
-  from full_data
-  group by 1, 2
-  order by 1, 2
+      select disaster_number, geoid, count (1) ddf
+      from full_data
+      group by 1, 2
+      order by 1, 2
     ),
+
     full_adjusted as (
-  SELECT fd.geoid, event_id, fd.disaster_number, nri_category,
-      swd_begin_date,
-      swd_end_date,
-      fema_incident_begin_date,
-      fema_incident_end_date,
-      fema_property_damage/ coalesce (ddf, 1) fema_property_damage,
-      fema_crop_damage/ coalesce (ddf, 1) fema_crop_damage,
-      swd_property_damage, swd_crop_damage, swd_population_damage,
-      coalesce (fema_property_damage/ coalesce (ddf, 1), swd_property_damage) fusion_property_damage,
-      coalesce (fema_crop_damage/ coalesce (ddf, 1), swd_crop_damage) fusion_crop_damage
+  SELECT fd.geoid,
+      event_id,
+      fd.disaster_number,
+      nri_category,
+    fema_incident_type,
+    swd_begin_date,
+    swd_end_date,
+    fema_incident_begin_date,
+    fema_incident_end_date,
+    fema_property_damage/ coalesce (ddf, 1) fema_property_damage,
+    fema_crop_damage/ coalesce (ddf, 1) fema_crop_damage,
+    swd_property_damage, swd_crop_damage, swd_population_damage,
+    fusion_property_damage,
+    fusion_crop_damage
   FROM full_data fd
     LEFT JOIN disaster_division_factor ddf
   ON ddf.disaster_number = fd.disaster_number
     AND ddf.geoid = fd.geoid
+    ),
+    disaster_mapping_summary as (
+  select disaster_number, geoid, fema_incident_type,
+
+      min(fema_incident_begin_date) fema_incident_begin_date,
+      max(fema_incident_end_date)   fema_incident_end_date,
+
+      sum(fema_property_damage)     fema_property_damage,
+      sum(fema_crop_damage)         fema_crop_damage,
+      sum(swd_property_damage)      swd_property_damage,
+      sum(swd_crop_damage)          swd_crop_damage
+  from full_adjusted
+  group by 1, 2, 3
+  having sum(fema_property_damage) > sum(swd_property_damage) OR sum(fema_crop_damage) > sum(swd_crop_damage)
+  order by 1, 2
+    ),
+    additional_rows as (
+      SELECT
+          geoid,
+          null::integer as event_id,
+          disaster_number,
+          fema_incident_type as nri_category,
+          fema_incident_type,
+          null::date as swd_begin_date,
+          null::date as swd_end_date,
+          fema_incident_begin_date,
+          fema_incident_end_date,
+
+          0 as fema_property_damage,
+          0 as fema_crop_damage,
+
+          0 as swd_property_damage,
+          0 as swd_crop_damage,
+          0 as swd_population_damage,
+
+          CASE WHEN fema_property_damage > swd_property_damage
+               THEN fema_property_damage - swd_property_damage
+               ELSE 0
+          END fusion_property_damage,
+
+          CASE WHEN fema_crop_damage > swd_crop_damage
+               THEN fema_crop_damage - swd_crop_damage
+               ELSE 0
+          END fusion_crop_damage
+      FROM disaster_mapping_summary
     )
 
-select * into  ${ofd_schema}.${table_name}_${view_id} from full_adjusted
-
-
+select * into  ${ofd_schema}.${table_name}_${view_id}
+         from (select * from full_adjusted union all select * from additional_rows) a
 `;
 
-export const updateNCEIEnhanced = ({
-                              fusion_schema, fusion_table,
-                              nceie_schema, nceie_table
-                            }) => `
-
-  UPDATE ${nceie_schema}.${nceie_table} dst
-  SET disaster_number = f.disaster_number
-  FROM ${fusion_schema}.${fusion_table} f
-  WHERE dst.event_id = f.event_id
-  AND substring(dst.geoid, 1, 5) = f.geoid
-`

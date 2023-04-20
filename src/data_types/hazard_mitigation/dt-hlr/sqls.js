@@ -67,7 +67,7 @@ const grid = (state_schema, state_table) => `
                         ST_Dump(
                                 makegrid_2d(
                                         (
-                                            SELECT ST_Collect(ST_Simplify(st_setsrid(geom, 4326), 0.1)) FROM ${state_schema}.${state_table}
+                                            SELECT st_buffer(ST_Collect(ST_Simplify(st_setsrid(geom, 4326), 0.2)), 2, 'side=left') FROM ${state_schema}.${state_table}
                                             where geoid not in ('11', '99', '72', '69', '60', '66', '78')
                                               and geoid not in ('02', '15')
                                         ),
@@ -78,7 +78,7 @@ const grid = (state_schema, state_table) => `
                         ) .geom AS cell
          ) grid
              JOIN (
-        SELECT ST_Collect(ST_Simplify(st_setsrid(geom, 4326), 0.1)) geom FROM ${state_schema}.${state_table}
+        SELECT st_buffer(ST_Collect(ST_Simplify(st_setsrid(geom, 4326), 0.2)), 2, 'side=left') geom FROM ${state_schema}.${state_table}
         where geoid not in ('11', '99', '72', '69', '60', '66', '78')
           and geoid not in ('02', '15')
     ) area
@@ -435,45 +435,40 @@ with grid as (${grid(state_schema, state_table)}),
            order by 1, 2, 3, 4
        ),
        grid_variance as (
-           select grid.id, nri_category, variance(loss_ratio_per_basis) va
-           from tmp_fips_to_grid_mapping_196_newer grid
-                    JOIN lrpbs
+           select grid.id, nri_category, ctype, variance(loss_ratio_per_basis) va
+           from tmp_tables.tmp_fips_to_grid_mapping_196_newer grid
+                    JOIN tmp_tables.lrpbs
                          ON grid.fips = lrpbs.geoid
-           where ctype = 'buildings'
-           group by 1, 2
-           order by 1, 2, 3),
+           group by 1, 2, 3
+           order by 1, 2, 3, 4),
        fips_to_id_ranking as (
-           select grid.fips, grid.id, nri_category, va,
+           select grid.fips, grid.id, nri_category, ctype, va,
                   (covered_area * 100) / total_area percent_area_covered,
-                  rank() over (partition by grid.fips, nri_category order by va, ((covered_area * 100) / total_area) desc ),
-                  first_value(grid.id) over (partition by grid.fips, nri_category order by va, ((covered_area * 100) / total_area) desc ) lowest_var_highest_area_id
-           from tmp_fips_to_grid_mapping_196_newer grid
-                    JOIN (select fips, sum(covered_area) total_area from tmp_fips_to_grid_mapping_196_newer group by 1) total_area
+                  rank() over (partition by grid.fips, nri_category, ctype order by va, ((covered_area * 100) / total_area) desc ),
+                  first_value(grid.id) over (partition by grid.fips, nri_category, ctype order by va, ((covered_area * 100) / total_area) desc ) lowest_var_highest_area_id,
+                  first_value(grid.fips) over (partition by grid.id, nri_category, ctype order by va, ((covered_area * 100) / total_area) desc ) lowest_var_geoid
+           from tmp_tables.tmp_fips_to_grid_mapping_196_newer grid
+                    JOIN (select fips, sum(covered_area) total_area from tmp_tables.tmp_fips_to_grid_mapping_196_newer group by 1) total_area
                          ON total_area.fips = grid.fips
                     JOIN grid_variance
                          ON grid_variance.id = grid.id
-                -- \tgroup by id
-           order by 1, 4, 5 desc),
+           order by 1, 5, 6 desc),
        fips_to_id_mapping as (
-           select distinct fips, nri_category, lowest_var_highest_area_id
+           select distinct fips as geoid, nri_category, ctype, lowest_var_highest_area_id, lowest_var_geoid
            from fips_to_id_ranking
+		   where rank = 1
            order by 1
        ),
-       grid_values as (
-           select ctype, lowest_var_highest_area_id, lrpbs.nri_category,
-                  avg (loss_ratio_per_basis) av_s,
-                  variance(loss_ratio_per_basis) va_s
-           from fips_to_id_mapping
-                    JOIN lrpbs
-                         ON fips = lrpbs.geoid
-                             AND fips_to_id_mapping.nri_category = lrpbs.nri_category
-           group by 1, 2, 3),
        surrounding as (
-           SELECT fim.fips surrounding, gv.*
-           FROM fips_to_id_mapping fim
-                    JOIN grid_values gv
-                         ON fim.lowest_var_highest_area_id = gv.lowest_var_highest_area_id
-                             AND fim.nri_category = gv.nri_category
+           select geoid, lowest_var_geoid as surrounding, nri_category, ctype,
+				   lowest_var_highest_area_id,
+				   avg (loss_ratio_per_basis) av_s,
+				   variance(loss_ratio_per_basis) va_s
+           from fips_to_id_mapping
+           JOIN tmp_tables.lrpbs
+		   USING(geoid, nri_category, ctype)
+           group by 1, 2, 3, 4, 5
+		   order by 1, 3, 4
        ),
        hlr as (
            select county.ctype,
@@ -481,6 +476,123 @@ with grid as (${grid(state_schema, state_table)}),
                   regional.region,
                   surrounding.surrounding surrounding,
                   county.nri_category,
+               		   CASE
+                      WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat')
+                          THEN COALESCE(((
+                                                 (1.0 / NULLIF(va_n, 0)) /
+                                                 (
+                                                         CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                         CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                         CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                         CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                     )
+                                             )
+
+                                            ), 0)
+                      ELSE 0
+                      END wt_n,
+		            CASE
+                      WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat')
+                          THEN COALESCE(((
+                                                 (1.0 / NULLIF(va_n, 0)) /
+                                                 (
+                                                         CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                         CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                         CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                         CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                     )
+                                             ) * av_n
+
+                                            ), 0)
+                      ELSE 0
+                      END hlr_n,
+		            CASE
+                      WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire')
+                          THEN
+                          COALESCE(((
+                                            (1.0 / NULLIF(va_r, 0)) /
+                                            (
+                                                    CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                    CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                )
+                                        ) ), 0)
+                      ELSE 0
+                      END wt_r,
+		            CASE
+                      WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire')
+                          THEN
+                          COALESCE(((
+                                            (1.0 / NULLIF(va_r, 0)) /
+                                            (
+                                                    CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                    CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                )
+                                        ) *
+                                    av_r), 0)
+                      ELSE 0
+                      END hlr_r,
+		            CASE
+                      WHEN county.nri_category not in ('landslide')
+                          THEN
+                          COALESCE(((
+                                            (1.0 / NULLIF(va_c, 0)) /
+                                            (
+                                                    CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                    CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                )
+                                        )), 0)
+                      ELSE 0
+                      END wt_c,
+		            CASE
+                      WHEN county.nri_category not in ('landslide')
+                          THEN
+                          COALESCE(((
+                                            (1.0 / NULLIF(va_c, 0)) /
+                                            (
+                                                    CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                    CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                )
+                                        ) *
+                                    av_c), 0)
+                      ELSE 0
+                      END hlr_c,
+		            CASE
+                      WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine')
+                          THEN
+                          COALESCE(((
+                                            (1.0 / NULLIF(va_s, 0)) /
+                                            (
+                                                    CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                    CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                )
+                                        )), 0)
+                      ELSE 0
+                      END wt_s,
+		            CASE
+                      WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine')
+                          THEN
+                          COALESCE(((
+                                            (1.0 / NULLIF(va_s, 0)) /
+                                            (
+                                                    CASE WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat') THEN COALESCE(1.0 / NULLIF(va_n, 0), 0) ELSE 0 END +
+                                                    CASE  WHEN county.nri_category not in ('avalanche', 'earthquake', 'landslide', 'lightning', 'volcano', 'wildfire') THEN COALESCE(1.0 / NULLIF(va_r, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('landslide') THEN COALESCE(1.0 / NULLIF(va_c, 0), 0) ELSE 0 END +
+                                                    CASE WHEN county.nri_category not in ('avalanche', 'landslide', 'riverine') THEN COALESCE(1.0 / NULLIF(va_s, 0), 0) ELSE 0 END
+                                                )
+                                        ) *
+                                    av_s), 0)
+                      ELSE 0
+                      END hlr_s,
                   CASE
                       WHEN county.nri_category not in ('coastal', 'drought', 'hurricane', 'landslide', 'riverine', 'winterweat')
                           THEN COALESCE(((
@@ -554,7 +666,7 @@ with grid as (${grid(state_schema, state_table)}),
                              AND county.ctype = regional.ctype
                     JOIN surrounding
                          ON county.nri_category = surrounding.nri_category
-                             AND county.fips = surrounding.surrounding
+                             AND county.fips = surrounding.geoid
                              AND county.ctype = surrounding.ctype
        )
 
