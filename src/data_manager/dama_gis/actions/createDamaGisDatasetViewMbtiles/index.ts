@@ -109,7 +109,7 @@ export default async function createDamaGisDatasetViewMbtiles(ctx: Context) {
 
     const {
       rows: [{ mbtiles_id }],
-    } = await ctx.call("dama_db.insertNewRow", {
+    } = await ctx.call("dama/metadata.insertNewRow", {
       tableSchema: "_data_manager_admin",
       tableName: "dama_views_mbtiles_metadata",
       newRow,

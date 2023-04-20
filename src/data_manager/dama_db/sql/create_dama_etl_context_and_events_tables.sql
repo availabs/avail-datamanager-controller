@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS data_manager.etl_contexts (
   parent_context_id         INTEGER,
 
   source_id                 INTEGER,
+
+  etl_task_id               TEXT,
   etl_status                TEXT,
 
   initial_event_id          INTEGER,
@@ -40,6 +42,10 @@ CREATE TABLE IF NOT EXISTS data_manager.etl_contexts (
     ON DELETE CASCADE
 ) ;
 
+-- NOTE: This causes the TaskRunner to lock up.
+-- ALTER TABLE data_manager.etl_contexts
+--   ADD COLUMN IF NOT EXISTS etl_task_id TEXT
+-- ;
 
 CREATE TABLE IF NOT EXISTS data_manager.event_store (
   event_id                  SERIAL PRIMARY KEY,
@@ -79,10 +85,14 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
         INTO initial_exists_for_ctx, ctx_is_done
       ;
 
-      -- Done is Done.
+      -- Done is Done. event_store already has a :FINAL event for this etl_context.
       IF (ctx_is_done)
         THEN
-          RAISE EXCEPTION 'ETL context %. is DONE. It cannot receive any more events.', NEW.etl_context_id ;
+          RAISE EXCEPTION
+            'ETL context %. is DONE. It cannot receive any more events.',
+            NEW.etl_context_id
+          ;
+
       END IF ;
 
       IF ( NEW.type LIKE '%:INITIAL' )
@@ -91,7 +101,10 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
           -- There MUST be ONLY one INITIAL event.
           IF ( initial_exists_for_ctx )
             THEN
-              RAISE EXCEPTION 'INITIAL event already exists for ETL context %.', NEW.etl_context_id ;
+              RAISE
+                EXCEPTION ':INITIAL event already exists for ETL context %.',
+                NEW.etl_context_id
+              ;
           END IF ;
           
           UPDATE data_manager.etl_contexts
@@ -106,7 +119,9 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
         -- All EtlContexts MUST begin with an INITIAL event.
         ELSIF ( NOT initial_exists_for_ctx )
           THEN 
-              RAISE EXCEPTION 'All ETL Contexts MUST begin with an INITIAL event.' ;
+              RAISE
+                EXCEPTION 'All ETL Contexts MUST begin with an :INITIAL event.'
+              ;
 
       END IF;
 
@@ -117,6 +132,11 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
                 latest_event_id   = NEW.event_id
             WHERE ( etl_context_id = NEW.etl_context_id )
           ;
+
+          PERFORM pg_notify(
+            'ETL_CONTEXT_FINAL_EVENT',
+            NEW.etl_context_id::TEXT
+          ) ;
 
           RETURN NULL ;
       END IF ;
@@ -220,6 +240,7 @@ DO
             FOREIGN KEY (etl_context_id)
               REFERENCES data_manager.etl_contexts (etl_context_id)
               -- We do _NOT_ want "ON DELETE CASCADE" here
+              -- We do want to prevent etl_contexts DELETEs.
           ;
       END IF ;
 

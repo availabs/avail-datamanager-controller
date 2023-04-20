@@ -2,14 +2,16 @@ import _ from "lodash";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
+import { Context as MoleculerContext } from "moleculer";
+
 import { FSA } from "flux-standard-action";
 
 import EventTypes from "../../../constants/EventTypes";
 
-import { TransactionContext, DamaView } from "../index.d";
+import { DamaView } from "../index.d";
 
-export default async function createNewDamaView(txnCtx: TransactionContext) {
-  const { params } = txnCtx;
+export default async function createNewDamaView(ctx: MoleculerContext) {
+  const { params } = ctx;
   const { newDamaSource } = params;
 
   const { eventsByType } = params;
@@ -43,7 +45,7 @@ export default async function createNewDamaView(txnCtx: TransactionContext) {
   }
 
   let newDamaView = <DamaView>(
-    await txnCtx.call("dama/metadata.createNewDamaView", queuedDamaViewMeta)
+    await ctx.call("dama/metadata.createNewDamaView", queuedDamaViewMeta)
   );
 
   const {
@@ -62,7 +64,7 @@ export default async function createNewDamaView(txnCtx: TransactionContext) {
 
     const {
       rows: [{ dama_view_name }],
-    } = await txnCtx.call("dama_db.query", {
+    } = await ctx.call("dama_db.query", {
       text,
       values: [damaViewId],
     });
@@ -89,7 +91,7 @@ export default async function createNewDamaView(txnCtx: TransactionContext) {
       values: [table_schema, table_name, dataTable, damaViewId],
     };
 
-    await txnCtx.call("dama_db.query", sql);
+    await ctx.call("dama_db.query", sql);
 
     const newDamaViewSql = dedent(`
       SELECT
@@ -99,7 +101,7 @@ export default async function createNewDamaView(txnCtx: TransactionContext) {
       ;
     `);
 
-    const { rows } = await txnCtx.call("dama_db.query", {
+    const { rows } = await ctx.call("dama_db.query", {
       text: newDamaViewSql,
       values: [damaViewId],
     });

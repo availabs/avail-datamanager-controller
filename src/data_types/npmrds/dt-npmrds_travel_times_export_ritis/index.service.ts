@@ -9,14 +9,21 @@ import { Context } from "moleculer";
 
 import _ from "lodash";
 
-import { FSA } from "flux-standard-action";
+import dama_db from "data_manager/dama_db";
+import dama_events, { EtlEvent } from "data_manager/events";
+import dama_meta from "data_manager/meta";
 
+//  If you need to disable this service,
+//    change the name from index.service.ts to index.disabled.ts,
+//    but please do not commit and push the change.
 import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
-import { stateAbbr2FipsCode } from "../../../data_utils/constants/stateFipsCodes";
+import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";
 
-import damaHost from "../../../constants/damaHost";
-import controllerDataDir from "../../../constants/dataDir";
+import dama_host_name from "constants/damaHost";
+import dama_host_id from "constants/damaHostId";
+
+import controllerDataDir from "constants/dataDir";
 
 import {
   NpmrdsDataSources,
@@ -103,7 +110,6 @@ export default {
         this._downloadServiceCP = new Promise<ChildProcess>(
           (resolve, reject) => {
             const cp = fork(npmrdsDownloadServiceMainPath)
-              // @ts-ignore
               .on("spawn", () => {
                 console.log(
                   "\nNpmrdsDownloadService spawned with PID:",
@@ -111,7 +117,6 @@ export default {
                   "\n"
                 );
               })
-              // @ts-ignore
               .on("error", reject)
               .on("exit", (code, signal) => {
                 if (code) {
@@ -126,7 +131,7 @@ export default {
                   );
                 }
               })
-              .on("message", (event: FSA) => {
+              .on("message", (event: EtlEvent) => {
                 console.log(
                   JSON.stringify({ npmrdsDownloadServiceEvent: event }, null, 4)
                 );
@@ -136,7 +141,6 @@ export default {
 
                 // The NpmrdsDownloadService.READY event payload is the available date extent.
                 if (event.type === "NpmrdsDownloadService:READY") {
-                  // @ts-ignore
                   const extent: {
                     year: number;
                     month: number;
@@ -172,7 +176,7 @@ export default {
       return await this._downloadServiceCP;
     },
 
-    async handleNpmrdsDownloadServiceEvent(event: FSA) {
+    async handleNpmrdsDownloadServiceEvent(event: EtlEvent) {
       // @ts-ignore
       const { type, meta: { pgEnv, etl_context_id } = {} } = event;
 
@@ -207,7 +211,7 @@ export default {
       }
     },
 
-    async handleNpmrdsTravelTimesExportDownloaded(event: FSA) {
+    async handleNpmrdsTravelTimesExportDownloaded(event: EtlEvent) {
       // @ts-ignore
       const { payload, meta: { pgEnv, etl_context_id } = {} } = event;
 
@@ -215,7 +219,6 @@ export default {
         return;
       }
 
-      // @ts-ignore
       const { npmrdsDownloadName } = payload;
 
       const opts = {
@@ -241,7 +244,6 @@ export default {
           type: `${serviceName}:STATUS_UPDATE`,
           payload: {
             status: "TRANSFORMING",
-            // @ts-ignore
             npmrdsDownloadName: event.payload.npmrdsDownloadName,
           },
           meta: event.meta,
@@ -451,7 +453,7 @@ export default {
           const k = name.charAt(0).toLowerCase() + name.slice(1);
 
           acc[name] = {
-            host: damaHost,
+            host: dama_host_id,
             path: transformDoneData[k]?.replace(
               oldNpmrdsTravelTimesExport,
               exportRootRelativePath
@@ -489,14 +491,9 @@ export default {
       return doneData;
     },
 
-    async integrateNpmrdsTravelTimesEtlIntoDataManager(event: FSA) {
+    async integrateNpmrdsTravelTimesEtlIntoDataManager(event: EtlEvent) {
       const { payload, meta } = event;
-      const {
-        // @ts-ignore
-        npmrdsDownloadName,
-        // @ts-ignore
-        doneData: etlDoneData,
-      } = payload;
+      const { npmrdsDownloadName, doneData: etlDoneData } = payload;
 
       // @ts-ignore
       const { etl_context_id, user_id } = meta;
@@ -509,6 +506,7 @@ export default {
 
       const stateFips = stateAbbr2FipsCode[state];
 
+      // Inserts into data_manager.views with populated dependencies row.
       const sql = dedent(`
         WITH cte_deps AS (
           SELECT
@@ -618,7 +616,7 @@ export default {
 
       stmts.push("COMMIT");
 
-      const result = await this.broker.call("dama_db.query", stmts, { meta });
+      const result = await dama_db.query(stmts, { meta });
 
       const viewInfoBySourceId = result.reduce((acc, res) => {
         const {
@@ -659,7 +657,6 @@ export default {
               npmrdsDownloadName
             );
           })
-          // @ts-ignore
           .on("error", reject)
           .on("exit", (code, signal) => {
             if (code) {
@@ -678,7 +675,7 @@ export default {
               );
             }
           })
-          .on("message", (event: FSA) => {
+          .on("message", (event: EtlEvent) => {
             const { type, payload } = event;
             if (type === "downloadedExportsIntoSqlite:FINAL") {
               resolve(payload);
@@ -699,15 +696,11 @@ export default {
         meta: { pgEnv },
       } = ctx;
 
-      const source_id = await ctx.call("dama/metadata.getDamaSourceIdForName", {
-        damaSourceName: NpmrdsDataSources.NpmrdsTravelTimesExportRitis,
-      });
-
-      const etl_context_id = await ctx.call(
-        "data_manager/events.spawnEtlContext",
-        { source_id }
+      const source_id = await dama_meta.getDamaSourceIdForName(
+        NpmrdsDataSources.NpmrdsTravelTimesExportRitis
       );
-      const dama_controller_host = damaHost;
+
+      const etl_context_id = await dama_events.spawnEtlContext(null, source_id);
 
       const initialEvent = {
         type: `${serviceName}:INITIAL`,
@@ -719,23 +712,22 @@ export default {
         },
         meta: {
           dama_source_name: NpmrdsDataSources.NpmrdsTravelTimesExportRitis,
-          dama_controller_host,
+          dama_host_name,
+          dama_host_id,
           etl_context_id,
           user_id,
           timestamp: new Date().toISOString(),
         },
       };
 
-      await ctx.call("data_manager/events.dispatch", initialEvent);
+      await dama_events.dispatch(initialEvent, etl_context_id);
 
-      // @ts-ignore
       const req = createNpmrdsDataRangeDownloadRequest({
         state,
         start_date,
         end_date,
         is_expanded,
-        // @ts-ignore
-        etl_context: { pgEnv, etl_context_id, dama_controller_host },
+        etl_context: { pgEnv, etl_context_id, dama_host_id },
       });
 
       console.log(
@@ -772,14 +764,11 @@ export default {
       },
     },
 
-    async getOpenRequestsStatuses(ctx: Context) {
-      // @ts-ignore
-      const openRequestStatuses: any[] = await ctx.call(
-        "data_manager/events.queryOpenEtlProcessesStatusUpdatesForService",
-        {
-          serviceName,
-        }
-      );
+    async getOpenRequestsStatuses() {
+      const openRequestStatuses: any[] =
+        await dama_events.queryOpenEtlProcessesStatusUpdatesForService(
+          serviceName
+        );
 
       // console.log(JSON.stringify({ openRequestStatuses }, null, 4));
 

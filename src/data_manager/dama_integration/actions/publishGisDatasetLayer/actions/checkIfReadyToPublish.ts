@@ -1,6 +1,7 @@
 import _ from "lodash";
 
-import { Context } from "moleculer";
+import { Context as MoleculerContext } from "moleculer";
+
 import { FSA } from "flux-standard-action";
 
 import EventTypes from "../../../constants/EventTypes";
@@ -13,7 +14,7 @@ export const ReadyToPublishPrerequisites = [
 ];
 
 export default async function checkIfReadyToPublish(
-  ctx: Context,
+  ctx: MoleculerContext,
   events: FSA[]
 ) {
   const {

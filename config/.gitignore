@@ -1,3 +1,5 @@
 *
 !postgres.template.env
+!postgres.ephemeral_test_db.env
 !.gitignore
+dama_host_id

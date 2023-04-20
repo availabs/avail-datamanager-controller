@@ -1,10 +1,11 @@
-"use strict";
 import {
   BrokerOptions,
   Errors,
   MetricRegistry,
-  ServiceBroker,
+  // ServiceBroker,
 } from "moleculer";
+
+import dama_ctx_middleware from "./src/data_manager/contexts/moleculer_middleware";
 
 /**
  * Moleculer ServiceBroker configuration file
@@ -160,7 +161,7 @@ const brokerConfig: BrokerOptions = {
   async errorHandler(err: Error, info: any) {
     const { service, action, ctx } = info;
 
-    if (ctx.params.etl_context_id) {
+    if (ctx.params?.etl_context_id) {
       try {
         const errEvnt = {
           type: "UNCAUGHT_ERROR",
@@ -173,6 +174,7 @@ const brokerConfig: BrokerOptions = {
           error: true,
         };
 
+        console.log('ERRROR DETAILS', JSON.stringify(errEvnt, null,3))
         await ctx.call("dama_dispatcher.dispatch", errEvnt);
       } catch (err2) {
         console.error(err2);
@@ -184,7 +186,7 @@ const brokerConfig: BrokerOptions = {
 
   // Enable/disable built-in metrics function. More info: https://moleculer.services/docs/0.14/metrics.html
   metrics: {
-    enabled: true,
+    enabled: false,
     // Available built-in reporters: "Console", "CSV", "Event", "Prometheus", "Datadog", "StatsD"
     reporter: {
       type: "Prometheus",
@@ -204,7 +206,7 @@ const brokerConfig: BrokerOptions = {
 
   // Enable built-in tracing function. More info: https://moleculer.services/docs/0.14/tracing.html
   tracing: {
-    enabled: true,
+    enabled: false,
     // Available built-in exporters: "Console", "Datadog", "Event", "EventLegacy", "Jaeger", "Zipkin"
     exporter: {
       type: "Console", // Console exporter is only for development!
@@ -222,7 +224,7 @@ const brokerConfig: BrokerOptions = {
   },
 
   // Register custom middlewares
-  middlewares: [],
+  middlewares: [dama_ctx_middleware],
 
   // Register custom REPL commands.
   // @ts-ignore

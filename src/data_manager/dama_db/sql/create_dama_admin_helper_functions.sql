@@ -99,7 +99,7 @@ CREATE OR REPLACE FUNCTION _data_manager_admin.dama_view_name_prefix( damaViewId
   RETURNS NULL ON NULL INPUT
   AS
   $$
-    SELECT 
+    SELECT
         ( 's' || source_id::TEXT || '_v' || view_id::TEXT )
       FROM data_manager.views AS a
       WHERE ( view_id = damaViewId )

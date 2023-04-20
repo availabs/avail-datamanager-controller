@@ -265,13 +265,23 @@ CREATE OR REPLACE VIEW data_manager.views_primary_keys
           ON (
             ( a.atttypid = x.oid )
           )
-        INNER JOIN data_manager.views AS v
-          ON (
-            ( table_schema IS NOT NULL )
-            AND
-            ( table_name IS NOT NULL )
-            AND
-            ( i.indrelid = ( format('%I.%I', table_schema, table_name) )::regclass )
-          )
+        INNER JOIN (
+          SELECT 
+              a.view_id,
+              a.source_id,
+              a.table_schema,
+              a.table_name
+            FROM data_manager.views AS a
+              --  filter out (table_schema, table_names) that do not exist
+              --    so ::regclass below does not raise an exception.
+              INNER JOIN pg_catalog.pg_tables AS b
+                ON (
+                  ( a.table_schema = b.schemaname )
+                  AND
+                  ( a.table_name = b.tablename )
+                )
+        ) as v 
+          -- https://stackoverflow.com/a/10956124
+          ON ( i.indrelid = to_regclass(format('%I.%I', table_schema, table_name) ) )
       GROUP BY 1
 ;
