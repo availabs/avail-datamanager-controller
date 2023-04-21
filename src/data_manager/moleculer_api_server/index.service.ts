@@ -273,11 +273,26 @@ export default class ApiService extends Service {
               "/hazard_mitigation/versionSelectorUtils":
                 "hazard_mitigation.versionSelectorUtils.load",
 
-              "/hazard_mitigation/openFemaDataLoader":
-                "hazard_mitigation.openFemaDataLoader.load",
+              "/hazard_mitigation/disaster_declarations_summary_v2":
+                "hazard_mitigation.disaster_declarations_summary_v2.load",
+
+              "/hazard_mitigation/ihp_v1":
+                "hazard_mitigation.ihp_v1.load",
+
+              "/hazard_mitigation/pa_v1":
+                "hazard_mitigation.pa_v1.load",
+
+              "/hazard_mitigation/nfip_v1":
+                "hazard_mitigation.nfip_v1.load",
+
+              "/hazard_mitigation/nfip_v1_enhanced":
+                "hazard_mitigation.nfip_v1_enhanced.load",
 
               "/hazard_mitigation/usdaLoader":
                 "hazard_mitigation.usdaLoader.load",
+
+              "/hazard_mitigation/usda_enhanced":
+                "hazard_mitigation.usda_enhanced.load",
 
               "/hazard_mitigation/sbaLoader":
                 "hazard_mitigation.sbaLoader.load",
