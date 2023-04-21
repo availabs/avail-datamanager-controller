@@ -130,8 +130,8 @@ export default async function publish(ctx: Context) {
                             WHEN cause_of_loss_desc IN ('Wind/Excess Wind')
                                         THEN 'Wind'
                             ELSE cause_of_loss_desc
-                            END cause_of_loss_desc,
-                          SUM(indemnity_amount) indemnity_amount
+                            END cause_of_loss_desc_mapped,
+                         *
                          FROM ${usda_schema}.${usda_table}
                          WHERE cause_of_loss_desc in (
                                 'Cold Wet Weather', 'Cold Winter', 'Freeze', 'Frost', 'Hail', 'Ice floe', 'Ice Floe', 'Ice Flow',
@@ -144,23 +144,20 @@ export default async function publish(ctx: Context) {
                                 'Tornado', 'Hurricane/Tropical Depression', 'Cyclone'
                                 )
                         AND month_of_loss != ''
-                        GROUP BY 1, 2, 3, 4
-                        HAVING SUM(indemnity_amount) > 0
                         ),
           croploss as (
-            SELECT disaster_number, d.geoid, incident_type, sum(indemnity_amount) crop_loss
+            SELECT disaster_number, incident_type, usda.*
             FROM croploss_raw usda
             JOIN disasters d
             ON usda.geoid = d.geoid
-            AND usda.cause_of_loss_desc = d.incident_type
+            AND usda.cause_of_loss_desc_mapped = d.incident_type
             AND usda.year BETWEEN d.begin_year AND d.end_year
             AND usda.month BETWEEN d.begin_month AND d.end_month
-            GROUP BY 1, 2, 3
           )
 
          SELECT * INTO ${usda_schema}.${table_name}_${view_id} FROM croploss;
     `;
-    console.log(sql)
+
     await ctx.call("dama_db.query", {text: sql});
     // update view meta
     await update_view({table_schema: usda_schema, table_name, view_id, dbConnection, sqlLog});

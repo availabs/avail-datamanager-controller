@@ -65,12 +65,13 @@ with
          HAVING COALESCE(SUM(total_amount_paid), 0) > 0
      ),
     croploss as (
-      SELECT usda.disaster_number, usda.geoid, usda.incident_type, sum(crop_loss) crop_loss
+      SELECT usda.disaster_number, usda.geoid, usda.incident_type, sum(indemnity_amount) crop_loss
       FROM ${ofd_schema}.${usda_table} usda
       JOIN disasters d
       ON usda.disaster_number = d.disaster_number
       AND usda.geoid = d.geoid
       GROUP BY 1, 2, 3
+      HAVING sum(indemnity_amount) > 0
     ),
 	disaster_declarations_summary as (
 		SELECT

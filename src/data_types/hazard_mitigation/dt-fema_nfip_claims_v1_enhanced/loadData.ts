@@ -25,10 +25,7 @@ export default async function publish(ctx: Context) {
                   ),
         		enhanced_geoids as (
                       SELECT
-                        geoid, date_of_loss,
-                        amount_paid_on_contents_claim,
-                        amount_paid_on_building_claim,
-                        amount_paid_on_increased_cost_of_compliance_claim
+                        geoid, nfip.*
                       FROM ${nfip_schema}.${nfip_table} nfip
                       LEFT JOIN ${county_schema}.${county_table} county
                       ON st_contains(county.geom, st_setsrid(st_makepoint(longitude, latitude), 4326))
@@ -38,30 +35,26 @@ export default async function publish(ctx: Context) {
                       UNION ALL
 
                       SELECT
-                        county_code as geoid, date_of_loss,
-                        amount_paid_on_contents_claim,
-                        amount_paid_on_building_claim,
-                        amount_paid_on_increased_cost_of_compliance_claim
+                        county_code as geoid, *
                       FROM ${nfip_schema}.${nfip_table} nfip
                       where county_code is not null
 		            ),
          nfip as (
              SELECT disaster_number::text,
-                    nfip.geoid,
                     incident_type,
-                    COALESCE(SUM(amount_paid_on_contents_claim), 0) +
-                    COALESCE(SUM(amount_paid_on_building_claim), 0) +
-                    COALESCE(SUM(amount_paid_on_increased_cost_of_compliance_claim), 0) total_amount_paid
+                    nfip.*,
+                    COALESCE(amount_paid_on_contents_claim, 0) +
+                    COALESCE(amount_paid_on_building_claim, 0) +
+                    COALESCE(amount_paid_on_increased_cost_of_compliance_claim, 0) total_amount_paid
              FROM enhanced_geoids nfip
              JOIN disasters dd
                     ON nfip.geoid = dd.geoid
                     AND date_of_loss BETWEEN incident_begin_date AND incident_end_date
-             GROUP BY 1, 2, 3
          )
 
          SELECT * INTO ${nfip_schema}.${table_name}_${view_id} FROM nfip;
     `;
-    console.log(sql)
+
     await ctx.call("dama_db.query", {text: sql});
     await update_view({table_schema: 'open_fema_data', table_name, view_id, dbConnection, sqlLog});
 
