@@ -16,7 +16,11 @@ import dama_meta from "data_manager/meta";
 //  If you need to disable this service,
 //    change the name from index.service.ts to index.disabled.ts,
 //    but please do not commit and push the change.
-import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
+
+// we can't have default code that breaks the repo
+// if you want this import to work 
+// make it so that it doesn't break the repo on a fresh clone
+//import { createNpmrdsDataRangeDownloadRequest } from "../../../../tasks/avail-datasources-watcher/src/utils/NpmrdsDataDownloadNames";
 
 import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";
 
