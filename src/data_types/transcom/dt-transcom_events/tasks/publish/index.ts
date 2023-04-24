@@ -8,7 +8,11 @@ import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 
 import { dbCols } from "../../domain";
 
-import { conflation_version } from "../../constants/conflation_map_meta";
+import {
+  conflation_version,
+  min_year as min_conflation_map_year,
+  max_year as max_confltion_map_year,
+} from "../../constants/conflation_map_meta";
 
 import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
 
@@ -314,7 +318,12 @@ async function updateTranscomEventsOntoRoadNetwork() {
 
     const { rows } = await dama_db.query(get_years_sql);
 
-    const event_years = rows.map(({ year }) => year);
+    const event_years = rows
+      .map(({ year }) => +year)
+      .filter(
+        (year) =>
+          year >= min_conflation_map_year && year <= max_confltion_map_year
+      );
 
     const view_sql_select_stmts: string[] = [];
 
