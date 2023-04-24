@@ -55,7 +55,7 @@ export default {
           params: { etl_context_id, event_id },
         } = ctx;
 
-        return dama_events.queryEvents(event_id || -1, etl_context_id);
+        return dama_events.queryEvents(+event_id || -1, etl_context_id);
       },
     },
 
