@@ -257,98 +257,98 @@ with grid as (${grid(state_schema, state_table)}),
                WHEN ctype = 'buildings'
                    THEN
                    coalesce(CASE
-                                WHEN nri_category IN ('wind') -- NRI uses old data for exposure, so EXPB should only be used until the year NRI pulls data for. After that year, damage_adjusted should be used if it's > expb
-                                    THEN (CASE WHEN damage_adjusted > SWND_EXPB THEN SWND_EXPB ELSE damage_adjusted END):: double precision / NULLIF (SWND_EXPB, 0)
+                                WHEN nri_category IN ('wind') -- NRI uses old data for exposure, so EXPB should only be used until the year NRI pulls data for. After that year, coalesce(damage_adjusted, 0) should be used if it's > expb
+                                    THEN LEAST(coalesce(damage_adjusted, 0), SWND_EXPB):: double precision / NULLIF (SWND_EXPB, 0)
                                 WHEN nri_category IN ('wildfire')
-                                    THEN (CASE WHEN damage_adjusted > WFIR_EXPB THEN WFIR_EXPB ELSE damage_adjusted END):: double precision / NULLIF (WFIR_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), WFIR_EXPB):: double precision / NULLIF (WFIR_EXPB, 0)
                                 WHEN nri_category IN ('tsunami')
-                                    THEN damage_adjusted:: double precision / NULLIF (TSUN_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), TSUN_EXPB):: double precision / NULLIF (TSUN_EXPB, 0)
                                 WHEN nri_category IN ('tornado')
-                                    THEN (CASE WHEN damage_adjusted > TRND_EXPB THEN TRND_EXPB ELSE damage_adjusted END):: double precision / NULLIF (TRND_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), TRND_EXPB):: double precision / NULLIF (TRND_EXPB, 0)
                                 WHEN nri_category IN ('riverine')
-                                    THEN (CASE WHEN damage_adjusted > RFLD_EXPB THEN RFLD_EXPB ELSE damage_adjusted END):: double precision / NULLIF (RFLD_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), RFLD_EXPB):: double precision / NULLIF (RFLD_EXPB, 0)
                                 WHEN nri_category IN ('lightning')
-                                    THEN damage_adjusted:: double precision / NULLIF (LTNG_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), LTNG_EXPB):: double precision / NULLIF (LTNG_EXPB, 0)
                                 WHEN nri_category IN ('landslide')
-                                    THEN damage_adjusted:: double precision / NULLIF (LNDS_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), LNDS_EXPB):: double precision / NULLIF (LNDS_EXPB, 0)
                                 WHEN nri_category IN ('icestorm')
-                                    THEN damage_adjusted:: double precision / NULLIF (ISTM_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), ISTM_EXPB):: double precision / NULLIF (ISTM_EXPB, 0)
                                 WHEN nri_category IN ('hurricane')
-                                    THEN damage_adjusted:: double precision / NULLIF (HRCN_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HRCN_EXPB):: double precision / NULLIF (HRCN_EXPB, 0)
                                 WHEN nri_category IN ('heatwave')
-                                    THEN damage_adjusted:: double precision / NULLIF (HWAV_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HWAV_EXPB):: double precision / NULLIF (HWAV_EXPB, 0)
                                 WHEN nri_category IN ('hail')
-                                    THEN damage_adjusted:: double precision / NULLIF (HAIL_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HAIL_EXPB):: double precision / NULLIF (HAIL_EXPB, 0)
                                 WHEN nri_category IN ('avalanche')
-                                    THEN (CASE WHEN damage_adjusted > AVLN_EXPB THEN AVLN_EXPB ELSE damage_adjusted END):: double precision / NULLIF (AVLN_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), AVLN_EXPB):: double precision / NULLIF (AVLN_EXPB, 0)
                                 WHEN nri_category IN ('coldwave')
-                                    THEN damage_adjusted:: double precision / NULLIF (CWAV_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), CWAV_EXPB):: double precision / NULLIF (CWAV_EXPB, 0)
                                 WHEN nri_category IN ('winterweat')
-                                    THEN damage_adjusted:: double precision / NULLIF (WNTW_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), WNTW_EXPB):: double precision / NULLIF (WNTW_EXPB, 0)
                                 WHEN nri_category IN ('volcano')
-                                    THEN damage_adjusted:: double precision / NULLIF (VLCN_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), VLCN_EXPB):: double precision / NULLIF (VLCN_EXPB, 0)
                                 WHEN nri_category IN ('coastal')
-                                    THEN (CASE WHEN damage_adjusted > CFLD_EXPB THEN CFLD_EXPB ELSE damage_adjusted END):: double precision / NULLIF (CFLD_EXPB, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), CFLD_EXPB):: double precision / NULLIF (CFLD_EXPB, 0)
                                 END, 0)
                WHEN ctype = 'crop'
                    THEN
                    coalesce(CASE
                                 WHEN nri_category IN ('wind')
-                                    THEN (CASE WHEN damage_adjusted > SWND_EXPA THEN SWND_EXPA ELSE damage_adjusted END):: double precision / NULLIF (SWND_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), SWND_EXPA):: double precision / NULLIF (SWND_EXPA, 0)
                                 WHEN nri_category IN ('wildfire')
-                                    THEN (CASE WHEN damage_adjusted > WFIR_EXPA THEN WFIR_EXPA ELSE damage_adjusted END):: double precision / NULLIF (WFIR_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), WFIR_EXPA):: double precision / NULLIF (WFIR_EXPA, 0)
                                 WHEN nri_category IN ('tornado')
-                                    THEN (CASE WHEN damage_adjusted > TRND_EXPA THEN TRND_EXPA ELSE damage_adjusted END):: double precision / NULLIF (TRND_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), TRND_EXPA):: double precision / NULLIF (TRND_EXPA, 0)
                                 WHEN nri_category IN ('riverine')
-                                    THEN (CASE WHEN damage_adjusted > RFLD_EXPA THEN RFLD_EXPA ELSE damage_adjusted END):: double precision / NULLIF (RFLD_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), RFLD_EXPA):: double precision / NULLIF (RFLD_EXPA, 0)
                                 WHEN nri_category IN ('hurricane')
-                                    THEN (CASE WHEN damage_adjusted > HRCN_EXPA THEN HRCN_EXPA ELSE damage_adjusted END):: double precision / NULLIF (HRCN_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HRCN_EXPA):: double precision / NULLIF (HRCN_EXPA, 0)
                                 WHEN nri_category IN ('heatwave')
-                                    THEN (CASE WHEN damage_adjusted > HWAV_EXPA THEN HWAV_EXPA ELSE damage_adjusted END):: double precision / NULLIF (HWAV_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HWAV_EXPA):: double precision / NULLIF (HWAV_EXPA, 0)
                                 WHEN nri_category IN ('hail')
-                                    THEN damage_adjusted:: double precision / NULLIF (HAIL_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HAIL_EXPA):: double precision / NULLIF (HAIL_EXPA, 0)
                                 WHEN nri_category IN ('drought')
-                                    THEN (CASE WHEN damage_adjusted > DRGT_EXPA THEN DRGT_EXPA ELSE damage_adjusted END):: double precision / NULLIF (DRGT_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), DRGT_EXPA):: double precision / NULLIF (DRGT_EXPA, 0)
                                 WHEN nri_category IN ('coldwave')
-                                    THEN (CASE WHEN damage_adjusted > CWAV_EXPA THEN CWAV_EXPA ELSE damage_adjusted END):: double precision / NULLIF (CWAV_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), CWAV_EXPA):: double precision / NULLIF (CWAV_EXPA, 0)
                                 WHEN nri_category IN ('winterweat')
-                                    THEN damage_adjusted:: double precision / NULLIF (WNTW_EXPA, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), WNTW_EXPA):: double precision / NULLIF (WNTW_EXPA, 0)
                                 END, 0)
                WHEN ctype = 'population'
                    THEN
                    coalesce(CASE
                                 WHEN nri_category IN ('wind')
-                                    THEN damage_adjusted:: double precision / NULLIF (SWND_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), SWND_EXPPE):: double precision / NULLIF (SWND_EXPPE, 0)
                                 WHEN nri_category IN ('wildfire')
-                                    THEN damage_adjusted:: double precision / NULLIF (WFIR_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), WFIR_EXPPE):: double precision / NULLIF (WFIR_EXPPE, 0)
                                 WHEN nri_category IN ('tsunami')
-                                    THEN damage_adjusted:: double precision / NULLIF (TSUN_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), TSUN_EXPPE):: double precision / NULLIF (TSUN_EXPPE, 0)
                                 WHEN nri_category IN ('tornado')
-                                    THEN damage_adjusted:: double precision / NULLIF (TRND_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), TRND_EXPPE):: double precision / NULLIF (TRND_EXPPE, 0)
                                 WHEN nri_category IN ('riverine')
-                                    THEN (CASE WHEN damage_adjusted > RFLD_EXPPE THEN RFLD_EXPPE ELSE damage_adjusted END):: double precision / NULLIF (RFLD_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), RFLD_EXPPE):: double precision / NULLIF (RFLD_EXPPE, 0)
                                 WHEN nri_category IN ('lightning')
-                                    THEN damage_adjusted:: double precision / NULLIF (LTNG_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), LTNG_EXPPE):: double precision / NULLIF (LTNG_EXPPE, 0)
                                 WHEN nri_category IN ('landslide')
-                                    THEN damage_adjusted:: double precision / NULLIF (LNDS_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), LNDS_EXPPE):: double precision / NULLIF (LNDS_EXPPE, 0)
                                 WHEN nri_category IN ('icestorm')
-                                    THEN damage_adjusted:: double precision / NULLIF (ISTM_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), ISTM_EXPPE):: double precision / NULLIF (ISTM_EXPPE, 0)
                                 WHEN nri_category IN ('hurricane')
-                                    THEN damage_adjusted:: double precision / NULLIF (HRCN_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HRCN_EXPPE):: double precision / NULLIF (HRCN_EXPPE, 0)
                                 WHEN nri_category IN ('heatwave')
-                                    THEN damage_adjusted:: double precision / NULLIF (HWAV_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HWAV_EXPPE):: double precision / NULLIF (HWAV_EXPPE, 0)
                                 WHEN nri_category IN ('hail')
-                                    THEN damage_adjusted:: double precision / NULLIF (HAIL_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), HAIL_EXPPE):: double precision / NULLIF (HAIL_EXPPE, 0)
                                 WHEN nri_category IN ('avalanche')
-                                    THEN damage_adjusted:: double precision / NULLIF (AVLN_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), AVLN_EXPPE):: double precision / NULLIF (AVLN_EXPPE, 0)
                                 WHEN nri_category IN ('coldwave')
-                                    THEN damage_adjusted:: double precision / NULLIF (CWAV_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), CWAV_EXPPE):: double precision / NULLIF (CWAV_EXPPE, 0)
                                 WHEN nri_category IN ('winterweat')
-                                    THEN damage_adjusted:: double precision / NULLIF (WNTW_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), WNTW_EXPPE):: double precision / NULLIF (WNTW_EXPPE, 0)
                                 WHEN nri_category IN ('volcano')
-                                    THEN damage_adjusted:: double precision / NULLIF (VLCN_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), VLCN_EXPPE):: double precision / NULLIF (VLCN_EXPPE, 0)
                                 WHEN nri_category IN ('coastal')
-                                    THEN damage_adjusted:: double precision / NULLIF (CFLD_EXPPE, 0)
+                                    THEN LEAST(coalesce(damage_adjusted, 0), CFLD_EXPPE):: double precision / NULLIF (CFLD_EXPPE, 0)
                                 END, 0)
                END loss_ratio_per_basis
     FROM ${pb_schema}.${pb_table}  pb
@@ -436,8 +436,8 @@ with grid as (${grid(state_schema, state_table)}),
        ),
        grid_variance as (
            select grid.id, nri_category, ctype, variance(loss_ratio_per_basis) va
-           from tmp_tables.tmp_fips_to_grid_mapping_196_newer grid
-                    JOIN tmp_tables.lrpbs
+           from tmp_fips_to_grid_mapping_196_newer grid
+                    JOIN lrpbs
                          ON grid.fips = lrpbs.geoid
            group by 1, 2, 3
            order by 1, 2, 3, 4),
@@ -447,8 +447,8 @@ with grid as (${grid(state_schema, state_table)}),
                   rank() over (partition by grid.fips, nri_category, ctype order by va, ((covered_area * 100) / total_area) desc ),
                   first_value(grid.id) over (partition by grid.fips, nri_category, ctype order by va, ((covered_area * 100) / total_area) desc ) lowest_var_highest_area_id,
                   first_value(grid.fips) over (partition by grid.id, nri_category, ctype order by va, ((covered_area * 100) / total_area) desc ) lowest_var_geoid
-           from tmp_tables.tmp_fips_to_grid_mapping_196_newer grid
-                    JOIN (select fips, sum(covered_area) total_area from tmp_tables.tmp_fips_to_grid_mapping_196_newer group by 1) total_area
+           from tmp_fips_to_grid_mapping_196_newer grid
+                    JOIN (select fips, sum(covered_area) total_area from tmp_fips_to_grid_mapping_196_newer group by 1) total_area
                          ON total_area.fips = grid.fips
                     JOIN grid_variance
                          ON grid_variance.id = grid.id
@@ -465,7 +465,7 @@ with grid as (${grid(state_schema, state_table)}),
 				   avg (loss_ratio_per_basis) av_s,
 				   variance(loss_ratio_per_basis) va_s
            from fips_to_id_mapping
-           JOIN tmp_tables.lrpbs
+           JOIN lrpbs
 		   USING(geoid, nri_category, ctype)
            group by 1, 2, 3, 4, 5
 		   order by 1, 3, 4
