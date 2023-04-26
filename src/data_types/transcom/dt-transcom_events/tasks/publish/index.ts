@@ -1,3 +1,9 @@
+/*
+ TODO: Move all CLUSTER and ANALYZE to a separate task called optimize.
+       Have a config flag --optimize.
+       This would allow us to only do the locking CLUSTERs during the nightly ETL process.
+       We could then update the TRANSCOM events during the day with little client-side interruption.
+*/
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
@@ -8,7 +14,11 @@ import { verifyIsInTaskEtlContext } from "data_manager/contexts";
 
 import { dbCols } from "../../domain";
 
-import { conflation_version } from "../../constants/conflation_map_meta";
+import {
+  conflation_version,
+  min_year as min_conflation_map_year,
+  max_year as max_confltion_map_year,
+} from "../../constants/conflation_map_meta";
 
 import getEtlContextLocalStateSqliteDb from "../../utils/getEtlContextLocalStateSqliteDb";
 
@@ -50,6 +60,10 @@ async function publishTranscomEvents(staging_schema: string) {
                 SET -- SEE: https://stackoverflow.com/a/40689501/3970755
                   ${conflictActionsHolders}
         ;
+
+        CLUSTER _transcom_admin.transcom_events_expanded ;
+
+        ANALYZE _transcom_admin.transcom_events_expanded ;
       `,
       staging_schema,
       ...conflictActionFillers
@@ -100,6 +114,10 @@ async function publishTranscomEventsToAdminGeoms(staging_schema: string) {
               ua_code
             FROM %I.transcom_event_administative_geographies
         ;
+
+        CLUSTER _transcom_admin.transcom_event_administative_geographies ;
+
+        ANALYZE _transcom_admin.transcom_event_administative_geographies ;
       `,
       staging_schema,
       staging_schema
@@ -239,13 +257,19 @@ async function publishTranscomEventsToConflationMap(staging_schema: string) {
               snap_pt_geom
             FROM %I.%I
         ;
+
+        CLUSTER _transcom_admin.%I ;
+
+        ANALYZE _transcom_admin.%I ;
       `,
       table_name, // DELETE FROM
       staging_schema, // USING
       table_name, // USING
       table_name, // INSERT
       staging_schema, // FROM
-      table_name // from
+      table_name, // FROM
+      table_name, // CLUSTER
+      table_name // ANALYZE
     )
   );
 
@@ -314,7 +338,12 @@ async function updateTranscomEventsOntoRoadNetwork() {
 
     const { rows } = await dama_db.query(get_years_sql);
 
-    const event_years = rows.map(({ year }) => year);
+    const event_years = rows
+      .map(({ year }) => +year)
+      .filter(
+        (year) =>
+          year >= min_conflation_map_year && year <= max_confltion_map_year
+      );
 
     const view_sql_select_stmts: string[] = [];
 
@@ -412,6 +441,8 @@ async function updateTranscomEventsOntoRoadNetwork() {
         CLUSTER transcom.transcom_events_onto_road_network
           USING transcom_events_onto_road_network_pkey
         ;
+
+        ANALYZE transcom.transcom_events_onto_road_network ;
       `
     );
 
@@ -422,6 +453,8 @@ async function updateTranscomEventsOntoRoadNetwork() {
         REFRESH MATERIALIZED VIEW transcom.transcom_events_onto_road_network ;
 
         CLUSTER transcom.transcom_events_onto_road_network ;
+
+        ANALYZE transcom.transcom_events_onto_road_network ;
       `
     );
 
@@ -521,8 +554,9 @@ async function updateTranscomEventsByTmcSummary() {
         ;
 
         CLUSTER transcom.transcom_events_by_tmc_summary
-          USING transcom_events_by_tmc_summary_pkey
-        ;
+          USING transcom_events_by_tmc_summary_pkey ;
+
+        ANALYZE transcom.transcom_events_by_tmc_summary ;
       `
     );
 
@@ -533,6 +567,8 @@ async function updateTranscomEventsByTmcSummary() {
         REFRESH MATERIALIZED VIEW transcom.transcom_events_by_tmc_summary ;
 
         CLUSTER transcom.transcom_events_by_tmc_summary ;
+
+        ANALYZE transcom.transcom_events_by_tmc_summary ;
       `
     );
 

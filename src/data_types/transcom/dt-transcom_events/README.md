@@ -2,6 +2,8 @@
 
 ## TODO
 
+- [ ] Document the TRANSCOM ETL process
+
 - [ ] Handle case where conflation version changes.
 
   - Right now, conflation_version is in ./constants/conflation_map_meta.ts

@@ -24,7 +24,7 @@ export default class TranscomAuthTokenCollector {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    logger.debug(`TranscomAuthTokenCollector: returning token ${token}`);
+    logger.silly(`TranscomAuthTokenCollector: returning token ${token}`);
 
     return token;
   }
@@ -90,12 +90,12 @@ export default class TranscomAuthTokenCollector {
             }
           }
 
-          logger.debug(
+          logger.silly(
             `TranscomAuthTokenCollector: typeof this.jwt_token_p ${typeof this
               .jwt_token_p}`
           );
 
-          logger.debug(
+          logger.silly(
             `TranscomAuthTokenCollector: this.jwt_token_p=${await this
               .jwt_token_p}`
           );

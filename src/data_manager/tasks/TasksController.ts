@@ -30,6 +30,8 @@ import {
 
 import BaseTasksController from "./BaseTasksController";
 
+const node_js_path = process.env.NODE_JS_PATH || "node";
+
 const DEFAULT_QUEUE_NAME = `${dama_host_id}:DEFAULT_QUEUE`;
 
 const task_runner_path = join(__dirname, "./TaskRunner.ts");
@@ -297,7 +299,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     try {
       this.logger.debug("execa");
       await execa(
-        "node",
+        node_js_path,
         [
           // https://www.npmjs.com/package/tsconfig-paths#register
           "--require",
