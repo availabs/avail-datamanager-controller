@@ -32,5 +32,5 @@ const mbtilesStyles = {
 }
 
 export function getStyleFromJsonType(jsonType) {
-	return mbtilesStyles[geojsonToMapbox[jsonType] || 'line']
+	return mbtilesStyles[geojsonToMapbox[jsonType] || 'fill']
 }
