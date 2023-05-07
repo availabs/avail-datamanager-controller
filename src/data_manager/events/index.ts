@@ -8,7 +8,7 @@ import createPostgresSubscriber, {
   Subscriber as PgListenSubscriber,
 } from "pg-listen";
 
-import DamaContextAttachedResource from "../contexts";
+import DamaContextAttachedResource, { EtlContextId } from "../contexts";
 
 import dama_db from "../dama_db";
 import logger from "../logger";
@@ -81,9 +81,9 @@ class DamaEvents extends DamaContextAttachedResource {
    */
   async spawnEtlContext(
     source_id: number | null = null,
-    parent_context_id: number | null = null,
+    parent_context_id: EtlContextId | null = null,
     pg_env = this.pg_env
-  ): Promise<number> {
+  ): Promise<EtlContextId> {
     logger.silly(
       `dama_events.spawnEtlContext: source_id=${source_id}, parent_context_id=${parent_context_id}`
     );
@@ -97,7 +97,6 @@ class DamaEvents extends DamaContextAttachedResource {
     `;
 
     const {
-      // @ts-ignore
       rows: [{ etl_context_id: new_etl_context_id }],
     } = await dama_db.query(
       {
@@ -108,6 +107,45 @@ class DamaEvents extends DamaContextAttachedResource {
     );
 
     return new_etl_context_id;
+  }
+
+  /**
+   * Get the parent_context_id for an etl_context_id.
+   *
+   * @param etl_context_id - The ID of the EtlContext. Optional if running in a dama_context.
+   *
+   * @param pg_env - The database to connect to. Optional if running in a dama_context.
+   *
+   * @returns the ID of the parent EtlContext, or NULL if none exists.
+   */
+  async getParentEtlContextId(
+    etl_context_id = this.etl_context_id,
+    pg_env = this.pg_env
+  ): Promise<EtlContextId> {
+    const sql = `
+      SELECT
+          parent_context_id
+        FROM data_manager.etl_contexts
+        WHERE ( etl_context_id = $1 )
+    `;
+
+    const { rows } = await dama_db.query(
+      {
+        text: sql,
+        values: [etl_context_id],
+      },
+      pg_env
+    );
+
+    if (rows.length === 0) {
+      throw new Error(
+        `No such EtlContext: pg_env=${pg_env}, etl_context_id=${etl_context_id}`
+      );
+    }
+
+    const [{ parent_context_id }] = rows;
+
+    return parent_context_id;
   }
 
   /**

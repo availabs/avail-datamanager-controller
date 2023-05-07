@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS data_manager.event_store (
   payload                   JSONB,
   meta                      JSONB,
   error                     BOOLEAN,
-  
+
   _created_timestamp        TIMESTAMP NOT NULL DEFAULT NOW(),
 
   FOREIGN KEY (etl_context_id)
@@ -106,7 +106,7 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
                 NEW.etl_context_id
               ;
           END IF ;
-          
+
           UPDATE data_manager.etl_contexts
             SET etl_status        = 'OPEN',
                 initial_event_id  = NEW.event_id,
@@ -118,7 +118,7 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
 
         -- All EtlContexts MUST begin with an INITIAL event.
         ELSIF ( NOT initial_exists_for_ctx )
-          THEN 
+          THEN
               RAISE
                 EXCEPTION 'All ETL Contexts MUST begin with an :INITIAL event.'
               ;
@@ -160,7 +160,7 @@ CREATE OR REPLACE FUNCTION data_manager.event_store_etl_context_status_update_fn
       ;
 
       RETURN NULL ;
-          
+
     END ;
   $$
 ;
@@ -304,4 +304,37 @@ DO
 
     END
   $$
+;
+
+CREATE OR REPLACE FUNCTION data_manager.show_etl_context_tree(root_context_id INTEGER)
+  RETURNS SETOF data_manager.etl_contexts
+  AS
+  $$
+      WITH RECURSIVE cte_ctx_tree(etl_context_id, parent_context_id) AS (
+        SELECT
+            etl_context_id,
+            parent_context_id
+          FROM data_manager.etl_contexts
+          WHERE etl_context_id = $1
+        UNION
+        SELECT
+            a.etl_context_id,
+            a.parent_context_id
+          FROM data_manager.etl_contexts AS a
+            INNER JOIN cte_ctx_tree
+              ON (
+                ( a.etl_context_id = cte_ctx_tree.parent_context_id )
+                OR
+                ( a.parent_context_id = cte_ctx_tree.etl_context_id )
+              )
+      )
+        SELECT
+            a.*
+          FROM data_manager.etl_contexts AS a
+            INNER JOIN cte_ctx_tree AS b
+              USING (etl_context_id)
+          ORDER BY 1
+      ;
+  $$
+  LANGUAGE SQL
 ;

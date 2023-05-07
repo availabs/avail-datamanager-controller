@@ -87,7 +87,8 @@ class TaskRunner {
     const {
       meta: {
         // @ts-ignore
-        __dama_task_manager__: { worker_path },
+        // @ts-ignore
+        __dama_task_manager__: { worker_path, etl_work_dir },
       },
     } = this.initial_event;
 
@@ -106,7 +107,7 @@ class TaskRunner {
       const etl_ctx = {
         initial_event: this.initial_event,
         logger: this.logger,
-        meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID },
+        meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID, etl_work_dir },
       };
 
       const final_event = await main(etl_ctx);
