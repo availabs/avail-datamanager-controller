@@ -1,4 +1,4 @@
-export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
+export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table, startYear, endYear) => `
   with   buildings as (
     select
         'buildings' ctype,
@@ -9,9 +9,9 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
         max(end_date_time)  ::date      swd_end_date,
         coalesce(sum(property_damage), 0)     damage
     FROM ${ncei_schema}.${ncei_table}
-    WHERE year >= 1996 and year <= 2019
-      AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
+    WHERE year between ${startYear} and ${endYear}
       AND geoid is not null
+      AND nri_category is not null
     GROUP BY 1, 2, 3, 4
 ),
        crop as (
@@ -24,9 +24,9 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
                max(end_date_time)::date        swd_end_date,
                coalesce(sum(crop_damage), 0)         damage
            FROM ${ncei_schema}.${ncei_table}
-           WHERE year >= 1996 and year <= 2019
-             AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
+           WHERE year between ${startYear} and ${endYear}
              AND geoid is not null
+             AND nri_category is not null
            GROUP BY 1, 2, 3, 4
        ),
        population as (
@@ -48,9 +48,9 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
                                         )
                             ), 0) * 7600000   damage
            FROM ${ncei_schema}.${ncei_table}
-           WHERE year >= 1996 and year <= 2019
-             AND nri_category not in ('Dense Fog', 'Marine Dense Fog', 'Dense Smoke', 'Dust Devil', 'Dust Storm', 'Astronomical Low Tide', 'Northern Lights', 'OTHER')
+           WHERE year between ${startYear} and ${endYear}
              AND geoid is not null
+             AND nri_category is not null
            GROUP BY 1, 2, 3, 4
        ), alldata as (
     select * from buildings
@@ -64,7 +64,7 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
     select * from population
 ),
 
-       details_fema_per_basis as (
+       day_expansion as (
            SELECT ctype,
                   generate_series(swd_begin_date::date,
                                   LEAST(
@@ -106,7 +106,7 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
            select ctype, nri_category, geoid, event_day_date,
                   null as event_ids, null as num_events,
                   damage, null::double precision damage_adjusted
-           from details_fema_per_basis
+           from day_expansion
 
            order by 1, 2, 3, 4
        )
@@ -114,7 +114,7 @@ export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table) => `
 SELECT row_number() over () id, * INTO ${ncei_schema}.${table_name}_${view_id} FROM final;
 `;
 
-export const pad_zero_losses = (table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table) => `
+export const pad_zero_losses = (table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table, startYear, endYear) => `
 with pb as (
     select pb.geoid geoid, pb.nri_category, ctype, event_day_date, tor_f_scale
     from ${ncei_schema}.${table_name}_${view_id} pb
@@ -136,6 +136,8 @@ with pb as (
                 (max(CASE
                          WHEN nri_category IN ('coldwave')
                              THEN CWAV_AFREQ
+                         WHEN nri_category IN ('coastal')
+                           THEN CFLD_AFREQ
                          WHEN nri_category IN ('drought')
                              THEN DRGT_AFREQ
                          WHEN nri_category IN ('hail')
@@ -159,13 +161,13 @@ with pb as (
                          WHEN nri_category IN ('tornado')
                              THEN TRND_AFREQ
                          ELSE null
-                    END) * 24) - count(1) records_to_insert
+                    END) * (${endYear} - ${startYear})) - count(1) records_to_insert
          FROM ${nri_schema}.${nri_table} a
                   JOIN pb b
                        ON a.stcofips = b.geoid
          WHERE  nri_category IN
                 (
-                 'coldwave', 'drought', 'hail', 'heatwave',
+                 'coldwave', 'coastal', 'drought', 'hail', 'heatwave',
                  'hurricane', 'icestorm', 'lightning', 'riverine',
                  'wind', 'tsunami', 'winterweat'
                     )
@@ -239,7 +241,7 @@ with cpi as (
         event_day_date,
         geoid,
         nri_category,
-        extract(YEAR from event_day_date) as year,
+        LEAST(extract(YEAR from event_day_date), 2020) as year, -- adjusting to 2020 dollars
         extract(MONTH from event_day_date) as month,
         damage,
         CASE WHEN extract(MONTH from event_day_date) = 1

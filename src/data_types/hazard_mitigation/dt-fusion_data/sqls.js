@@ -57,7 +57,11 @@ export const fusion = ({
         sum (
                 coalesce (deaths_direct:: float, 0) + coalesce (deaths_indirect:: float, 0) +
                 ((coalesce (injuries_direct:: float, 0) + coalesce (injuries_indirect:: float, 0)) / 10)
-            ) * 7600000)/ coalesce (edf.division_factor, 1) as swd_population_damage
+            ) * 7600000)/ coalesce (edf.division_factor, 1) as swd_population_damage,
+    coalesce (sum(deaths_direct):: float, 0) / coalesce (edf.division_factor, 1) as deaths_direct,
+    coalesce (sum(deaths_indirect):: float, 0) / coalesce (edf.division_factor, 1) as deaths_indirect,
+    coalesce (sum(injuries_direct):: float, 0) / coalesce (edf.division_factor, 1) as injuries_direct,
+    coalesce (sum(injuries_indirect):: float, 0) / coalesce (edf.division_factor, 1) as injuries_indirect
   FROM ${nceie_schema}.${nceie_table} sw
     LEFT JOIN disaster_number_to_event_id_mapping_without_hazard_type dn_eid
   on sw.event_id = dn_eid.event_id
@@ -85,7 +89,10 @@ export const fusion = ({
       coalesce(swd_property_damage, 0) swd_property_damage,
       coalesce(swd_crop_damage, 0) swd_crop_damage,
       coalesce(swd_population_damage, 0) swd_population_damage,
-
+      coalesce ((deaths_direct):: float, 0) as deaths_direct,
+      coalesce ((deaths_indirect):: float, 0) as deaths_indirect,
+      coalesce ((injuries_direct):: float, 0) as injuries_direct,
+      coalesce ((injuries_indirect):: float, 0) as injuries_indirect,
     coalesce(swd_property_damage, 0) fusion_property_damage,
     coalesce(swd_crop_damage, 0) fusion_crop_damage
 
@@ -117,6 +124,7 @@ export const fusion = ({
     fema_property_damage/ coalesce (ddf, 1) fema_property_damage,
     fema_crop_damage/ coalesce (ddf, 1) fema_crop_damage,
     swd_property_damage, swd_crop_damage, swd_population_damage,
+      deaths_direct, deaths_indirect, injuries_direct, injuries_indirect,
     fusion_property_damage,
     fusion_crop_damage
   FROM full_data fd
@@ -157,7 +165,10 @@ export const fusion = ({
           0 as swd_property_damage,
           0 as swd_crop_damage,
           0 as swd_population_damage,
-
+          0 as deaths_direct,
+          0 as deaths_indirect,
+          0 as injuries_direct,
+          0 as injuries_indirect,
           CASE WHEN fema_property_damage > swd_property_damage
                THEN fema_property_damage - swd_property_damage
                ELSE 0

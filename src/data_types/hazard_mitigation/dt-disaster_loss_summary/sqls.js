@@ -32,7 +32,7 @@ with
 	  AND  dcc NOT IN ('A', 'B', 'Z')
       AND disaster_number NOT BETWEEN 3000 and  3999
     GROUP BY 1, 2, 3
-	HAVING SUM(COALESCE(project_amount, 0)) > 0
+-- 	HAVING SUM(COALESCE(project_amount, 0)) > 0
 	  ),
 	ihp as (
          SELECT disaster_number,
@@ -43,7 +43,7 @@ with
          WHERE EXTRACT(YEAR from declaration_date) >= 1996 and EXTRACT(YEAR from declaration_date) <= 2019
            AND disaster_number::integer NOT BETWEEN 3000 and  3999
          GROUP BY 1, 2, 3
-		HAVING SUM(COALESCE(rpfvl, 0) + COALESCE(ppfvl, 0)) > 0
+-- 		HAVING SUM(COALESCE(rpfvl, 0) + COALESCE(ppfvl, 0)) > 0
 	),
 	sba as (SELECT REPLACE(fema_disaster_number, 'DR', '')  disaster_number,
 				   SUBSTRING(dd.geoid, 1, 5)                 	geoid,
@@ -54,8 +54,8 @@ with
          AND sba.geoid = dd.geoid
          WHERE year >= 1996 AND year <= 2019
 		 GROUP BY 1, 2
-		 HAVING LENGTH(REPLACE(fema_disaster_number, 'DR', '')) BETWEEN 1 and 4
-			AND SUM(total_verified_loss) > 0
+-- 		 HAVING LENGTH(REPLACE(fema_disaster_number, 'DR', '')) BETWEEN 1 and 4
+-- 			AND SUM(total_verified_loss) > 0
 		 ORDER BY 1, 2
 		   ),
      nfip as (
@@ -65,7 +65,7 @@ with
          ON nfip.disaster_number = dd.disaster_number
          AND nfip.geoid = dd.geoid
          GROUP BY 1, 2, 3
-         HAVING COALESCE(SUM(total_amount_paid), 0) > 0
+--          HAVING COALESCE(SUM(total_amount_paid), 0) > 0
      ),
     croploss as (
       SELECT usda.disaster_number, usda.geoid, usda.incident_type, sum(indemnity_amount) crop_loss
@@ -74,7 +74,7 @@ with
       ON usda.disaster_number = d.disaster_number
       AND usda.geoid = d.geoid
       GROUP BY 1, 2, 3
-      HAVING sum(indemnity_amount) > 0
+--       HAVING sum(indemnity_amount) > 0
     ),
 	disaster_declarations_summary as (
 		SELECT
