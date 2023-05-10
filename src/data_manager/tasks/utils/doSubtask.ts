@@ -1,8 +1,7 @@
 import { inspect } from "util";
 
-import dama_events from "data_manager/events";
+import dama_events, { DamaEvent } from "data_manager/events";
 import logger from "data_manager/logger";
-import { EtlEvent } from "data_manager/events";
 
 import { DamaTaskDescriptor } from "../domain";
 
@@ -24,7 +23,7 @@ export type SubtaskFinalEvent = {
 
 export default async function doSubtask(
   config: SubtaskConfig
-): Promise<EtlEvent> {
+): Promise<DamaEvent> {
   const {
     subtask_name,
     dama_task_descriptor,

@@ -1257,7 +1257,8 @@ class DamaMeta extends DamaContextAttachedResource {
     pg_env = this.pg_env
   ): Promise<Array<DamaSource | null>> {
     // NODE: Since the callback runs in the context, no need for passing pg_env.
-    return dama_db.runInTransactionContext(async () => {
+
+    const fn = async () => {
       const queries = await this.generateToposortedLoadDataSourcesQueries(
         toposorted_dama_sources_meta
       );
@@ -1333,7 +1334,11 @@ class DamaMeta extends DamaContextAttachedResource {
       );
 
       return toposorted_dama_src_meta;
-    }, pg_env);
+    };
+
+    return dama_db.isInTransactionContext
+      ? fn()
+      : dama_db.runInTransactionContext(fn, pg_env);
   }
 }
 

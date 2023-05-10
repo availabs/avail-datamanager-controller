@@ -51,6 +51,14 @@ export const stateAbbreviationToName: Record<string, string> = {
   wi: "Wisconsin",
   wv: "West Virginia",
   wy: "Wyoming",
+
+  ab: "Alberta",
+  bc: "British Columbia",
+  mb: "Manitoba",
+  nb: "New Brunswick",
+  on: "Ontario",
+  qc: "Quebec",
+  sk: "Saskatchewan",
 };
 
 export const stateNameToAbbreviation: Record<string, string> = Object.keys(
