@@ -46,9 +46,12 @@ with
 		HAVING SUM(COALESCE(rpfvl, 0) + COALESCE(ppfvl, 0)) > 0
 	),
 	sba as (SELECT REPLACE(fema_disaster_number, 'DR', '')  disaster_number,
-				   SUBSTRING(geoid, 1, 5)                 	geoid,
+				   SUBSTRING(dd.geoid, 1, 5)                 	geoid,
 				   SUM(total_verified_loss)					total_verified_loss
-         FROM ${ofd_schema}.${sba_table}
+         FROM ${ofd_schema}.${sba_table} sba
+         JOIN disasters dd
+         ON REPLACE(sba.fema_disaster_number, 'DR', '') = dd.disaster_number
+         AND sba.geoid = dd.geoid
          WHERE year >= 1996 AND year <= 2019
 		 GROUP BY 1, 2
 		 HAVING LENGTH(REPLACE(fema_disaster_number, 'DR', '')) BETWEEN 1 and 4
