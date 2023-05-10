@@ -95,6 +95,7 @@ type IntegrateDoneData = DamaView[];
 export type InitialEvent = {
   type: ":INITIAL";
   payload: NpmrdsExportRequest;
+  meta?: object;
 };
 
 export type DoneData = {
@@ -142,6 +143,7 @@ async function downloadAndTransformNpmrdsExport(
   const initial_event: NpmrdsExportIntitialEvent = {
     type: ":INITIAL",
     payload: npmrds_export_request,
+    meta: { note: "download and transform NPMRDS export" },
   };
 
   const dama_task_descriptor: QueuedDamaTaskDescriptor = {
@@ -175,6 +177,7 @@ async function loadTmcIdentification(
   const initial_event: LoadTmcIdentificationIntialEvent = {
     type: ":INITIAL",
     payload: npmrds_export_transform_done_data,
+    meta: { note: "load TMC_Identification" },
   };
 
   const dama_task_descriptor: QueuedDamaTaskDescriptor = {
@@ -209,6 +212,7 @@ async function loadNpmrdsTravelTimes(
       npmrds_export_transform_done_data,
       load_tmc_identifcation_done_data,
     },
+    meta: { note: "load NPMRDS travel times" },
   };
 
   const dama_task_descriptor: QueuedDamaTaskDescriptor = {

@@ -15,6 +15,7 @@ export type InitialEvent = {
   payload: {
     npmrdsTravelTimesSqliteDb: NpmrdsExportTransformOutput["npmrdsTravelTimesSqliteDb"];
   };
+  meta?: object;
 };
 
 export type FinalEvent = {

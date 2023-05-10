@@ -13,6 +13,7 @@ import { NpmrdsExportDownloadMeta } from "../../domain";
 export type InitialEvent = {
   type: ":INITIAL";
   payload: NpmrdsExportRequest;
+  meta?: object;
 };
 
 export type FinalEvent = {

@@ -17,6 +17,7 @@ export type InitialEvent = {
     npmrds_export_transform_done_data: NpmrdsExportFinalEvent["payload"];
     load_tmc_identifcation_done_data: LoadTmcIdentificationFinalEvent["payload"];
   };
+  meta?: object;
 };
 
 export type FinalEvent = {

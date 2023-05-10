@@ -58,6 +58,7 @@ export default {
             end_date,
             is_expanded,
           },
+          meta: { note: "NPMRDS aggregate ETL" },
         };
 
         const dama_task_descr = {
