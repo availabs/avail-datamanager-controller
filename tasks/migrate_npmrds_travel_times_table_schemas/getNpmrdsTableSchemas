@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e
+set -a
+
+source ./config/postgres.env.prod
+
+mkdir -p data
+
+pg_dump \
+    --dbname=npmrds_production \
+    --no-owner \
+    --schema-only \
+    --table='public.npmrds' \
+    --table='*.npmrds' \
+    --table='*.npmrds_y*' \
+ | sed '/readonly_access/d' \
+ > data/npmrds_tables_schema_only.sql
