@@ -307,7 +307,17 @@ DO
 ;
 
 CREATE OR REPLACE FUNCTION data_manager.show_etl_context_tree(root_context_id INTEGER)
-  RETURNS SETOF data_manager.etl_contexts
+  RETURNS TABLE (
+    etl_context_id      INTEGER,
+    parent_context_id   INTEGER,
+    source_id           INTEGER,
+    etl_status          TEXT,
+    initial_event_id    INTEGER,
+    latest_event_id     INTEGER,
+    note                TEXT,
+    _created_timestamp  TIMESTAMP,
+    _modified_timestamp TIMESTAMP
+  )
   AS
   $$
       WITH RECURSIVE cte_ctx_tree(etl_context_id, parent_context_id) AS (
@@ -329,10 +339,20 @@ CREATE OR REPLACE FUNCTION data_manager.show_etl_context_tree(root_context_id IN
               )
       )
         SELECT
-            a.*
+            a.etl_context_id,
+            a.parent_context_id,
+            a.source_id,
+            a.etl_status,
+            a.initial_event_id,
+            a.latest_event_id,
+            c.meta->>'note' AS note,
+            a._created_timestamp,
+            a._modified_timestamp
           FROM data_manager.etl_contexts AS a
             INNER JOIN cte_ctx_tree AS b
               USING (etl_context_id)
+            LEFT OUTER JOIN data_manager.event_store AS c
+              ON ( a.initial_event_id = c.event_id )
           ORDER BY 1
       ;
   $$
