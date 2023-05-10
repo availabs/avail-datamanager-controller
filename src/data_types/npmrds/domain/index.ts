@@ -137,11 +137,11 @@ export enum NpmrdsDataSources {
   NpmrdsTravelTimesExportEtl = "NpmrdsTravelTimesExportEtl",
 
   // The NPMRDS Travel Times Postgres DB Tables
-  NpmrdsTravelTimesImp = "NpmrdsTravelTimesImp",
+  NpmrdsTravelTimesImports = "NpmrdsTravelTimesImports",
   NpmrdsTravelTimes = "NpmrdsTravelTimes",
 
   // The NPMRDS TMC Identification Postgres DB Tables
-  NpmrdsTmcIdentificationImp = "NpmrdsTmcIdentificationImp",
+  NpmrdsTmcIdentificationImports = "NpmrdsTmcIdentificationImports",
   NpmrdsTmcIdentification = "NpmrdsTmcIdentification",
 }
 
@@ -158,11 +158,11 @@ export enum NpmrdsTravelTimesExportEtlElements {
 }
 
 export enum NpmrdsDatabaseSchemas {
-  NpmrdsTravelTimesImp = "npmrds_travel_times_imports",
+  NpmrdsTravelTimesImports = "npmrds_travel_times_imports",
 
   NpmrdsTravelTimes = "npmrds_travel_times",
 
-  NpmrdsTmcIdentificationImp = "npmrds_tmc_identification_imports",
+  NpmrdsTmcIdentificationImports = "npmrds_tmc_identification_imports",
 
   NpmrdsTmcIdentification = "npmrds_tmc_identification",
 }
@@ -253,7 +253,7 @@ export const npmrdsDataSourcesInitialMetadata: DataSourceInitialMetadata[] = [
   },
 
   {
-    name: NpmrdsDataSources.NpmrdsTravelTimesImp,
+    name: NpmrdsDataSources.NpmrdsTravelTimesImports,
     description:
       "Database table containing the NPMRDS Travel Times imported into the database from an NpmrdsTravelTimesExportRitis. These imports are non-authoritative until made authoritative after QA. Authoritative versions are integrated into the NpmrdsTravelTimes data type.",
     type: "npmrds_travel_times_imp",
@@ -267,11 +267,11 @@ export const npmrdsDataSourcesInitialMetadata: DataSourceInitialMetadata[] = [
       "Database table containing the authoritative NPMRDS Travel Times. The NPMRDS Authoritative Travel Times Database Table combines many NPMRDS Travel Times Imports.",
     type: "npmrds_travel_times",
     display_name: "NPMRDS Travel Times",
-    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesImp],
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimesImports],
   },
 
   {
-    name: NpmrdsDataSources.NpmrdsTmcIdentificationImp,
+    name: NpmrdsDataSources.NpmrdsTmcIdentificationImports,
     description:
       "Database table containing the imported raw NPMRDS TMC Identification CSV. This table contains metadata describing the TMC segments included in the export.",
     type: "npmrds_tmc_identification_imp",
@@ -284,7 +284,9 @@ export const npmrdsDataSourcesInitialMetadata: DataSourceInitialMetadata[] = [
     description: "NPMRDS TMC Identification Authoritative Data Source.",
     type: "npmrds_tmc_identification",
     display_name: "NPMRDS TMC Identification",
-    source_dependencies_names: [NpmrdsDataSources.NpmrdsTmcIdentificationImp],
+    source_dependencies_names: [
+      NpmrdsDataSources.NpmrdsTmcIdentificationImports,
+    ],
   },
 ];
 

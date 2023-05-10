@@ -219,7 +219,7 @@ export function getNpmrdsExportRequestDateRange(
     const e_date_time = DateTime.fromSQL(end_date); // Exclusive. Start of following day.
 
     if (prev_end_date_time !== null) {
-      if (s_date_time !== prev_end_date_time) {
+      if (s_date_time.toMillis() !== prev_end_date_time.toMillis()) {
         throw new Error(
           `Gap in the date range: ${prev_end_date_time.toISO()} to ${s_date_time.toISO()}`
         );
@@ -580,9 +580,6 @@ export async function validateNpmrdsDownloadRequestNetworkObjects(
   pageNetworkUtils: PageNetworkUtils,
   npmrds_download_request: NpmrdsDownloadRequest
 ) {
-  // We declare the abort function here so we can return from either the try or catch block below.
-  let abort: (() => Promise<void>) | null = null;
-
   if (!npmrds_download_request.name) {
     throw new Error("INVARIANT BROKEN: no npmrds_download_request.name");
   }
@@ -596,11 +593,6 @@ export async function validateNpmrdsDownloadRequestNetworkObjects(
     const proceed = async () => {
       await teardown();
       await pageNetworkUtils.continueAllPendingRequests();
-    };
-
-    abort = async () => {
-      await pageNetworkUtils.abortAllPendingRequests();
-      await teardown();
     };
 
     const exportRequestsByDataSource = await startCatchingExportRequests();
@@ -628,7 +620,6 @@ export async function validateNpmrdsDownloadRequestNetworkObjects(
       exportRequestsByDataSource,
       validationErrorsByDataSource,
       proceed,
-      abort,
     };
   } catch (error) {
     return {
@@ -636,7 +627,6 @@ export async function validateNpmrdsDownloadRequestNetworkObjects(
       exportRequestsByDataSource: null,
       validationErrorsByDataSource: null,
       proceed: null,
-      abort,
     };
   }
 }

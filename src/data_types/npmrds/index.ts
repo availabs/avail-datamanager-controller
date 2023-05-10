@@ -85,9 +85,9 @@ type EtlDoneData = {
     };
   };
 
-  [NpmrdsDataSources.NpmrdsTmcIdentificationImp]: LoadTmcIdentificationFinalEvent["payload"];
+  [NpmrdsDataSources.NpmrdsTmcIdentificationImports]: LoadTmcIdentificationFinalEvent["payload"];
 
-  [NpmrdsDataSources.NpmrdsTravelTimesImp]: LoadNpmrdsTravelTimesFinalEvent["payload"];
+  [NpmrdsDataSources.NpmrdsTravelTimesImports]: LoadNpmrdsTravelTimesFinalEvent["payload"];
 };
 
 type IntegrateDoneData = DamaView[];
@@ -438,7 +438,7 @@ async function integrateNpmrdsTravelTimesEtlIntoDataManager(
 
   const yearly_dama_source_names: Set<string> = new Set([
     NpmrdsTravelTimesExportEtlElements.NpmrdsTmcIdentificationCsv,
-    NpmrdsDataSources.NpmrdsTmcIdentificationImp,
+    NpmrdsDataSources.NpmrdsTmcIdentificationImports,
   ]);
 
   const view_info_by_src_id: Record<number, DamaView> = {};
@@ -561,8 +561,10 @@ export default async function main(
   const etl_done_data = {
     ...etl_output_into_dama_files_done_data,
 
-    [NpmrdsDataSources.NpmrdsTravelTimesImp]: load_tmc_identifcation_done_data,
-    [NpmrdsDataSources.NpmrdsTmcIdentificationImp]:
+    [NpmrdsDataSources.NpmrdsTmcIdentificationImports]:
+      load_tmc_identifcation_done_data,
+
+    [NpmrdsDataSources.NpmrdsTravelTimesImports]:
       load_npmrds_travel_times_done_data,
   };
 

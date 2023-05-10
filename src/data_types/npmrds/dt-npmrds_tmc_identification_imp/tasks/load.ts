@@ -87,7 +87,7 @@ const getMetadataFromSqliteDb = memoize((sqlite_db: SQLiteDB) => {
 
   const ts = download_timestamp.replace(/[^0-9T]/gi, "").toLowerCase();
 
-  const table_schema = NpmrdsDatabaseSchemas.NpmrdsTmcIdentificationImp;
+  const table_schema = NpmrdsDatabaseSchemas.NpmrdsTmcIdentificationImports;
   const table_name = `tmc_identification_${state}_${year}_v${ts}`;
 
   return {

@@ -2,11 +2,13 @@ import dedent from "dedent";
 import { DateTime } from "luxon";
 import _ from "lodash";
 
-import { Context } from "moleculer";
+import dama_db from "data_manager/dama_db";
+import dama_events from "data_manager/events";
+import logger from "data_manager/logger";
 
 import { NpmrdsDataSources } from "../../../domain";
 
-import { EttViewsMetaSummary, NodePgDbConnection } from "./domain";
+import { EttViewsMetaSummary } from "./domain";
 
 import getAttViewsToDetach from "./getAttViewsToDetach";
 
@@ -21,6 +23,10 @@ import {
 
 const { NpmrdsTravelTimes } = NpmrdsDataSources;
 
+export type InitialEvent = {
+  payload: { dama_view_ids: number[] };
+};
+
 function validateNpmrdsTravelTimesExportEligibleForAuthoritative(
   ettViewsMeta: EttViewsMetaSummary
 ) {
@@ -29,31 +35,25 @@ function validateNpmrdsTravelTimesExportEligibleForAuthoritative(
   for (const ettViewId of ettViewsMeta.sortedByStateThenStartDate) {
     const ettViewMeta = ettViewsMeta.byViewId[ettViewId];
 
-    const {
-      damaViewId,
-      tableName,
-      state,
-      isExpanded,
-      data_start_date,
-      data_end_date,
-    } = ettViewMeta;
+    const { damaViewId, table_name, state, is_expanded, start_date, end_date } =
+      ettViewMeta;
 
-    const startDateTime = DateTime.fromISO(data_start_date);
+    const startDateTime = DateTime.fromISO(start_date);
     const { year: dataStartYear, month: dataStartMonth } = startDateTime;
 
-    const endDateTime = DateTime.fromISO(data_end_date);
+    const endDateTime = DateTime.fromISO(end_date);
     const { year: dataEndYear, month: dataEndMonth } = endDateTime;
 
-    if (state === "ny" && !isExpanded) {
+    if (state === "ny" && !is_expanded) {
       errorMessages.push(
-        `Authoritative NY TravelTimes MUST use the NPMRDS expanded map. ${tableName} (view_id ${damaViewId}) does not.`
+        `Authoritative NY TravelTimes MUST use the NPMRDS expanded map. ${table_name} (view_id ${damaViewId}) does not.`
       );
     }
 
     if (!(dataStartYear === dataEndYear && dataStartMonth === dataEndMonth)) {
       errorMessages.push(
         // eslint-disable-next-line max-len
-        `${NpmrdsTravelTimes} tables MUST be within a single calendar month. The ${tableName} (view_id ${damaViewId}) is for ${data_start_date} to ${data_end_date}.`
+        `${NpmrdsTravelTimes} tables MUST be within a single calendar month. The ${table_name} (view_id ${damaViewId}) is for ${start_date} to ${end_date}.`
       );
     }
   }
@@ -65,9 +65,7 @@ function validateNpmrdsTravelTimesExportEligibleForAuthoritative(
   }
 }
 
-export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(
-  dbConn: NodePgDbConnection
-) {
+export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata() {
   const sql = dedent(`
     -- SELECT FOR SHARE
     SELECT
@@ -84,7 +82,7 @@ export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(
       )
   `);
 
-  const { rows } = await dbConn.query({
+  const { rows } = await dama_db.query({
     text: sql,
     values: [NpmrdsTravelTimes],
   });
@@ -103,71 +101,37 @@ export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(
 }
 
 export default async function makeTravelTimesExportTablesAuthoritative(
-  ctx: Context
+  dama_view_ids: number[]
 ) {
-  let {
-    // @ts-ignore
-    params: { damaViewIds },
-  } = ctx;
-
-  damaViewIds = Array.isArray(damaViewIds) ? damaViewIds : [damaViewIds];
+  dama_view_ids = Array.isArray(dama_view_ids)
+    ? dama_view_ids
+    : [dama_view_ids];
 
   const eventTypePrefix =
     "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative";
 
-  const source_id = await ctx.call("dama/metadata.getDamaSourceIdForName", {
-    damaSourceName: NpmrdsTravelTimes,
-  });
-
-  const etl_context_id: number = await ctx.call(
-    "data_manager/events.spawnEtlContext",
-    {
-      source_id,
-      // @ts-ignore
-      parent_context_id: ctx.meta?.etl_context_id || null,
-    }
-  );
-
-  const etlOpts = { parentCtx: ctx, meta: { etl_context_id } };
-
-  const initialEvent = {
-    type: `${eventTypePrefix}:INITIAL`,
-    payload: { damaViewIds },
-  };
-
-  await ctx.call("data_manager/events.dispatch", initialEvent, etlOpts);
-
-  const dbConn: NodePgDbConnection = await ctx.call("dama_db.getDbConnection");
-
-  try {
-    dbConn.query("BEGIN ;");
-
+  const fn = async () => {
     const curNpmrdsAuthTravTimesViewMeta =
-      (await getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata(dbConn)) ||
-      {};
+      (await getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata()) || {};
 
     const { view_dependencies: curAttViewIds = [] } =
       curNpmrdsAuthTravTimesViewMeta || {};
 
     const curAttViewIdsSet: Set<number> = new Set(curAttViewIds);
 
-    // The currently non-ATT damaViewIds
-    const nonAttViewIds: number[] = damaViewIds
+    // The currently non-ATT dama_view_ids
+    const nonAttViewIds: number[] = dama_view_ids
       .map((viewId: number | string) => +viewId)
       .filter((viewId: number) => !curAttViewIdsSet.has(viewId));
 
     // If every submitted damaViewId is already authoritative, then no-op.
     if (nonAttViewIds.length === 0) {
-      dbConn.query("COMMIT ;");
-      return;
+      return [null, null];
     }
 
-    const attViewsMeta = await getEttViewsMetadataSummary(
-      dbConn,
-      curAttViewIds
-    );
+    const attViewsMeta = await getEttViewsMetadataSummary(curAttViewIds!);
     const ettViewsMeta = <EttViewsMetaSummary>(
-      await getEttViewsMetadataSummary(dbConn, nonAttViewIds)
+      await getEttViewsMetadataSummary(nonAttViewIds)
     );
 
     validateNpmrdsTravelTimesExportEligibleForAuthoritative(ettViewsMeta);
@@ -178,94 +142,88 @@ export default async function makeTravelTimesExportTablesAuthoritative(
     );
 
     for (const attView of attViewsToDetach) {
-      await detachAttView(dbConn, attView);
+      await detachAttView(attView);
     }
 
     for (const ettViewId of ettViewsMeta.sortedByStateThenStartDate) {
       const ettViewMeta = ettViewsMeta.byViewId[ettViewId];
 
       const {
-        tableSchema: ettTableSchema,
-        tableName: ettTableName,
+        table_schema: ettTableSchema,
+        table_name: ettTableName,
         state,
         year,
         month,
-        data_start_date,
-        data_end_date,
+        start_date,
+        end_date,
       } = ettViewMeta;
 
-      const dateRangeEnd = DateTime.fromISO(data_end_date)
+      const dateRangeEnd = DateTime.fromISO(end_date)
         .plus({ days: 1 })
         .toISODate();
 
       const {
         schemaName: authoritativeSchemaName,
-        tableName: authoritativeTableName,
-      } = await createAuthoritativeStateYearMonthTable(
-        dbConn,
-        state,
-        year,
-        month
-      );
+        table_name: authoritativeTableName,
+      } = await createAuthoritativeStateYearMonthTable(state, year, month);
 
       await attachPartitionTable(
-        dbConn,
         authoritativeSchemaName,
         authoritativeTableName,
         ettTableSchema,
         ettTableName,
-        data_start_date,
+        start_date,
         dateRangeEnd
       );
     }
 
     const newNpmrdsAuthTravTimesViewMeta =
       await updateNpmrdsAuthTravTimesViewMeta(
-        dbConn,
         curNpmrdsAuthTravTimesViewMeta,
         attViewsToDetach,
         attViewsMeta,
         ettViewsMeta,
-        dateExtentsByState,
-        etl_context_id
+        dateExtentsByState
       );
 
-    const finalEventPayload = {
-      oldDamaViewId: curNpmrdsAuthTravTimesViewMeta.view_id,
-      newDamaViewId: newNpmrdsAuthTravTimesViewMeta.view_id,
-    };
+    // const done_data = {
+    // oldDamaViewId: curNpmrdsAuthTravTimesViewMeta.view_id,
+    // newDamaViewId: newNpmrdsAuthTravTimesViewMeta.view_id,
+    // };
 
-    const finalEvent = {
-      type: `${eventTypePrefix}:FINAL`,
-      payload: finalEventPayload,
-    };
+    // const finalEvent = {
+    // type: `${eventTypePrefix}:FINAL`,
+    // payload: finalEventPayload,
+    // };
 
-    await ctx.call("data_manager/events.dispatch", finalEvent, etlOpts);
+    // await dama_events.dispatch(finalEvent);
 
-    dbConn.query("COMMIT ;");
+    return [curNpmrdsAuthTravTimesViewMeta, newNpmrdsAuthTravTimesViewMeta];
+  };
+  try {
+    const [prev, cur] = dama_db.isInTransactionContext
+      ? await fn()
+      : await dama_db.runInTransactionContext(fn);
 
-    return {
-      previousNpmrdsAuthTravTimesViewMeta: curNpmrdsAuthTravTimesViewMeta,
-      curNpmrdsAuthTravTimesViewMeta: newNpmrdsAuthTravTimesViewMeta,
-    };
+    return prev && cur
+      ? {
+          previousNpmrdsAuthTravTimesViewMeta: prev,
+          curNpmrdsAuthTravTimesViewMeta: cur,
+        }
+      : null;
   } catch (err) {
-    const errorEvent = {
-      type: `${eventTypePrefix}:ERROR`,
-      // @ts-ignore
-      payload: { message: err.message },
-      error: true,
-    };
+    logger.error((<Error>err).message);
+    logger.error((<Error>err).stack);
 
-    await ctx.call("data_manager/events.dispatch", errorEvent, etlOpts);
+    // const errorEvent = {
+    // type: `${eventTypePrefix}:ERROR`,
+    // // @ts-ignore
+    // payload: { message: err.message, stack: err.stack },
+    // error: true,
+    // };
 
-    console.error(err);
-    dbConn.query("ROLLBACK ;");
+    // await dama_events.dispatch(errorEvent);
+
     throw err;
-  } finally {
-    // @ts-ignore
-    if (dbConn.release) {
-      // @ts-ignore
-      await dbConn.release();
-    }
   }
 }

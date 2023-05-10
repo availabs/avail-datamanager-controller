@@ -1746,7 +1746,6 @@ export default class MassiveDataDownloader {
         error: validateRequestsError,
         validationErrorsByDataSource,
         proceed,
-        abort,
       } = await validateRequestsPromise;
 
       logger.debug(
@@ -1758,18 +1757,20 @@ export default class MassiveDataDownloader {
         )
       );
 
-      // This is a fatal error. Burn everything down.
       if (validateRequestsError) {
-        await abort?.();
+        // "Should" cancel the request.
+        await this.pageNetworkUtils.abortAllPendingRequests();
+        await this._disconnectPage();
         throw validateRequestsError;
       }
 
-      // Something's wrong with the form. Abort but keep the page open.
       if (
+        // "Should" cancel the request.
         validationErrorsByDataSource &&
         Object.values(validationErrorsByDataSource).some(Boolean)
       ) {
-        await abort?.();
+        await this.pageNetworkUtils.abortAllPendingRequests();
+        await this._disconnectPage();
         throw new Error(JSON.stringify(validationErrorsByDataSource, null, 4));
       }
 
