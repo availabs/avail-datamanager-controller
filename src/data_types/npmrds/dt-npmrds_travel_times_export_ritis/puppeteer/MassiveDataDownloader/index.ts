@@ -812,9 +812,6 @@ export default class MassiveDataDownloader {
     }
   }
 
-  // The problem with this method is that it is not pure.
-  //   The data it returns depends on external state. (Form & DB)
-  //   It also modifies external state (Form & DB)
   async selectStateTmcsForYear(
     year: NpmrdsDataYear,
     state: NpmrdsState,
