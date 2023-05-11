@@ -150,15 +150,6 @@ export default async function main(initial_event: InitialEvent) {
 
   console.log(JSON.stringify({ got_paritions_event }, null, 4));
 
-  const get_etl_context_from_event_id_sql = dedent(
-    `
-      SELECT
-          etl_context_id
-        FROM data_manager.event_store
-        WHERE ( event_id = $1 )
-    `
-  );
-
   const done_data = await Promise.all(
     got_paritions_event.payload.map(
       async ({ subtask_name, export_request }) => {
@@ -181,14 +172,7 @@ export default async function main(initial_event: InitialEvent) {
           subtask_done_event_type: `${subtask_name}:DONE`,
         };
 
-        const { event_id } = await doSubtask(subtask_config);
-
-        const {
-          rows: [{ etl_context_id }],
-        } = await dama_db.query({
-          text: get_etl_context_from_event_id_sql,
-          values: [event_id],
-        });
+        const { etl_context_id } = await doSubtask(subtask_config);
 
         return {
           etl_context_id,
