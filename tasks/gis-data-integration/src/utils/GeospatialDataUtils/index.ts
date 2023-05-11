@@ -683,7 +683,7 @@ export async function loadTable(
                 NULLIF(
                   REGEXP_REPLACE(
                     TRIM(%I),
-                    '\.0{1,}$',
+                    '\\.0{1,}$',
                     ''
                   ),
                   ''
