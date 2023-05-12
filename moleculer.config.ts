@@ -175,7 +175,7 @@ const brokerConfig: BrokerOptions = {
         };
 
         console.log("ERRROR DETAILS", JSON.stringify(errEvnt, null, 3));
-        await ctx.call("data_manager/events", errEvnt);
+        await ctx.call("data_manager/events.dispatch", errEvnt);
       } catch (err2) {
         console.error(err2);
       }
