@@ -55,7 +55,7 @@ async function loadMockTmcIdentificationData(table_info: TableInfo) {
         table_schema,
         table_name,
         tmc,
-        state,
+        state.toUpperCase(),
         Math.random() * 1e5
       )
     );

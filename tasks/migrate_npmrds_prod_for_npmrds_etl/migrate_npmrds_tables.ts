@@ -29,21 +29,41 @@ const npmrds_travel_times_schema = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
 const npmrds_travel_times_imports_schema =
   NpmrdsDatabaseSchemas.NpmrdsTravelTimesImports;
 
-async function getSummaryStats(inheritance_tree: InheritanceTree) {
-  const { root_table_schema, root_table_name } = getRootTable(inheritance_tree);
-
+async function getBeforeSummaryStats() {
   const sql = dedent(
     pgFormat(
       `
         SELECT
             state,
+            travel_times_md5sum,
+            row_count
+          FROM _data_manager_admin.npmrds_travel_times_stats_before_migration
+          ORDER BY state
+      `
+    )
+  );
+
+  const { rows: stats } = await dama_db.query(sql, PG_ENV);
+
+  return stats;
+}
+
+async function getAfterSummaryStats() {
+  const sql = dedent(
+    pgFormat(
+      `
+        SELECT
+            state,
+            MD5(
+              string_agg(
+                travel_time_all_vehicles::TEXT, '|' ORDER BY tmc, date, epoch
+              )
+            ) AS travel_times_md5sum,
             COUNT(1) AS row_count
-          FROM %I.%I
+          FROM public.npmrds
           GROUP BY state
           ORDER BY state
-      `,
-      root_table_schema,
-      root_table_name
+      `
     )
   );
 
@@ -210,7 +230,7 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
           AND
           ( table_schema = $2 )
           AND
-          ( table_name = $2 )
+          ( table_name = $3 )
         )
     ) AS view_exists
   `);
@@ -222,6 +242,12 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
   for (const table_info of leaf_tables) {
     const { table_schema, table_name } = table_info;
     const { state, start_date, end_date } = parseLeafTableInfo(table_info);
+
+    const table_full_name = pgFormat("%I.%I", table_schema, table_name);
+
+    console.log("==> STARTING", table_full_name);
+
+    console.time(table_full_name);
 
     const [yyyy, mm] = start_date.split("-");
 
@@ -411,8 +437,6 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
     });
 
     if (view_exists) {
-      const table_full_name = pgFormat("%I.%I", table_schema, table_name);
-
       throw new Error(
         `dama_manager.view already exists for ${table_full_name}`
       );
@@ -446,19 +470,15 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
     // const { view_id } = await dama_meta.createNewDamaView(view_meta);
     await dama_meta.createNewDamaView(view_meta);
 
-    // if (state === "ny" || state === "nj") {
-    // new_view_ids.push(view_id);
-    // }
+    console.timeEnd(table_full_name);
   }
-
-  // await makeTravelTimesExportTablesAuthoritative(new_view_ids);
 }
 
 async function main() {
   dama_db.runInTransactionContext(async () => {
     const inheritance_tree = await getNpmrdsTablesInheritanceTree();
 
-    const before_stats = await getSummaryStats(inheritance_tree);
+    const before_stats = await getBeforeSummaryStats();
 
     await noInheritAllChildTables(inheritance_tree);
 
@@ -468,7 +488,7 @@ async function main() {
 
     await createStateYearMonthTables(inheritance_tree);
 
-    const after_stats = await getSummaryStats(inheritance_tree);
+    const after_stats = await getAfterSummaryStats();
 
     console.log(JSON.stringify({ before_stats, after_stats }, null, 4));
 
