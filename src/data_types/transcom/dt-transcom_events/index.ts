@@ -1,7 +1,7 @@
 import { inspect } from "util";
 import { join } from "path";
 
-import _, { now } from "lodash";
+import _ from "lodash";
 import dedent from "dedent";
 import { DateTime, Interval } from "luxon";
 
@@ -9,7 +9,7 @@ import dama_db from "data_manager/dama_db";
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
-import BaseTasksController from "data_manager/tasks/BaseTasksController";
+import doSubtask from "data_manager/tasks/utils/doSubtask";
 import { DamaTaskDescriptor } from "data_manager/tasks/domain";
 
 import {
@@ -52,84 +52,12 @@ export type InitialEvent = {
 
 export const dama_task_queue_name = "dt-transcom_events:subtasks";
 
-const tasks_controller = new BaseTasksController();
-
 export type SubtaskConfig = {
   subtask_name: string;
   dama_task_descriptor: DamaTaskDescriptor;
   subtask_queued_event_type: TaskEventType;
   subtask_done_event_type: TaskEventType;
 };
-
-export async function doSubtask(config: SubtaskConfig) {
-  const {
-    subtask_name,
-    dama_task_descriptor,
-    subtask_queued_event_type,
-    subtask_done_event_type,
-  } = config;
-
-  const events = await dama_events.getAllEtlContextEvents();
-
-  logger.debug(`${subtask_name} events: ${JSON.stringify(events, null, 4)}`);
-
-  const done_event = events.find((e) => e.type === subtask_done_event_type);
-
-  // If the done_event already has been emitted for this subtask, return it.
-  if (done_event) {
-    logger.debug(`${subtask_name} already DONE`);
-
-    return done_event;
-  }
-
-  let queued_event = events.find((e) => e.type === subtask_queued_event_type);
-
-  //  If the queued_event has not already has been emitted for this subtask,
-  //    we must queue the subtask.
-  if (!queued_event) {
-    logger.debug(`${subtask_name} must queue subtask`);
-
-    // @ts-ignore FIXME
-    const { etl_context_id: eci } = await tasks_controller.queueDamaTask(
-      dama_task_descriptor
-    );
-
-    logger.debug(`${subtask_name} queued subtask etl_context_id=${eci}`);
-
-    queued_event = {
-      type: subtask_queued_event_type,
-      payload: {
-        subtask_name,
-        etl_context_id: eci,
-      },
-    };
-
-    logger.debug(
-      `${subtask_name} dispatching queued_event ${inspect(queued_event)}`
-    );
-
-    await dama_events.dispatch(queued_event);
-  }
-
-  const {
-    payload: { etl_context_id: subtask_eci },
-  } = queued_event;
-
-  logger.debug(`${subtask_name} awaiting subtask :FINAL event`);
-
-  const final_event = await dama_events.getEventualEtlContextFinalEvent(
-    subtask_eci
-  );
-
-  logger.debug(`${subtask_name} received subtask :FINAL event`);
-
-  await dama_events.dispatch({
-    type: subtask_done_event_type,
-    payload: { etl_context_id: subtask_eci },
-  });
-
-  return final_event;
-}
 
 export async function collectTranscomEventIdsForTimeRange(
   start_timestamp: string,
@@ -329,7 +257,7 @@ async function getStartTimestamp(): Promise<string> {
 
                   --  Otherwise, use the current max start_date_time's previous day start.
                   --    EG: '2023-01-01T12:00:00' becomes '2022-12-31T00:00:00'
-
+                  --  We do this because TRANSCOM revises event data.
                   (
                     DATE_TRUNC(
                       'day',
@@ -373,21 +301,14 @@ export default async function main(initial_event: InitialEvent) {
 
   let { start_timestamp, end_timestamp } = payload;
 
-  // The nightly ETL does not specify either. Instead it resumes from the latest event in the db.
+  // The nightly ETL does not specify either start_timestamp or end_timestamp.
+  //   Instead it resumes from the latest event in the db.
   if (!start_timestamp) {
     start_timestamp = await getStartTimestamp();
   }
 
   if (!end_timestamp) {
-    // ===== for development/debugging =====
-    // const now_timestamp = DateTime.now().toISO().replace(/\..*/, "");
-    // end_timestamp = DateTime.fromISO(start_timestamp)
-    //   .plus({ hour: 1 })
-    //   .toISO()
-    //   .replace(/\..*/, "");
-    // end_timestamp =
-    //   now_timestamp < end_timestamp ? now_timestamp : end_timestamp;
-
+    // ===== for production =====
     end_timestamp = DateTime.now().toISO().replace(/\..*/, "");
   }
 
