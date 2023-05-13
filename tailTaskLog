@@ -1,0 +1,8 @@
+#!/bin/bash
+
+PG_ENV=$1
+ETL_CONTEXT_ID=$2
+
+echo "$1 $2"
+
+tail -f ./logs/dama-context.pg_env.$PG_ENV.elt_context.$ETL_CONTEXT_ID.log
