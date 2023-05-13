@@ -23,9 +23,9 @@ import {
   getNpmrdsTablesInheritanceTree,
   getRootTable,
   getLeafTables,
-} from "./utils";
+} from "./utils/npmrds_travel_times";
 
-const nprmds_travel_times_schema = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
+const npmrds_travel_times_schema = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
 const npmrds_travel_times_imports_schema =
   NpmrdsDatabaseSchemas.NpmrdsTravelTimesImports;
 
@@ -81,31 +81,37 @@ async function noInheritAllChildTables(inheritance_tree: InheritanceTree) {
 async function redefineRootTable(inheritance_tree: InheritanceTree) {
   const { root_table_schema, root_table_name } = getRootTable(inheritance_tree);
 
-  const sql = dedent(
-    pgFormat(
-      `
-        DROP TABLE %I.%I ; -- NOTE: Will fail if has child tables since no CASCADE.
+  if (root_table_schema !== "public") {
+    throw new Error(
+      `root_table_schema should be "public" but got ${root_table_schema}`
+    );
+  }
 
-        CREATE TABLE %I.%I (
-          tmc                               VARCHAR(9),
-          date                              DATE,
-          epoch                             SMALLINT,
-          travel_time_all_vehicles          REAL,
-          travel_time_passenger_vehicles    REAL,
-          travel_time_freight_trucks        REAL,
-          data_density_all_vehicles         CHAR,
-          data_density_passenger_vehicles   CHAR,
-          data_density_freight_trucks       CHAR,
-          state                             CHAR(2) NOT NULL
-        )
-          PARTITION BY LIST (state)
-        ;
-      `,
-      root_table_schema,
-      root_table_name,
-      root_table_schema,
-      root_table_name
-    )
+  if (root_table_name !== "npmrds") {
+    throw new Error(
+      `root_table_name should be "npmrds" but got ${root_table_name}`
+    );
+  }
+
+  const sql = dedent(
+    `
+      DROP TABLE public.npmrds ; -- NOTE: Will fail if still has child tables.
+
+      CREATE TABLE public.npmrds (
+        tmc                               VARCHAR(9),
+        date                              DATE,
+        epoch                             SMALLINT,
+        travel_time_all_vehicles          REAL,
+        travel_time_passenger_vehicles    REAL,
+        travel_time_freight_trucks        REAL,
+        data_density_all_vehicles         CHAR,
+        data_density_passenger_vehicles   CHAR,
+        data_density_freight_trucks       CHAR,
+        state                             CHAR(2) NOT NULL
+      )
+        PARTITION BY LIST (state)
+      ;
+    `
   );
 
   await dama_db.query(sql);
@@ -167,7 +173,7 @@ async function redefineStateRootTables(inheritance_tree: InheritanceTree) {
 
 async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
   await dama_db.query(
-    `CREATE SCHEMA IF NOT EXISTS ${nprmds_travel_times_schema}`
+    `CREATE SCHEMA IF NOT EXISTS ${npmrds_travel_times_schema}`
   );
 
   await dama_db.query(
@@ -231,7 +237,7 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
             PARTITION BY RANGE (date)
           ;
         `,
-        nprmds_travel_times_schema,
+        npmrds_travel_times_schema,
         state_year_table_name,
         state,
         `${year}-01-01`,
@@ -250,9 +256,9 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
             PARTITION BY RANGE (date)
           ;
         `,
-        nprmds_travel_times_schema,
+        npmrds_travel_times_schema,
         state_yrmo_table_name,
-        nprmds_travel_times_schema,
+        npmrds_travel_times_schema,
         state_year_table_name,
         start_date,
         end_date
@@ -319,7 +325,7 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
               FOR VALUES FROM (%L) TO (%L)
           ;
         `,
-        nprmds_travel_times_schema,
+        npmrds_travel_times_schema,
         state_yrmo_table_name,
         npmrds_travel_times_imports_schema,
         new_table_name,

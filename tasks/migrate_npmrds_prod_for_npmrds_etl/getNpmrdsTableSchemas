@@ -14,5 +14,6 @@ pg_dump \
     --table='public.npmrds' \
     --table='*.npmrds' \
     --table='*.npmrds_y*' \
+    --table='*.tmc_identification*' \
  | sed '/readonly_access/d' \
  > data/npmrds_tables_schema_only.sql

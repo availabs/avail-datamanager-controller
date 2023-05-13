@@ -43,5 +43,5 @@ WITH RECURSIVE cte_inheritance_tree AS (
   SELECT
       *
     FROM cte_inheritance_tree
-    ORDER BY depth, table_name
+    ORDER BY depth, table_schema, table_name
 ;

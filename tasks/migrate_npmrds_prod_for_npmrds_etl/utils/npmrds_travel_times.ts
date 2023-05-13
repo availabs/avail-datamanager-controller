@@ -5,9 +5,14 @@ import _ from "lodash";
 import pgFormat from "pg-format";
 import { DateTime } from "luxon";
 
-import dama_db from "../../src/data_manager/dama_db";
+import dama_db from "../../../src/data_manager/dama_db";
 
-import { TableInfo, InheritanceTree, state_re } from "./domain";
+import { TableInfo, InheritanceTree, state_re } from "../domain";
+
+const query_inheritance_tree_sql_fpath = join(
+  __dirname,
+  "../sql/queryNpmrdsAuthoritativePartitionTree.sql"
+);
 
 export function parseLeafTableInfo(table_info: TableInfo) {
   const { table_schema, table_name } = table_info;
@@ -38,12 +43,9 @@ export function parseLeafTableInfo(table_info: TableInfo) {
 }
 
 export async function getNpmrdsTablesInheritanceTree(): Promise<InheritanceTree> {
-  const fpath = join(
-    __dirname,
-    "./sql/queryNpmrdsAuthoritativePartitionTree.sql"
-  );
-
-  const sql = readFileSync(fpath, { encoding: "utf8" });
+  const sql = readFileSync(query_inheritance_tree_sql_fpath, {
+    encoding: "utf8",
+  });
 
   const { rows } = await dama_db.query(sql);
 
