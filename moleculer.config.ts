@@ -174,8 +174,8 @@ const brokerConfig: BrokerOptions = {
           error: true,
         };
 
-        console.log('ERRROR DETAILS', JSON.stringify(errEvnt, null,3))
-        await ctx.call("dama_dispatcher.dispatch", errEvnt);
+        console.log("ERRROR DETAILS", JSON.stringify(errEvnt, null, 3));
+        await ctx.call("data_manager/events.dispatch", errEvnt);
       } catch (err2) {
         console.error(err2);
       }
