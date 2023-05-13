@@ -206,7 +206,9 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
           1
         FROM data_manager.views
         WHERE (
-          ( table_schema = $1 )
+          ( source_id = $1 )
+          AND
+          ( table_schema = $2 )
           AND
           ( table_name = $2 )
         )
@@ -405,7 +407,7 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
       rows: [{ view_exists }],
     } = await dama_db.query({
       text: view_exists_sql,
-      values: [table_schema, table_name],
+      values: [npmrds_travel_times_imports_source_id, table_schema, table_name],
     });
 
     if (view_exists) {
