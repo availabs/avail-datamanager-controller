@@ -240,7 +240,7 @@ async function redefineStateRootTables(
           table_schema,
           table_name,
           table_name,
-          table_schema
+          table_schema.toUpperCase()
         )
       );
 
@@ -453,7 +453,7 @@ async function moveLeafTablesToImportsDir(
           state_root_table_name,
           tmc_identification_imports_schema,
           new_table_name,
-          state
+          state.toUpperCase()
         )
       );
 
