@@ -24,20 +24,20 @@ import getEtlWorkDir from "var/getEtlWorkDir";
 
 import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";
 
-import getEtlMetadataDir from "./dt-npmrds_travel_times_export_ritis/utils/getEtlMetadataDir";
+import getEtlMetadataDir from "../dt-npmrds_travel_times_export_ritis/utils/getEtlMetadataDir";
 
 import {
   getNpmrdsExportMetadataFilePath,
   getNpmrdsExportMetadata,
 } from "data_types/npmrds/utils/npmrds_export_metadata";
 
-import dama_host_name from "constants/damaHost";
+// import dama_host_name from "constants/damaHost";
 import dama_host_id from "constants/damaHostId";
 
 import controllerDataDir from "constants/dataDir";
-import npmrds_data_dir from "./constants/data_dir";
+import npmrds_data_dir from "../constants/data_dir";
 
-import { initializeDamaSources } from "./utils/dama_sources";
+import { initializeDamaSources } from "../utils/dama_sources";
 
 import {
   NpmrdsDataSources,
@@ -46,22 +46,22 @@ import {
   NpmrdsExportRequest,
   TaskQueue as NpmrdsTaskQueue,
   NpmrdsExportMetadata,
-} from "./domain";
+} from "../domain";
 
 import {
   InitialEvent as NpmrdsExportIntitialEvent,
   FinalEvent as NpmrdsExportFinalEvent,
-} from "./dt-npmrds_travel_times_export_ritis";
+} from "../dt-npmrds_travel_times_export_ritis";
 
 import {
   InitialEvent as LoadTmcIdentificationIntialEvent,
   FinalEvent as LoadTmcIdentificationFinalEvent,
-} from "./dt-npmrds_tmc_identification_imp";
+} from "../dt-npmrds_tmc_identification_imp";
 
 import {
   InitialEvent as LoadNpmrdsTravelTimesInitialEvent,
   FinalEvent as LoadNpmrdsTravelTimesFinalEvent,
-} from "./dt-npmrds_travel_times_imp";
+} from "../dt-npmrds_travel_times_imp";
 
 import { DamaView } from "data_manager/meta/domain";
 
@@ -137,7 +137,7 @@ async function downloadAndTransformNpmrdsExport(
 
   const worker_path = join(
     __dirname,
-    "./dt-npmrds_travel_times_export_ritis/worker.ts"
+    "../dt-npmrds_travel_times_export_ritis/worker.ts"
   );
 
   const initial_event: NpmrdsExportIntitialEvent = {
@@ -171,7 +171,7 @@ async function loadTmcIdentification(
 
   const worker_path = join(
     __dirname,
-    "./dt-npmrds_tmc_identification_imp/worker.ts"
+    "../dt-npmrds_tmc_identification_imp/worker.ts"
   );
 
   const initial_event: LoadTmcIdentificationIntialEvent = {
@@ -204,7 +204,10 @@ async function loadNpmrdsTravelTimes(
 ) {
   const subtask_name = "load_npmrds_travel_times";
 
-  const worker_path = join(__dirname, "./dt-npmrds_travel_times_imp/worker.ts");
+  const worker_path = join(
+    __dirname,
+    "../dt-npmrds_travel_times_imp/worker.ts"
+  );
 
   const initial_event: LoadNpmrdsTravelTimesInitialEvent = {
     type: ":INITIAL",

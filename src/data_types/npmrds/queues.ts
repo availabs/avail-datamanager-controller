@@ -3,8 +3,8 @@ import { TaskQueue } from "./domain";
 export const TaskQueueConfigs = {
   [TaskQueue.AGGREGATE_ETL]: {
     worker_options: {
-      teamSize: 10,
-      teamConcurrency: 10,
+      teamSize: 32,
+      teamConcurrency: 32,
       teamRefill: true,
     },
   },

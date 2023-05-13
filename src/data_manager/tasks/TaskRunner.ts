@@ -87,7 +87,6 @@ class TaskRunner {
     const {
       meta: {
         // @ts-ignore
-        // @ts-ignore
         __dama_task_manager__: { worker_path, etl_work_dir },
       },
     } = this.initial_event;

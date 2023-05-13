@@ -106,6 +106,14 @@ export enum NpmrdsState {
   wi = "wi",
   wv = "wv",
   wy = "wy",
+
+  ab = "ab",
+  bc = "bc",
+  mb = "mb",
+  nb = "nb",
+  on = "on",
+  qc = "qc",
+  sk = "sk",
 }
 
 export type DataDate = {
@@ -163,8 +171,6 @@ export enum NpmrdsDatabaseSchemas {
   NpmrdsTravelTimes = "npmrds_travel_times",
 
   NpmrdsTmcIdentificationImports = "npmrds_tmc_identification_imports",
-
-  NpmrdsTmcIdentification = "npmrds_tmc_identification",
 }
 
 // NOTE:  These the DataSourceMeta property values could become stale if they are later updated.

@@ -1,6 +1,6 @@
 import { runInDamaContext, TaskEtlContext } from "data_manager/contexts";
 
-import main, { InitialEvent } from ".";
+import main, { InitialEvent } from "./batched-etl";
 
 type ThisTaskEtlContext = TaskEtlContext & { initial_event: InitialEvent };
 

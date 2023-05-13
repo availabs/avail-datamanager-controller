@@ -18,7 +18,10 @@
   NOTE: I'm not sure if we need to run ElementHandle.dispose every time we get an element handle.
 */
 
-import { writeFile as writeFileAsync } from "fs/promises";
+import {
+  readFile as readFileAsync,
+  writeFile as writeFileAsync,
+} from "fs/promises";
 import { gzip } from "zlib";
 import { join } from "path";
 import { inspect, promisify } from "util";
@@ -59,6 +62,11 @@ import {
   createDataDate,
   createDataDateRange,
 } from "data_types/npmrds/utils/dates";
+
+import {
+  US_States,
+  Canadian_Provinces,
+} from "data_utils/constants/stateAbbreviations";
 
 import getEtlMetadataDir from "../../utils/getEtlMetadataDir";
 import * as tmcsList from "../../utils/tmcsList";
@@ -812,7 +820,7 @@ export default class MassiveDataDownloader {
     }
   }
 
-  async selectStateTmcsForYear(
+  async selectUSStateTmcsForYear(
     year: NpmrdsDataYear,
     state: NpmrdsState,
     expandedMap = true,
@@ -904,7 +912,7 @@ export default class MassiveDataDownloader {
       );
 
       await page.click(ElementPaths.pleaseChooseAtLeastOneStateAlertButton);
-      return this.selectStateTmcsForYear(year, state, expandedMap, ++retries);
+      return this.selectUSStateTmcsForYear(year, state, expandedMap, ++retries);
     }
 
     await this.waitUntilSegmentsGathered();
@@ -915,6 +923,58 @@ export default class MassiveDataDownloader {
     const tmcs = await this.getSelectedTmcs();
 
     return tmcs;
+  }
+
+  async selectCanadianProvinceTmcsForYear(
+    year: NpmrdsDataYear,
+    state: NpmrdsState
+  ): Promise<NpmrdsTmc[]> {
+    const canadian_tmcs_fpath = join(
+      __dirname,
+      "../../../data/canadian_tmcs.json"
+    );
+
+    const canadian_tmcs = JSON.parse(
+      await readFileAsync(canadian_tmcs_fpath, { encoding: "utf8" })
+    );
+
+    const tmcs = canadian_tmcs[state]?.[year]?.sort();
+
+    if (!tmcs) {
+      const provinces = Object.keys(canadian_tmcs).sort();
+
+      const years = Object.keys(canadian_tmcs[provinces[0]]);
+
+      throw new Error(
+        `The supported Canadian provinces/years are (${provinces}) for (${years}). Given ${state} and ${year}.`
+      );
+    }
+
+    await this.selectSpecificTmcsForYear(year, tmcs);
+
+    // const selected_tmcs = (await this.getSelectedTmcs(false)).sort();
+
+    // if (!_.isEqual(tmcs, selected_tmcs)) {
+    // throw new Error("Failed to correctly select TMCs.");
+    // }
+
+    return tmcs;
+  }
+
+  async selectStateTmcsForYear(
+    year: NpmrdsDataYear,
+    state: NpmrdsState,
+    expandedMap = true
+  ): Promise<NpmrdsTmc[]> {
+    if (US_States[state]) {
+      return this.selectUSStateTmcsForYear(year, state, expandedMap);
+    }
+
+    if (Canadian_Provinces[state]) {
+      return this.selectCanadianProvinceTmcsForYear(year, state);
+    }
+
+    throw new Error(`Unrecognized state: ${state}`);
   }
 
   private async tmcSegmentCodesTabIsOpen() {

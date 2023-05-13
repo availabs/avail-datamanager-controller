@@ -13,7 +13,13 @@ import {
   initializeDamaSources,
 } from "./utils/dama_sources";
 
-import { InitialEvent } from ".";
+import { InitialEvent as BatchedEtlInitialEvent } from "./tasks/batched-etl";
+
+const batch_etl_worker_path = join(__dirname, "./tasks/batched-etl.worker.ts");
+const scheduled_etl_worker_path = join(
+  __dirname,
+  "./tasks/scheduled-etl.worker.ts"
+);
 
 export const serviceName = "dama/data_types/npmrds";
 
@@ -45,27 +51,31 @@ export default {
       visibility: "public",
 
       async handler(ctx: MoleculerContext) {
-        const {
-          // @ts-ignore
-          params: { state, start_date, end_date, is_expanded },
-        } = ctx;
+        const params: any = ctx.params;
 
-        const initial_event: InitialEvent = {
+        const {
+          state,
+          start_date,
+          end_date,
+          is_expanded,
+          override_max_paritions,
+        } = params;
+
+        const initial_event: BatchedEtlInitialEvent = {
           type: ":INITIAL",
           payload: {
             state,
             start_date,
             end_date,
             is_expanded,
+            override_max_paritions,
           },
           meta: { note: "NPMRDS aggregate ETL" },
         };
 
         const dama_task_descr = {
-          worker_path: join(__dirname, "./worker.ts"),
-
+          worker_path: batch_etl_worker_path,
           dama_task_queue_name: TaskQueue.AGGREGATE_ETL,
-
           initial_event,
         };
 
@@ -77,6 +87,31 @@ export default {
         );
 
         return { etl_context_id };
+      },
+    },
+
+    scheduleNpmrdsEtl: {
+      visibility: "public",
+
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { cron },
+        } = ctx;
+
+        const dama_task_descr = {
+          worker_path: scheduled_etl_worker_path,
+          dama_task_queue_name: TaskQueue.AGGREGATE_ETL,
+          cron,
+          initial_event: {
+            type: ":INITIAL",
+            meta: { note: "Scheduled NPMRDS ETL" },
+          },
+        };
+
+        const options = { retryLimit: 1, expireInHours: 12 };
+
+        await dama_tasks.scheduleDamaTask(dama_task_descr, options);
       },
     },
   },

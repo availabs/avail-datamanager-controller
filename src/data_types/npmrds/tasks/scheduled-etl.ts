@@ -6,10 +6,12 @@ import { DateTime } from "luxon";
 import dama_db from "data_manager/dama_db";
 import dama_meta from "data_manager/meta";
 import dama_events from "data_manager/events";
+import logger from "data_manager/logger";
 import {
   verifyIsInTaskEtlContext,
   getEtlContextId,
 } from "data_manager/contexts";
+
 import doSubtask, { SubtaskConfig } from "data_manager/tasks/utils/doSubtask";
 import { QueuedDamaTaskDescriptor } from "data_manager/tasks/domain";
 
@@ -19,13 +21,12 @@ import {
   NpmrdsState,
   NpmrdsDataSources,
   TaskQueue as NpmrdsTaskQueue,
-} from "./domain";
+  NpmrdsExportRequest,
+} from "../domain";
 
-import { InitialEvent as NpmrdsEtlInitialEvent } from ".";
+import { InitialEvent as BatchedEtlInitialEvent } from "./batched-etl";
 
-import { partitionDateRange } from "./utils/dates";
-
-import MassiveDataDownloader from "./dt-npmrds_travel_times_export_ritis/puppeteer/MassiveDataDownloader";
+import MassiveDataDownloader from "../dt-npmrds_travel_times_export_ritis/puppeteer/MassiveDataDownloader";
 
 export type InitialEvent = {
   type: ":INITIAL";
@@ -33,19 +34,22 @@ export type InitialEvent = {
 };
 
 export enum EventType {
-  "GOT_PARITIONS" = "GOT_PARITIONS",
+  "GOT_STATE_NPMRDS_EXPORT_REQUESTS" = "GOT_STATE_NPMRDS_EXPORT_REQUESTS",
 }
 
-const npmrds_etl_worker_path = join(__dirname, "./worker.ts");
+const batch_etl_worker_path = join(__dirname, "./batched-etl.worker.ts");
 
-// So we don't inadvertently request years of data from RITIS.
-const MAX_DOWNLOAD_PARTITIONS_PER_STATE = 3;
+const default_states = [
+  NpmrdsState.ny,
+  NpmrdsState.nj,
+  NpmrdsState.on,
+  NpmrdsState.qc,
+];
 
 export default async function main(initial_event: InitialEvent) {
   verifyIsInTaskEtlContext();
 
-  const { states = [NpmrdsState.ny, NpmrdsState.nj] } =
-    initial_event.payload || {};
+  const { states = default_states } = initial_event.payload || {};
 
   const events = await dama_events.getAllEtlContextEvents();
 
@@ -55,11 +59,11 @@ export default async function main(initial_event: InitialEvent) {
     return final_event.payload;
   }
 
-  let got_paritions_event = events.find(
-    ({ type }) => type === EventType.GOT_PARITIONS
+  let got_state_export_requests_event = events.find(
+    ({ type }) => type === EventType.GOT_STATE_NPMRDS_EXPORT_REQUESTS
   );
 
-  if (!got_paritions_event) {
+  if (!got_state_export_requests_event) {
     const mdd = new MassiveDataDownloader();
 
     const expected_date_format_re = /^\d{4}-\d{2}-\d{2}$/;
@@ -76,20 +80,20 @@ export default async function main(initial_event: InitialEvent) {
       NpmrdsDataSources.NpmrdsTravelTimesImports
     );
 
-    const max_date_for_state_sql = dedent(`
-      SELECT
-          MAX(end_date) AS max_loaded_date
-        FROM data_manager.views
-        WHERE (
-          ( source_id = $1 )
-          AND
-          ( geography_version = $2 )
-        )
-    `);
-
-    const partitions = _.flatten(
+    const state_npmrds_export_requests = <NpmrdsExportRequest[]>_.flatten(
       await Promise.all(
         states.map(async (state) => {
+          const max_date_for_state_sql = dedent(`
+            SELECT
+                MAX(end_date) AS max_loaded_date
+              FROM data_manager.views
+              WHERE (
+                ( source_id = $1 )
+                AND
+                ( geography_version = $2 )
+              )
+          `);
+
           const fips_code = stateAbbr2FipsCode[state];
 
           const {
@@ -109,75 +113,59 @@ export default async function main(initial_event: InitialEvent) {
             );
           }
 
-          if (next_date < max_data_date) {
-            const foo = partitionDateRange(next_date, max_data_date);
-
-            if (foo.length > MAX_DOWNLOAD_PARTITIONS_PER_STATE) {
-              throw new Error(
-                `Too large a gap for ${state}: ${next_date} to ${max_data_date}`
-              );
-            }
-
-            return foo.map(({ start_date, end_date }) => {
-              const start = start_date.replace(/-/g, "");
-              const end = end_date.replace(/-/g, "");
-
-              return {
-                subtask_name: `${state}/${start}-${end}`,
-                export_request: {
-                  state,
-                  start_date,
-                  end_date,
-                  // is_expanded: true,
-                  is_expanded: false,
-                },
-              };
-            });
+          if (next_date >= max_data_date) {
+            return null;
           }
 
-          return null;
+          return {
+            state,
+            start_date: next_date,
+            end_date: max_data_date,
+            // is_expanded: true,
+            is_expanded: false, // FIXME: For development ONLY
+          };
         })
       )
     ).filter(Boolean);
 
-    got_paritions_event = {
-      type: EventType.GOT_PARITIONS,
-      payload: partitions,
+    got_state_export_requests_event = {
+      type: EventType.GOT_STATE_NPMRDS_EXPORT_REQUESTS,
+      payload: state_npmrds_export_requests,
     };
 
-    await dama_events.dispatch(got_paritions_event);
+    await dama_events.dispatch(got_state_export_requests_event);
   }
 
-  console.log(JSON.stringify({ got_paritions_event }, null, 4));
+  logger.debug(JSON.stringify({ got_state_export_requests_event }, null, 4));
 
   const done_data = await Promise.all(
-    got_paritions_event.payload.map(
-      async ({ subtask_name, export_request }) => {
-        const task_initial_event: NpmrdsEtlInitialEvent = {
+    got_state_export_requests_event.payload.map(
+      (export_request: NpmrdsExportRequest) => {
+        const { state } = export_request;
+
+        const batch_initial_event: BatchedEtlInitialEvent = {
           type: ":INITIAL",
-          payload: export_request,
+          payload: {
+            ...export_request,
+          },
+          meta: { note: `Scheduled batch ETL for ${state}` },
         };
 
         const dama_task_descriptor: QueuedDamaTaskDescriptor = {
-          worker_path: npmrds_etl_worker_path,
+          worker_path: batch_etl_worker_path,
           dama_task_queue_name: NpmrdsTaskQueue.AGGREGATE_ETL,
           parent_context_id: getEtlContextId(),
-          initial_event: task_initial_event,
+          initial_event: batch_initial_event,
         };
 
         const subtask_config: SubtaskConfig = {
-          subtask_name,
+          subtask_name: state,
           dama_task_descriptor,
-          subtask_queued_event_type: `${subtask_name}:QUEUED`,
-          subtask_done_event_type: `${subtask_name}:DONE`,
+          subtask_queued_event_type: `${state}:QUEUED`,
+          subtask_done_event_type: `${state}:DONE`,
         };
 
-        const { etl_context_id } = await doSubtask(subtask_config);
-
-        return {
-          etl_context_id,
-          export_request,
-        };
+        return doSubtask(subtask_config);
       }
     )
   );
