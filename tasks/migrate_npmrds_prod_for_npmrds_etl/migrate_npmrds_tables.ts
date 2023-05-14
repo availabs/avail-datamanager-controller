@@ -364,8 +364,7 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
       pgFormat(
         `
           SELECT
-              con.conname,
-              con.contype
+              con.conname AS old_pkey_name
             FROM pg_catalog.pg_constraint AS con
               INNER JOIN pg_catalog.pg_class rel
                   ON ( rel.oid = con.conrelid )
@@ -375,6 +374,8 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
               ( nsp.nspname = %L )
               AND
               ( rel.relname = %L )
+              AND
+              ( con.contype = 'p' )
             )
           ;
         `,
@@ -383,45 +384,25 @@ async function createStateYearMonthTables(inheritance_tree: InheritanceTree) {
       )
     );
 
-    const { rows: check_constraints } = await dama_db.query(constraints_sql);
+    const {
+      rows: [{ old_pkey_name }],
+    } = await dama_db.query(constraints_sql);
 
-    for (const { conname, contype } of check_constraints) {
-      // RENAME the PRIMARY KEY so it would match default name.
-      if (contype === "p") {
-        const rename_primary_key_sql = dedent(
-          pgFormat(
-            `
+    // RENAME the PRIMARY KEY so it would match default name.
+    const rename_primary_key_sql = dedent(
+      pgFormat(
+        `
               ALTER INDEX %I.%I
                 RENAME TO %I
               ;
             `,
-            npmrds_travel_times_imports_schema,
-            conname,
-            `${new_table_name}_pkey`
-          )
-        );
+        npmrds_travel_times_imports_schema,
+        old_pkey_name,
+        `${new_table_name}_pkey`
+      )
+    );
 
-        await dama_db.query(rename_primary_key_sql);
-      }
-
-      // DROP CHECK CONSTRAINTs because they are redundant with PARTITIONed tables.
-      if (contype === "c") {
-        const drop_constraint_sql = dedent(
-          pgFormat(
-            `
-              ALTER TABLE %I.%I
-                DROP CONSTRAINT %I
-              ;
-            `,
-            npmrds_travel_times_imports_schema,
-            new_table_name,
-            conname
-          )
-        );
-
-        await dama_db.query(drop_constraint_sql);
-      }
-    }
+    await dama_db.query(rename_primary_key_sql);
 
     const {
       rows: [{ view_exists }],
