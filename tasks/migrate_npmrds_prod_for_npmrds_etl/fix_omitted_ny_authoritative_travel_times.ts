@@ -34,3 +34,21 @@ async function main() {
 }
 
 main();
+
+/* Afterwards, in the database, to remove the mistake authoritative DamaView.
+
+begin ;
+
+-- Copy of existing metadata but changed versionLinkedList.previous to null.
+update data_manager.views set metadata = '{"dama": {"versionLinkedList": {"next": null, "previous": null}}, "dateExtentsByState": {"ct": ["2021-01-01", "2022-12-31"], "nj": ["2016-01-01", "2023-04-30"], "ny": ["2016-01-01", "2023-04-30"], "on": ["2021-01-01", "2022-05-31"], "pa": ["2021-01-01", "2022-12-31"], "qc": ["2021-01-01", "2022-05-31"]}}'::JSONB where view_id = 922;
+
+select * from views order by view_id desc limit 1;
+
+ -- The old authoritative NpmrdsTravelTimes DamaView.
+select * from data_manager.views where view_id = 921;
+delete from data_manager.views where view_id = 921;
+
+select * from data_manager.views where source_id = 94;
+commit ;
+
+*/
