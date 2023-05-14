@@ -25,7 +25,7 @@ const state_import_date_ranges_without_gaps: Record<
 > = {
   [NpmrdsState.ct]: { start_date: "2021-01-01", end_date: "2022-12-31" },
   [NpmrdsState.nj]: { start_date: "2016-01-01", end_date: "2023-04-30" },
-  [NpmrdsState.ny]: { start_date: "2016-01-01", end_date: "2022-05-31" },
+  [NpmrdsState.ny]: { start_date: "2016-01-01", end_date: "2022-05-31" }, // BUG. Should have been 2023-04-30
   [NpmrdsState.pa]: { start_date: "2021-01-01", end_date: "2022-12-31" },
 
   [NpmrdsState.on]: { start_date: "2021-01-01", end_date: "2022-05-31" },
