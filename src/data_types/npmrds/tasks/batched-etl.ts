@@ -90,7 +90,7 @@ export default async function main(initial_event: InitialEvent) {
         type: ":INITIAL",
         payload: export_request,
         meta: {
-          note: `Aggregate ETL for ${state} ${batch_start_date} to ${batch_end_date}`,
+          note: `aggregate ETL for ${state} ${batch_start_date} to ${batch_end_date}`,
         },
       };
 

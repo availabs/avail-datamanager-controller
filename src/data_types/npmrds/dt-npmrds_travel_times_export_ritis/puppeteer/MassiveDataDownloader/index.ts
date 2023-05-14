@@ -87,6 +87,7 @@ import {
 } from "../../domain";
 
 import { setNpmrdsExportMetadataAsync } from "data_types/npmrds/utils/npmrds_export_metadata";
+import browser_options from "../../config/browser_options";
 
 type MDDTmcMetadata = {
   firstname: string;
@@ -665,12 +666,6 @@ export default class MassiveDataDownloader {
   async getSelectedTmcs(verifyRegionSelected = true) {
     await this.waitUntilSegmentsGathered();
 
-    // const n = await this.getNumberOfSelectedRegions(true);
-
-    // if (n === 0) {
-    // return [];
-    // }
-
     await this.openSelectedSegmentsPopup(verifyRegionSelected);
 
     const page = await this._getPage();
@@ -1037,15 +1032,26 @@ export default class MassiveDataDownloader {
 
     // https://stackoverflow.com/q/56561589/3970755
     await page.click(ElementPaths.tmcsSegmentCodesTextArea, { clickCount: 3 });
-    await page.evaluate((_tmcs) => {
-      navigator.clipboard.writeText(`${_tmcs}`);
-    }, tmcs);
 
-    await sleep(SECOND);
+    logger.debug(`writing ${tmcs.length} tmcs to the clipboard`);
 
-    await page.keyboard.down("Control");
-    await page.keyboard.press("V");
-    await page.keyboard.up("Control");
+    if (browser_options.headless) {
+      // Cannot use the clipboard in headless mode.
+      // https://github.com/puppeteer/puppeteer/issues/7888
+      // https://github.com/puppeteer/puppeteer/issues/8692
+      // https://bugs.chromium.org/p/chromium/issues/detail?id=1347380
+      await page.type(ElementPaths.tmcsSegmentCodesTextArea, `${tmcs}`, {
+        delay: 10,
+      });
+    } else {
+      await page.evaluate((_tmcs) => {
+        navigator.clipboard.writeText(`${_tmcs}`);
+      }, tmcs);
+
+      await page.keyboard.down("Control");
+      await page.keyboard.press("V");
+      await page.keyboard.up("Control");
+    }
 
     logger.debug(
       "finished MassiveDataDownloader type TMCs into tmcsSegmentCodesTextArea"
@@ -1086,7 +1092,7 @@ export default class MassiveDataDownloader {
       const selectedNotRequested = _.difference(selectedTmcs, tmcs);
       const requestedNotSelected = _.difference(tmcs, selectedTmcs);
 
-      logger.silly(
+      logger.debug(
         JSON.stringify(
           {
             // selectedTmcs,

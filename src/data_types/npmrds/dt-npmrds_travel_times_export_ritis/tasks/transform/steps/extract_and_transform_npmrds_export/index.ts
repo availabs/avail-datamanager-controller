@@ -224,7 +224,9 @@ function extractTmcIdentificationZipFile(
   return tmcIdentificationZipPath;
 }
 
-function loadTmcIdentification(npmrds_download_name: NpmrdsDownloadName) {
+function loadTmcIdentification(npmrds_export_metadata: NpmrdsExportMetadata) {
+  const { name: npmrds_download_name, state } = npmrds_export_metadata;
+
   const sqlite_db_path = getDbPath(npmrds_download_name);
 
   console.log("loading TMC_Identification");
@@ -242,11 +244,27 @@ function loadTmcIdentification(npmrds_download_name: NpmrdsDownloadName) {
       | sqlite3 -csv '${sqlite_db_path}' ".import '|cat -' tmc_identification"
   `);
 
+  // Because Quebec's state column is inconsistent.
+  if (state === "qc") {
+    const cmd = dedent(`
+      sqlite3 \
+        ${sqlite_db_path} \
+        "
+          UPDATE tmc_identification
+            SET state = UPPER('${state}')
+            WHERE ( UPPER(state) LIKE 'Q%' )
+        "
+    `);
+
+    execSync(cmd);
+  }
+
   console.timeEnd("loading TMC_Identification");
 }
 
 function loadNpmrdsTravelTimesData(npmrds_download_name: NpmrdsDownloadName) {
   const sqlite_db_path = getDbPath(npmrds_download_name);
+
   const awkScriptPath = join(
     __dirname,
     "./lib/order_columns_during_ingest.awk"
@@ -467,7 +485,7 @@ export default async function main(): Promise<NpmrdsExportTransformOutput> {
 
   loadNpmrdsTravelTimesData(npmrds_download_name);
 
-  loadTmcIdentification(npmrds_download_name);
+  loadTmcIdentification(npmrds_export_metadata);
 
   loadMetadataTable(npmrds_export_metadata);
 

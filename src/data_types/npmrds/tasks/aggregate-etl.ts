@@ -3,7 +3,6 @@ import { mkdirSync, linkSync, existsSync } from "fs";
 import { join, dirname } from "path";
 
 import dedent from "dedent";
-
 import _ from "lodash";
 
 import dama_db from "data_manager/dama_db";

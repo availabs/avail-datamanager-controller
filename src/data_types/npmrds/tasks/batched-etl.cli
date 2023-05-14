@@ -8,7 +8,6 @@ require("tsconfig-paths").register();
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
 
-const dama_db = require("data_manager/dama_db").default;
 const dama_events = require("data_manager/events").default;
 const logger = require("data_manager/logger").default;
 

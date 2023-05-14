@@ -3,10 +3,10 @@ import { DateTime } from "luxon";
 import _ from "lodash";
 
 import dama_db from "data_manager/dama_db";
-import dama_events from "data_manager/events";
+// import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
-import { NpmrdsDataSources } from "../../../domain";
+import { NpmrdsDataSources, NpmrdsState } from "../../../domain";
 
 import { EttViewsMetaSummary } from "./domain";
 
@@ -107,8 +107,8 @@ export default async function makeTravelTimesExportTablesAuthoritative(
     ? dama_view_ids
     : [dama_view_ids];
 
-  const eventTypePrefix =
-    "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative";
+  // const eventTypePrefix =
+  // "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative";
 
   const fn = async () => {
     const curNpmrdsAuthTravTimesViewMeta =
@@ -163,9 +163,13 @@ export default async function makeTravelTimesExportTablesAuthoritative(
         .toISODate();
 
       const {
-        schemaName: authoritativeSchemaName,
+        table_schema: authoritativeSchemaName,
         table_name: authoritativeTableName,
-      } = await createAuthoritativeStateYearMonthTable(state, year, month);
+      } = await createAuthoritativeStateYearMonthTable(
+        <NpmrdsState>state,
+        year,
+        month
+      );
 
       await attachPartitionTable(
         authoritativeSchemaName,

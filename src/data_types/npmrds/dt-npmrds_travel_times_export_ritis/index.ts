@@ -45,11 +45,16 @@ export default async function main(
 
   const task_controller = new BaseTasksController();
 
+  const request_and_download_initial_event = {
+    ...initial_event,
+    meta: { note: "request and download export" },
+  };
+
   const download_task_desc: DamaTaskDescriptor = {
     worker_path: download_worker_path,
     dama_task_queue_name: TaskQueue.DOWNLOAD_EXPORT,
     parent_context_id: getEtlContextId(),
-    initial_event,
+    initial_event: request_and_download_initial_event,
     etl_work_dir: getEtlWorkDir(),
   };
 
@@ -65,6 +70,7 @@ export default async function main(
   const transform_initial_event = {
     type: ":INITIAL",
     payload: download_final_event.payload,
+    meta: { note: "transform download" },
   };
 
   const transform_task_desc: DamaTaskDescriptor = {

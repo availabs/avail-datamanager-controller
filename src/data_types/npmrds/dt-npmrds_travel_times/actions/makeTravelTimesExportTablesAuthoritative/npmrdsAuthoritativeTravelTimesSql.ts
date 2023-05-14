@@ -6,14 +6,20 @@ import dama_db from "data_manager/dama_db";
 
 import { stateAbbr2FipsCode } from "../../../../../data_utils/constants/stateFipsCodes";
 
-import { NpmrdsDatabaseSchemas, NpmrdsDataSources } from "../../../domain";
+import {
+  NpmrdsDatabaseSchemas,
+  NpmrdsDataSources,
+  NpmrdsState,
+} from "data_types/npmrds/domain";
 
 import {
   ParsedNpmrdsTravelTimesExportTableMetadata,
   EttViewsMetaSummary,
 } from "./domain";
 
-const schemaName = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
+import create_state_npmrds_travel_times_table from "../../ddl/create_state_npmrds_travel_times_table";
+
+const npmrds_travel_times_schema = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
 
 export const getNpmrdsStateYearMonthTableName = (
   state: string,
@@ -25,96 +31,28 @@ export const getNpmrdsStateYearMonthTableName = (
   return `npmrds_${state}_${year}${mm}`;
 };
 
-export async function createAuthoritativeRootTable() {
-  const sql = dedent(
-    `
-      CREATE TABLE IF NOT EXISTS public.npmrds_test (
-        tmc                               VARCHAR(9),
-        date                              DATE,
-        epoch                             SMALLINT,
-        travel_time_all_vehicles          REAL,
-        travel_time_passenger_vehicles    REAL,
-        travel_time_freight_trucks        REAL,
-        data_density_all_vehicles         CHAR,
-        data_density_passenger_vehicles   CHAR,
-        data_density_freight_trucks       CHAR,
-        state                             CHAR(2) NOT NULL
-      )
-        PARTITION BY LIST (state)
-      ;
-    `
-  );
-
-  const result = await dama_db.query(sql);
-
-  return result;
-}
-
-export async function createAuthoritativePartitionsSchema() {
-  const sql = dedent(
-    pgFormat(
-      `
-        CREATE SCHEMA IF NOT EXISTS %I ;
-      `,
-      schemaName
-    )
-  );
-
-  await dama_db.query(sql);
-
-  return { schemaName };
-}
-
-export async function createAuthoritativeStateTable(state: string) {
-  const table_name = `npmrds_${state}`;
-
-  await createAuthoritativePartitionsSchema();
-  await createAuthoritativeRootTable();
-
-  const sql = dedent(
-    pgFormat(
-      `
-        CREATE SCHEMA IF NOT EXISTS %I ;
-
-        CREATE TABLE IF NOT EXISTS %I.npmrds
-          PARTITION OF public.npmrds_test
-          FOR VALUES IN (%L)
-          PARTITION BY RANGE (date)
-        ;
-      `,
-      state,
-      state,
-      state
-    )
-  );
-
-  await dama_db.query(sql);
-
-  return { schemaName, table_name };
-}
-
 export async function createAuthoritativeStateYearTable(
-  state: string,
+  state: NpmrdsState,
   year: number
 ) {
-  // const { table_name: parentTableName } = await createAuthoritativeStateTable(
-  // state
-  // );
+  const { table_schema: parent_table_schema, table_name: parent_table_name } =
+    await create_state_npmrds_travel_times_table(state);
 
   const table_name = `npmrds_${state}_${year}`;
+
   const sql = dedent(
     pgFormat(
       `
         CREATE TABLE IF NOT EXISTS %I.%I
-          PARTITION OF %I.npmrds
+          PARTITION OF %I.%I
           FOR VALUES FROM (%L) TO (%L)
           PARTITION BY RANGE (date)
         ;
       `,
-      schemaName,
+      npmrds_travel_times_schema,
       table_name,
-      schemaName,
-      state,
+      parent_table_schema,
+      parent_table_name,
       `${year}-01-01`,
       `${year + 1}-01-01`
     )
@@ -122,15 +60,15 @@ export async function createAuthoritativeStateYearTable(
 
   await dama_db.query(sql);
 
-  return { schemaName, table_name };
+  return { table_schema: npmrds_travel_times_schema, table_name };
 }
 
 export async function createAuthoritativeStateYearMonthTable(
-  state: string,
+  state: NpmrdsState,
   year: number,
   month: number
 ) {
-  const { table_name: parentTableName } =
+  const { table_name: parent_table_name } =
     await createAuthoritativeStateYearTable(state, year);
 
   const table_name = getNpmrdsStateYearMonthTableName(state, year, month);
@@ -150,10 +88,10 @@ export async function createAuthoritativeStateYearMonthTable(
           PARTITION BY RANGE (date)
         ;
       `,
-      schemaName,
+      npmrds_travel_times_schema,
       table_name,
-      schemaName,
-      parentTableName,
+      npmrds_travel_times_schema,
+      parent_table_name,
       startDate,
       endDate
     )
@@ -161,7 +99,7 @@ export async function createAuthoritativeStateYearMonthTable(
 
   await dama_db.query(sql);
 
-  return { schemaName, table_name };
+  return { table_schema: npmrds_travel_times_schema, table_name };
 }
 
 export async function attachPartitionTable(
@@ -210,7 +148,7 @@ export async function detachAttView(
           DETACH PARTITION %I.%I
         ;
       `,
-      schemaName,
+      npmrds_travel_times_schema,
       npmrdsStateYrMoTableName,
       table_schema,
       table_name

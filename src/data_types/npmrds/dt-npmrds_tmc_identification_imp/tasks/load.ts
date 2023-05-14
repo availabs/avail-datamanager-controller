@@ -17,6 +17,8 @@ import logger from "data_manager/logger";
 
 import { NpmrdsDatabaseSchemas } from "data_types/npmrds/domain";
 
+import create_state_tmc_identification_table_for_year from "data_types/npmrds/dt-npmrds_tmc_identification/ddl/create_state_tmc_identification_table_for_year";
+
 export type DoneData = {
   metadata: {
     state: string;
@@ -69,7 +71,6 @@ const columns = [
   "timezone_name",
   "active_start_date",
   "active_end_date",
-  "download_timestamp",
 ];
 
 const getMetadataFromSqliteDb = memoize((sqlite_db: SQLiteDB) => {
@@ -100,14 +101,11 @@ const getMetadataFromSqliteDb = memoize((sqlite_db: SQLiteDB) => {
 });
 
 async function createPostgesDbTable(sqlite_db: SQLiteDB) {
-  const { state, table_schema, table_name } =
+  const { state, table_schema, table_name, year, download_timestamp } =
     getMetadataFromSqliteDb(sqlite_db);
 
-  if (process.env.NODE_ENV?.toLowerCase() === "development") {
-    await dama_db.query(
-      pgFormat("DROP TABLE IF EXISTS %I.%I;", table_schema, table_name)
-    );
-  }
+  const { table_schema: parent_table_schema, table_name: parent_table_name } =
+    await create_state_tmc_identification_table_for_year(state, year);
 
   const sql = dedent(
     pgFormat(
@@ -115,59 +113,28 @@ async function createPostgesDbTable(sqlite_db: SQLiteDB) {
         CREATE SCHEMA IF NOT EXISTS %I ;
 
         CREATE TABLE IF NOT EXISTS %I.%I (
+          LIKE %I.%I,
 
-          tmc                      CHARACTER VARYING PRIMARY KEY,
-          type                     CHARACTER VARYING,
-          road                     CHARACTER VARYING,
-          road_order               REAL,
-          intersection             CHARACTER VARYING,
-          tmclinear                INTEGER,
-          country                  CHARACTER VARYING,
-          state                    CHARACTER VARYING,
-          county                   CHARACTER VARYING,
-          zip                      CHARACTER VARYING,
-          direction                CHARACTER VARYING,
-          start_latitude           DOUBLE PRECISION,
-          start_longitude          DOUBLE PRECISION,
-          end_latitude             DOUBLE PRECISION,
-          end_longitude            DOUBLE PRECISION,
-          miles                    DOUBLE PRECISION,
-          frc                      SMALLINT,
-          border_set               CHARACTER VARYING,
-          isprimary                SMALLINT,
-          f_system                 SMALLINT,
-          urban_code               INTEGER,
-          faciltype                SMALLINT,
-          structype                SMALLINT,
-          thrulanes                SMALLINT,
-          route_numb               INTEGER,
-          route_sign               SMALLINT,
-          route_qual               SMALLINT,
-          altrtename               CHARACTER VARYING,
-          aadt                     INTEGER,
-          aadt_singl               INTEGER,
-          aadt_combi               INTEGER,
-          nhs                      SMALLINT,
-          nhs_pct                  SMALLINT,
-          strhnt_typ               SMALLINT,
-          strhnt_pct               SMALLINT,
-          truck                    SMALLINT,
-          timezone_name            CHARACTER VARYING,
-          active_start_date        DATE,
-          active_end_date					 DATE,
-          download_timestamp 			 TIMESTAMP,
-
-          -- The following CHECK CONSTRAINT allows the table to later be ATTACHed
-          --   to the NpmrdsTmcIdentificationAdv PARTITIONed TABLE hierarchy.
+          PRIMARY KEY (tmc),
 
           CONSTRAINT npmrds_state_chk CHECK ( state = %L )
-
         ) ;
+
+        ALTER TABLE %I.%I
+          ALTER COLUMN download_timestamp SET DEFAULT %L::TIMESTAMP
+        ;
       `,
       table_schema,
+
       table_schema,
       table_name,
-      state.toUpperCase()
+      parent_table_schema,
+      parent_table_name,
+      state.toUpperCase(),
+
+      table_schema,
+      table_name,
+      download_timestamp
     )
   );
 
@@ -177,17 +144,32 @@ async function createPostgesDbTable(sqlite_db: SQLiteDB) {
 }
 
 function* createDataIterator(sqlite_db: SQLiteDB) {
-  const { state, download_timestamp } = getMetadataFromSqliteDb(sqlite_db);
+  const { state } = getMetadataFromSqliteDb(sqlite_db);
+
+  const valid_state_column_values = sqlite_db
+    .prepare(
+      `
+        SELECT EXISTS (
+          SELECT 1
+            FROM tmc_identification
+            WHERE ( UPPER(state) = ? )
+        ) AS has_rows_for_state;
+      `
+    )
+    .pluck()
+    .get(state.toUpperCase());
+
+  if (!valid_state_column_values) {
+    throw new Error(
+      `tmc_identification does not include any rows for state=${state.toUpperCase()}`
+    );
+  }
 
   const iter = sqlite_db
     .prepare(
       `
         SELECT ${columns}
           FROM tmc_identification
-            CROSS JOIN (
-              SELECT
-                  '${download_timestamp}' AS download_timestamp
-            )
           WHERE ( UPPER(state) = ? )
       `
     )

@@ -18,6 +18,8 @@ import logger from "data_manager/logger";
 
 import { NpmrdsDatabaseSchemas } from "data_types/npmrds/domain";
 
+import create_state_npmrds_travel_times_table from "data_types/npmrds/dt-npmrds_travel_times/ddl/create_state_npmrds_travel_times_table";
+
 export type DoneData = {
   metadata: {
     name: string;
@@ -34,7 +36,7 @@ export type DoneData = {
 
 const pipelineAsync = promisify(pipeline);
 
-const npmrds_travel_times_imp_schema_name =
+const npmrds_travel_times_imports_schema_name =
   NpmrdsDatabaseSchemas.NpmrdsTravelTimesImports;
 
 const columns = [
@@ -81,13 +83,13 @@ async function createPostgesDbTable(sqlite_db: SQLiteDB) {
 
   const endDate = new Date(end_date);
   endDate.setDate(endDate.getDate() + 1);
-  const endDateExclusive = endDate.toISOString().replace(/T.*/, "");
+  const end_date_exclusive = endDate.toISOString().replace(/T.*/, "");
 
   if (process.env.NODE_ENV?.toLowerCase() === "development") {
     await dama_db.query(
       pgFormat(
         "DROP TABLE IF EXISTS %I.%I;",
-        npmrds_travel_times_imp_schema_name,
+        npmrds_travel_times_imports_schema_name,
         table_name
       )
     );
@@ -96,17 +98,20 @@ async function createPostgesDbTable(sqlite_db: SQLiteDB) {
   logger.debug(
     `dt-npmrds_travel_times_imp load CREATE TABLE params: ${JSON.stringify(
       {
-        npmrds_travel_times_imp_schema_name,
+        npmrds_travel_times_imports_schema_name,
         table_name,
         state,
         start_date,
-        endDateExclusive,
+        end_date_exclusive,
         index: `${table_name}_pkey`,
       },
       null,
       4
     )}`
   );
+
+  const { table_schema: parent_table_schema, table_name: parent_table_name } =
+    await create_state_npmrds_travel_times_table(state);
 
   // NOTE:  The CHECK constraints allow us to later attach the table to the partitioned npmrds table.
   // https://www.postgresql.org/docs/current/ddl-partitioning.html#DDL-PARTITIONING-DECLARATIVE-MAINTENANCE
@@ -115,51 +120,60 @@ async function createPostgesDbTable(sqlite_db: SQLiteDB) {
       `
         CREATE SCHEMA IF NOT EXISTS %I ;
 
-        CREATE TABLE IF NOT EXISTS %I.%I (
-            tmc                               VARCHAR(9),
-            date                              DATE,
-            epoch                             SMALLINT,
-            travel_time_all_vehicles          REAL,
-            travel_time_passenger_vehicles    REAL,
-            travel_time_freight_trucks        REAL,
-            data_density_all_vehicles         CHAR,
-            data_density_passenger_vehicles   CHAR,
-            data_density_freight_trucks       CHAR,
-            state                             CHAR(2) NOT NULL DEFAULT %L,
+        CREATE TABLE %I.%I (
+          LIKE %I.%I,
 
-            PRIMARY KEY ( tmc, date, epoch ),
+          PRIMARY KEY (tmc, date, epoch),
 
-            -- The following CHECK CONSTRAINTs allow the table to later be ATTACHed
-            --   to the NpmrdsTravelTimes PARTITIONed TABLE hierarchy.
+          -- The following CHECK CONSTRAINTs allow the table to later be ATTACHed
+          --   to the NpmrdsTravelTimes PARTITIONed TABLE hierarchy.
 
-            CONSTRAINT npmrds_state_chk CHECK ( state = %L ),
-            CONSTRAINT npmrds_date_chk CHECK(
-              (date >= DATE %L )
-              AND
-              (date < %L )
-            )
-          ) WITH ( fillfactor=100, autovacuum_enabled=false )
+          CONSTRAINT npmrds_state_chk CHECK ( state = %L ),
+
+          CONSTRAINT npmrds_date_chk CHECK(
+            (date >= DATE %L )
+            AND
+            (date < %L )
+          )
+        ) WITH ( fillfactor=100, autovacuum_enabled=false )
+        ;
+
+        ALTER TABLE %I.%I
+          ALTER COLUMN state SET DEFAULT %L
         ;
 
         ALTER INDEX %I.%I
           SET (fillfactor=100)
         ;
+
+        CLUSTER %I.%I USING %I ;
       `,
-      npmrds_travel_times_imp_schema_name,
-      npmrds_travel_times_imp_schema_name,
+      npmrds_travel_times_imports_schema_name,
+
+      npmrds_travel_times_imports_schema_name,
       table_name,
-      state,
+      parent_table_schema,
+      parent_table_name,
       state,
       start_date,
-      endDateExclusive,
-      npmrds_travel_times_imp_schema_name,
+      end_date_exclusive,
+
+      npmrds_travel_times_imports_schema_name,
+      table_name,
+      state,
+
+      npmrds_travel_times_imports_schema_name,
+      `${table_name}_pkey`,
+
+      npmrds_travel_times_imports_schema_name,
+      table_name,
       `${table_name}_pkey`
     )
   );
 
   await dama_db.query(sql);
 
-  return { table_schema: npmrds_travel_times_imp_schema_name, table_name };
+  return { table_schema: npmrds_travel_times_imports_schema_name, table_name };
 }
 
 function createDataIterator(sqlite_db: SQLiteDB) {
@@ -181,7 +195,7 @@ async function loadPostgresDbTable(sqlite_db: SQLiteDB) {
 
     const clear_table = pgFormat(
       "DELETE FROM %I.%I",
-      npmrds_travel_times_imp_schema_name,
+      npmrds_travel_times_imports_schema_name,
       table_name
     );
 
@@ -189,7 +203,7 @@ async function loadPostgresDbTable(sqlite_db: SQLiteDB) {
 
     const copyFromSql = pgFormat(
       `COPY %I.%I (${columns}) FROM STDIN WITH CSV`,
-      npmrds_travel_times_imp_schema_name,
+      npmrds_travel_times_imports_schema_name,
       table_name
     );
 
@@ -211,10 +225,9 @@ async function clusterPostgresTable(sqlite_db: SQLiteDB) {
   const { table_name } = getMetadataFromSqliteDb(sqlite_db);
 
   const sql = pgFormat(
-    "CLUSTER %I.%I USING %I ;",
-    npmrds_travel_times_imp_schema_name,
-    table_name,
-    `${table_name}_pkey`
+    "CLUSTER %I.%I ;",
+    npmrds_travel_times_imports_schema_name,
+    table_name
   );
 
   await dama_db.query(sql);
@@ -223,7 +236,7 @@ async function clusterPostgresTable(sqlite_db: SQLiteDB) {
 async function analyzePostgresTable(table_name: string) {
   const sql = pgFormat(
     "ANALYZE %I.%I ;",
-    npmrds_travel_times_imp_schema_name,
+    npmrds_travel_times_imports_schema_name,
     table_name
   );
 
