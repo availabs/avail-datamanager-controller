@@ -14,6 +14,8 @@ export const TaskQueueConfigs = {
     worker_options: {
       teamSize: 1,
       teamConcurrency: 1,
+      retryLimit: 3,
+      retryDelay: 30,
     },
   },
 
