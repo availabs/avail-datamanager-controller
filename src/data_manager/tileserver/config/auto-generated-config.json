@@ -155,6 +155,12 @@
         },
         "pan_s72_v685_1682367017874": {
             "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s72_v685_1682367017874.mbtiles"
+        },
+        "pan_s74_v687_1682368057036": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s74_v687_1682368057036.mbtiles"
+        },
+        "pan_s77_v692_1682610303782": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s77_v692_1682610303782.mbtiles"
         }
     }
 }
