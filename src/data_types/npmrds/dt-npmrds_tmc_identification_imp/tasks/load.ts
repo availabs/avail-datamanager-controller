@@ -13,6 +13,8 @@ import { format as csvFormat } from "fast-csv";
 import Database, { Database as SQLiteDB } from "better-sqlite3";
 
 import dama_db from "data_manager/dama_db";
+import dama_events from "data_manager/events";
+
 import logger from "data_manager/logger";
 
 import { NpmrdsDatabaseSchemas } from "data_types/npmrds/domain";
@@ -28,6 +30,8 @@ export type DoneData = {
   table_schema: string;
   table_name: string;
 };
+
+const done_event_type = ":LOADED_TMC_IDENTIFICATION_TABLE";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -112,7 +116,7 @@ async function createPostgesDbTable(sqlite_db: SQLiteDB) {
       `
         CREATE SCHEMA IF NOT EXISTS %I ;
 
-        CREATE TABLE IF NOT EXISTS %I.%I (
+        CREATE TABLE %I.%I (
           LIKE %I.%I,
 
           PRIMARY KEY (tmc),
@@ -228,6 +232,14 @@ async function analyzePostgresTable(sqlite_db: SQLiteDB) {
 export default async function main(
   npmrds_travel_times_sqlite_db: string
 ): Promise<DoneData> {
+  const events = await dama_events.getAllEtlContextEvents();
+
+  let done_event = events.find(({ type }) => type === done_event_type);
+
+  if (done_event) {
+    return done_event.payload;
+  }
+
   if (!existsSync(npmrds_travel_times_sqlite_db)) {
     throw new Error(
       `NpmrdsTravelTimesExportSqlite file ${npmrds_travel_times_sqlite_db} does not exists.`
@@ -262,5 +274,14 @@ export default async function main(
   await analyzePostgresTable(sqlite_db);
   logger.debug("analyzed table");
 
-  return { metadata, table_schema, table_name };
+  const done_data = { metadata, table_schema, table_name };
+
+  done_event = {
+    type: done_event_type,
+    payload: done_data,
+  };
+
+  await dama_events.dispatch(done_event);
+
+  return done_data;
 }
