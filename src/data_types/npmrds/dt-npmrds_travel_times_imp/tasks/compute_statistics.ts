@@ -40,8 +40,8 @@ export default async function main(
                 jsonb_build_object(
                   'total_tmcs',             COUNT( DISTINCT tmc ),
                   'total_records',          COUNT(1),
-                  tmcs_md5sum,              MD5(string_agg( DISTINCT tmc, '|' ORDER BY TMC)),
-                  travel_time_all_sum,      SUM(travel_time_all_vehicles)::TEXT
+                  'tmcs_md5sum',              MD5(string_agg( DISTINCT tmc, '|' ORDER BY TMC)),
+                  'travel_time_all_sum',      SUM(travel_time_all_vehicles)::TEXT
                 ) AS summary
               FROM %I.%I
                 INNER JOIN %I.%I
