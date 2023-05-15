@@ -21,7 +21,7 @@ const {
   start_date,
   end_date,
   is_expanded,
-  override_batch_max,
+  override_max_paritions,
   logging_level,
 } = yargs(hideBin(process.argv))
   // .usage(
@@ -55,7 +55,7 @@ const {
       boolean: true,
       default: true,
     },
-    override_batch_max: {
+    override_max_paritions: {
       describe:
         "Override the batch max number of jobs. Defaults to 3 month/weeks max downloaded.",
       boolean: true,
@@ -70,7 +70,7 @@ const {
     },
   }).argv;
 
-logger.level = "debug";
+logger.level = logging_level;
 
 async function main() {
   const etl_context_id = await dama_events.spawnEtlContext(null, null, pg_env);
@@ -87,7 +87,7 @@ async function main() {
         start_date,
         end_date,
         is_expanded,
-        override_batch_max,
+        override_max_paritions,
       },
       meta: { note: "batch ETL from CLI" },
     };
