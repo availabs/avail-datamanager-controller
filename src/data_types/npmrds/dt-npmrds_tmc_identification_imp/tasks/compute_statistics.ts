@@ -106,7 +106,7 @@ export default async function main(
 
           SELECT
               json_object_agg(
-                COALESCE(frc, 'null'),
+                COALESCE(frc::TEXT, 'null'),
                 summary
               ) AS summary_by_frc
             FROM (
