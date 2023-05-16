@@ -3,7 +3,6 @@ import { DateTime } from "luxon";
 import _ from "lodash";
 
 import dama_db from "data_manager/dama_db";
-// import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
 import { NpmrdsDataSources, NpmrdsState } from "../../../domain";
@@ -202,7 +201,14 @@ export default async function makeTravelTimesExportTablesAuthoritative(
 
     // await dama_events.dispatch(finalEvent);
 
-    return [curNpmrdsAuthTravTimesViewMeta, newNpmrdsAuthTravTimesViewMeta];
+    const done_data = [
+      curNpmrdsAuthTravTimesViewMeta,
+      newNpmrdsAuthTravTimesViewMeta,
+    ];
+
+    logger.debug(JSON.stringify(done_data, null, 4));
+
+    return done_data;
   };
   try {
     const [prev, cur] = dama_db.isInTransactionContext
