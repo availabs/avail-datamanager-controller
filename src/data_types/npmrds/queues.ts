@@ -4,8 +4,8 @@ export const TaskQueueConfigs = {
   // NOTE: Increasing concurrency can lead to "sorry, too many clients already" node-pg error.
   [TaskQueue.AGGREGATE_ETL]: {
     worker_options: {
-      teamSize: 5,
-      teamConcurrency: 5,
+      teamSize: 3,
+      teamConcurrency: 3,
       teamRefill: true,
     },
   },
@@ -23,6 +23,15 @@ export const TaskQueueConfigs = {
     worker_options: {
       teamSize: 3,
       teamConcurrency: 3,
+      teamRefill: true,
+    },
+  },
+
+  // Load NPMRDS travel times and TMC_Identification into the SQLite db.
+  [TaskQueue.GENERAL_WORKER]: {
+    worker_options: {
+      teamSize: 6,
+      teamConcurrency: 6,
       teamRefill: true,
     },
   },

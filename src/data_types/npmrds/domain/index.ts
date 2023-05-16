@@ -371,7 +371,8 @@ export type NpmrdsExportTransformOutput = {
 };
 
 export enum TaskQueue {
-  AGGREGATE_ETL = "npmrds/dt-npmrds_travel_times_export_ritis:AGGREGATE_ETL",
-  DOWNLOAD_EXPORT = "npmrds/dt-npmrds_travel_times_export_ritis:DOWNLOAD_EXPORT",
-  TRANSFORM_EXPORT = "npmrds/dt-npmrds_travel_times_export_ritis:TRANSFORM_EXPORT",
+  AGGREGATE_ETL = "npmrds:AGGREGATE_ETL",
+  DOWNLOAD_EXPORT = "npmrds:DOWNLOAD_EXPORT",
+  TRANSFORM_EXPORT = "npmrds:TRANSFORM_EXPORT",
+  GENERAL_WORKER = "npmrds:GENERAL_WORKER",
 }

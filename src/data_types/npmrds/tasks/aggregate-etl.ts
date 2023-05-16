@@ -147,7 +147,7 @@ async function downloadAndTransformNpmrdsExport(
 
   const dama_task_descriptor: QueuedDamaTaskDescriptor = {
     worker_path,
-    dama_task_queue_name: NpmrdsTaskQueue.AGGREGATE_ETL,
+    dama_task_queue_name: NpmrdsTaskQueue.GENERAL_WORKER,
     parent_context_id: getEtlContextId(),
     initial_event,
     etl_work_dir: getEtlWorkDir(),
@@ -181,7 +181,7 @@ async function loadTmcIdentification(
 
   const dama_task_descriptor: QueuedDamaTaskDescriptor = {
     worker_path,
-    dama_task_queue_name: NpmrdsTaskQueue.AGGREGATE_ETL,
+    dama_task_queue_name: NpmrdsTaskQueue.GENERAL_WORKER,
     parent_context_id: getEtlContextId(),
     initial_event,
     etl_work_dir: getEtlWorkDir(),
@@ -219,7 +219,7 @@ async function loadNpmrdsTravelTimes(
 
   const dama_task_descriptor: QueuedDamaTaskDescriptor = {
     worker_path,
-    dama_task_queue_name: NpmrdsTaskQueue.AGGREGATE_ETL,
+    dama_task_queue_name: NpmrdsTaskQueue.GENERAL_WORKER,
     parent_context_id: getEtlContextId(),
     initial_event,
     etl_work_dir: getEtlWorkDir(),

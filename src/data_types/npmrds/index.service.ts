@@ -47,6 +47,7 @@ export default {
       },
     },
 
+    // NOTE: Queues a batch ETL worker, not aggregate.
     queueNpmrdsAggregateEtl: {
       visibility: "public",
 
