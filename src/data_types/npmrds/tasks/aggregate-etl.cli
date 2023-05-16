@@ -76,7 +76,9 @@ async function main() {
         end_date,
         is_expanded,
       },
-      meta: { note: "aggregate ETL from CLI" },
+      meta: {
+        note: `aggregate ETL from CLI: ${state} ${start_date} to ${end_date}`,
+      },
     };
 
     await dama_events.dispatch(initial_event);
