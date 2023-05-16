@@ -76,6 +76,7 @@ export default async function main(initial_event: InitialEvent) {
 
   logger.debug(JSON.stringify({ batches }, null, 4));
 
+  // FIXME: Change the following so that the tasks are queued in order.
   const done_data = await Promise.all(
     batches.map(async (export_request) => {
       const { start_date: batch_start_date, end_date: batch_end_date } =

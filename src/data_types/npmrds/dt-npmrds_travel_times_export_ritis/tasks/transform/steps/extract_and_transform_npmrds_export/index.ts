@@ -244,7 +244,7 @@ function loadTmcIdentification(npmrds_export_metadata: NpmrdsExportMetadata) {
       | sqlite3 -csv '${sqlite_db_path}' ".import '|cat -' tmc_identification"
   `);
 
-  // Because Quebec's state column is inconsistent.
+  // Because the Canadian TMCs' state column is not the abbreviation.
   if (state === "qc") {
     const cmd = dedent(`
       sqlite3 \
@@ -253,6 +253,20 @@ function loadTmcIdentification(npmrds_export_metadata: NpmrdsExportMetadata) {
           UPDATE tmc_identification
             SET state = UPPER('${state}')
             WHERE ( UPPER(state) LIKE 'Q%' )
+        "
+    `);
+
+    execSync(cmd);
+  }
+
+  if (state === "on") {
+    const cmd = dedent(`
+      sqlite3 \
+        ${sqlite_db_path} \
+        "
+          UPDATE tmc_identification
+            SET state = UPPER('${state}')
+            WHERE ( UPPER(state) LIKE 'ON%' )
         "
     `);
 

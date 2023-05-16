@@ -9,6 +9,7 @@ import download_npmrds_export from "./steps/download_npmrds_export";
 import { NpmrdsExportRequest } from "data_types/npmrds/domain";
 
 import { NpmrdsExportDownloadMeta } from "../../domain";
+import { sleep } from "data_utils/time";
 
 export type InitialEvent = {
   type: ":INITIAL";
@@ -53,16 +54,39 @@ export default async function main(
 
     await get_download_urls();
 
-    const done_data = await download_npmrds_export();
+    let retries = 0;
 
-    final_event = {
-      type: ":FINAL",
-      payload: done_data,
-    };
+    while (true) {
+      try {
+        const done_data = await download_npmrds_export();
 
-    await dama_events.dispatch(final_event);
+        final_event = {
+          type: ":FINAL",
+          payload: done_data,
+        };
 
-    return done_data;
+        await dama_events.dispatch(final_event);
+
+        return done_data;
+      } catch (err) {
+        const { message, stack } = <Error>err;
+
+        if (
+          retries < 3 &&
+          message === "NPMRDS Export Download: unexpected response Not Found"
+        ) {
+          logger.warn(message);
+          logger.warn(stack);
+          await sleep(10 * 1000);
+
+          ++retries;
+
+          continue;
+        }
+
+        throw err;
+      }
+    }
   } catch (err) {
     const { message, stack } = <Error>err;
 
