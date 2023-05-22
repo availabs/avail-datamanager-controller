@@ -255,15 +255,15 @@ export default class MassiveDataDownloader {
 
           logger.debug("finished MassiveDataDownloader goto page");
 
-          logger.debug(
-            "start MassiveDataDownloader wait for page network idle"
-          );
+          // logger.debug(
+          // "start MassiveDataDownloader wait for page network idle"
+          // );
 
-          await this._page.waitForNetworkIdle({ timeout: 0 });
+          // await this._page.waitForNetworkIdle({ timeout: 0 });
 
-          logger.debug(
-            "finished MassiveDataDownloader wait for page network idle"
-          );
+          // logger.debug(
+          // "finished MassiveDataDownloader wait for page network idle"
+          // );
 
           logger.debug("start MassiveDataDownloader wait for query form");
 
