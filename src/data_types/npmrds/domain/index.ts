@@ -151,6 +151,8 @@ export enum NpmrdsDataSources {
   // The NPMRDS TMC Identification Postgres DB Tables
   NpmrdsTmcIdentificationImports = "NpmrdsTmcIdentificationImports",
   NpmrdsTmcIdentification = "NpmrdsTmcIdentification",
+
+  NpmrdsTmcDateRanges = "NpmrdsTmcDateRanges",
 }
 
 export enum NpmrdsTravelTimesExportRitisElements {
@@ -293,6 +295,15 @@ export const npmrdsDataSourcesInitialMetadata: DataSourceInitialMetadata[] = [
     source_dependencies_names: [
       NpmrdsDataSources.NpmrdsTmcIdentificationImports,
     ],
+  },
+
+  {
+    name: NpmrdsDataSources.NpmrdsTmcDateRanges,
+    description:
+      "The date range for which NPMRDS TMCs have NpmrdsTravelTimes data.",
+    type: "npmrds_tmc_date_range",
+    display_name: "NPMRDS TMC Date Range",
+    source_dependencies_names: [NpmrdsDataSources.NpmrdsTravelTimes],
   },
 ];
 

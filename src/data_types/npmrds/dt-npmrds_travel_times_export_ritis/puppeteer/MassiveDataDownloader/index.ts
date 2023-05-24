@@ -255,6 +255,9 @@ export default class MassiveDataDownloader {
 
           logger.debug("finished MassiveDataDownloader goto page");
 
+          // // This was causing the Task to hang.
+          // // Not sure why. Worked fine previously.
+          //
           // logger.debug(
           // "start MassiveDataDownloader wait for page network idle"
           // );

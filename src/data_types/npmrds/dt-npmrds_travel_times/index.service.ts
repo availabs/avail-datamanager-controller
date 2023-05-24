@@ -11,6 +11,8 @@ import { NpmrdsDataSources } from "../domain";
 
 import makeTravelTimesExportTablesAuthoritative from "./actions/makeTravelTimesExportTablesAuthoritative";
 
+import updateTmcDateRanges from "../dt-npmrds_tmc_date_ranges/main";
+
 export const serviceName = "dama/data_types/npmrds/dt-npmrds_travel_times";
 
 const queryNpmrdsAuthoritativePartitionTreeSqlPath = join(
@@ -51,6 +53,8 @@ export default {
       const done_data = await makeTravelTimesExportTablesAuthoritative(
         dama_view_ids
       );
+
+      await updateTmcDateRanges();
 
       return done_data;
     },

@@ -31,12 +31,27 @@ export const getNpmrdsStateYearMonthTableName = (
   return `npmrds_${state}_${year}${mm}`;
 };
 
+export async function createAuthoritativePartitionsSchema() {
+  const sql = dedent(
+    pgFormat(
+      `
+        CREATE SCHEMA IF NOT EXISTS %I ;
+      `,
+      npmrds_travel_times_schema
+    )
+  );
+
+  await dama_db.query(sql);
+}
+
 export async function createAuthoritativeStateYearTable(
   state: NpmrdsState,
   year: number
 ) {
   const { table_schema: parent_table_schema, table_name: parent_table_name } =
     await create_state_npmrds_travel_times_table(state);
+
+  await createAuthoritativePartitionsSchema();
 
   const table_name = `npmrds_${state}_${year}`;
 

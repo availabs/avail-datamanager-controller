@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const yargs = require("yargs/yargs");
+const { hideBin } = require("yargs/helpers");
+
+const logger = require("data_manager/logger").default;
+
+const { runInDamaContext } = require("data_manager/contexts");
+
+const main = require("./main").default;
+
+const args = yargs(hideBin(process.argv))
+  .usage("Usage $0 --pg_env npmrds --conflation_version 0.6.0 --year 2023")
+  .strict()
+  .options({
+    pg_env: {
+      describe: "The PostgresSQL Database",
+      demandOption: true,
+    },
+    logging_level: {
+      describe: "The logging level",
+      demandOption: false,
+      default: "debug",
+      choices: ["error", "warn", "info", "debug", "silly"],
+    },
+  }).argv;
+
+const { pg_env, logging_level } = args;
+
+logger.level = logging_level;
+
+async function run() {
+  const ctx = {
+    meta: { pgEnv: pg_env },
+  };
+
+  await runInDamaContext(ctx, async () => {
+    await main();
+  });
+}
+
+run();
