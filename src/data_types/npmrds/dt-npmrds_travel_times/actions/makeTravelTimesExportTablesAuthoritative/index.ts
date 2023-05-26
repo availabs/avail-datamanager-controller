@@ -66,7 +66,6 @@ function validateNpmrdsTravelTimesExportEligibleForAuthoritative(
 
 export async function getCurrentNpmrdsAuthoritativeTravelTimesViewMetadata() {
   const sql = dedent(`
-    -- SELECT FOR SHARE
     SELECT
         b.*
       FROM data_manager.sources AS a

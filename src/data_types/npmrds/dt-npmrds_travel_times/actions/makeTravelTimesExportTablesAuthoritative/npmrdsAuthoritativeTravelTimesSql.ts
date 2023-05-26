@@ -4,7 +4,7 @@ import _ from "lodash";
 
 import dama_db from "data_manager/dama_db";
 
-import { stateAbbr2FipsCode } from "../../../../../data_utils/constants/stateFipsCodes";
+import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";
 
 import {
   NpmrdsDatabaseSchemas,

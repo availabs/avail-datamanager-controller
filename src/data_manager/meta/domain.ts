@@ -1,4 +1,5 @@
 export type DamaSourceName = string;
+export type DamaViewID: number
 
 export type DataSourceInitialMetadata = {
   name: DamaSourceName;
@@ -32,7 +33,7 @@ export type DamaSource = {
 };
 
 export type DamaView = {
-  view_id: number;
+  view_id: DamaViewID;
   source_id: number;
   data_type?: string | null;
   interval_version?: string | null;
