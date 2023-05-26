@@ -8,12 +8,19 @@ export async function createView(ctx, view_values) {
     source_id,
     user_id,
     customViewAttributes,
+    viewMetadata,
+    viewDependency,
   } = view_values;
 
   let newDamaView = (
-    await ctx.call("dama/metadata.createNewDamaView", 
-      {source_id, user_id, metadata: {...customViewAttributes}
-    })
+    await ctx.call("dama/metadata.createNewDamaView",
+      {
+        source_id,
+        user_id,
+        view_dependencies: [viewDependency],
+        metadata: {...(customViewAttributes || {}), ...(viewMetadata || {})},
+      }
+    )
   );
 
   const {
@@ -23,7 +30,7 @@ export async function createView(ctx, view_values) {
     metadata,
   } = newDamaView;
 
-  console.log('new dama view', newDamaView)
+  console.log('new dama view', newDamaView);
 
   const table_schema = origTableSchema || "gis_datasets";
   let table_name = origTableName;
@@ -104,7 +111,6 @@ export async function createSource(ctx, source_values) {
     )
 
   } catch (err ) {
-
     console.log('createNewDamaSource error:', JSON.stringify(err, null, 3))
   }
   return damaSource

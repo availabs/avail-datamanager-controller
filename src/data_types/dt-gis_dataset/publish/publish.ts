@@ -24,6 +24,8 @@ export default async function publish(ctx) {
 
       schemaName,
       customViewAttributes,
+      viewMetadata,
+      viewDependency
     },
     meta: {
       pgEnv,
@@ -49,23 +51,22 @@ export default async function publish(ctx) {
     }
 
     // create a view
-    console.log('Do I get to view create?')
-    const damaView = await createView(ctx, {source_id, user_id: userId, customViewAttributes });
-    console.log('created view', JSON.stringify( damaView , null, 4));
+    console.log("Do I get to view create?");
+    const damaView = await createView(ctx, { source_id, user_id: userId, customViewAttributes, viewMetadata, viewDependency });
+    console.log("created view", JSON.stringify( damaView , null, 4));
 
     // -- Stage the dataset directly into final location --
-    const gdi = new GeospatialDatasetIntegrator(gisUploadId);
-    tableDescriptor.tableSchema = damaView.table_schema || "gis_datasets";
-    tableDescriptor.tableName = damaView.table_name //`etlctx_${etl_context_id}_${uniqId}`;
-    await gdi.persistLayerTableDescriptor(tableDescriptor);
+    if (tableDescriptor && gisUploadId) {
+      const gdi = new GeospatialDatasetIntegrator(gisUploadId);
+      tableDescriptor.tableSchema = damaView.table_schema || "gis_datasets";
+      tableDescriptor.tableName = damaView.table_name; //`etlctx_${etl_context_id}_${uniqId}`;
+      await gdi.persistLayerTableDescriptor(tableDescriptor);
 
-    let loadTableWarning
-
-    try {
-      const migration_result = await gdi.loadTable({ layerName, pgEnv });
-    } catch( err ) {
-      console.log('migration error', JSON.stringify(err,null,3))
-    }
+      try {
+        const migration_result = await gdi.loadTable({ layerName, pgEnv });
+      } catch( err ) {
+        console.log("migration error", JSON.stringify(err,null,3));
+      }
 
     const {
       table_schema: tableSchema,
@@ -81,28 +82,45 @@ export default async function publish(ctx) {
       });
     }
 
-    await ctx.call("data_manager/events.setEtlContextSourceId", {
-      etl_context_id,
-      source_id: damaSourceId,
-    });
+    if (etl_context_id && damaSourceId) {
+      await ctx.call("data_manager/events.setEtlContextSourceId", {
+        etl_context_id,
+        source_id: damaSourceId,
+      });
+    }
 
     console.log(`PUBLISHED: ${tableSchema}.${tableName}`);
 
-    ctx.params.damaViewId = damaViewId
-    ctx.meta.etl_context_id = etlContextId
+    ctx.params.damaViewId = damaViewId;
+    ctx.meta.etl_context_id = etlContextId;
 
-    await ctx.call('gis-dataset.createViewMbtiles', {
-      damaViewId,
-      damaSourceId
-    })
+    if (etlContextId && damaViewId && damaSourceId) {
+      await ctx.call("gis-dataset.createViewMbtiles", {
+        damaViewId,
+        damaSourceId,
+      });
+    }
+    } else {
+      const startEvent = {
+        type: EventTypes.START_GIS_FILE_UPLOAD,
+        payload: {
+          etlContextId,
+        },
+        meta: {
+          etl_context_id: etlContextId,
+        },
+      };
+      await ctx.call("data_manager/events.dispatch", startEvent);
+    }
 
     // console.log('mbtilesData', JSON.stringify(mbtilesData,null,3))
 
     const finalEvent = {
       type: EventTypes.FINAL,
       payload: {
-        damaSourceId,
-        damaViewId
+        damaSourceId: (damaSource as any)?.source_id,
+        damaViewId: damaView?.view_id,
+        etlContextId,
       },
       meta: {
         etl_context_id: etlContextId,
@@ -111,7 +129,7 @@ export default async function publish(ctx) {
       },
     };
 
-    console.log('final event')
+    console.log("final event");
     //console.log(JSON.stringify({ finalEvent }, null, 4));
 
     await ctx.call("data_manager/events.dispatch", finalEvent);
