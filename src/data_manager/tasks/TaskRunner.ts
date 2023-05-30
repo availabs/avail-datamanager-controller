@@ -199,6 +199,11 @@ class TaskRunner {
     this.logger.silly("after SELECT FOR UPDATE");
 
     if (!initial_event) {
+      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+      //  It is real confusing when we failed to aquire the lock
+      //    because of missing __dama_task_manager__ metadata.
+      //  Multiple times this has happened and took a while to figure out.
+      //  Give a meaningful error message if the requested event does not have the dama_host_id.
       this.logger.error("Unable to aquire :INITIAL event lock.");
 
       await this.shutdown(

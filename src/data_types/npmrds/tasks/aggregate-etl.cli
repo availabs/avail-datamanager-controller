@@ -5,16 +5,20 @@
 require("ts-node").register();
 require("tsconfig-paths").register();
 
+const { join } = require("fs");
+
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
 
-const dama_db = require("data_manager/dama_db").default;
 const dama_events = require("data_manager/events").default;
 const logger = require("data_manager/logger").default;
+const dama_host_id = require("constants/damaHostId").default;
 
 const { runInDamaContext } = require("data_manager/contexts");
 
 const aggregate_etl_main = require("./aggregate-etl").default;
+
+const worker_path = join(__dirname, "./aggregate-etl.worker.ts");
 
 const { pg_env, state, start_date, end_date, is_expanded, logging_level } =
   yargs(hideBin(process.argv))
@@ -78,6 +82,11 @@ async function main() {
       },
       meta: {
         note: `aggregate ETL from CLI: ${state} ${start_date} to ${end_date}`,
+        // Because we are by-passing the TaskQueue, we need this to use ./runTask if later needed.
+        __dama_task_manager__: {
+          dama_host_id,
+          worker_path,
+        },
       },
     };
 
