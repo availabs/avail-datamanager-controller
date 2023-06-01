@@ -276,14 +276,11 @@ export default class ApiService extends Service {
               "/hazard_mitigation/disaster_declarations_summary_v2":
                 "hazard_mitigation.disaster_declarations_summary_v2.load",
 
-              "/hazard_mitigation/ihp_v1":
-                "hazard_mitigation.ihp_v1.load",
+              "/hazard_mitigation/ihp_v1": "hazard_mitigation.ihp_v1.load",
 
-              "/hazard_mitigation/pa_v1":
-                "hazard_mitigation.pa_v1.load",
+              "/hazard_mitigation/pa_v1": "hazard_mitigation.pa_v1.load",
 
-              "/hazard_mitigation/nfip_v1":
-                "hazard_mitigation.nfip_v1.load",
+              "/hazard_mitigation/nfip_v1": "hazard_mitigation.nfip_v1.load",
 
               "/hazard_mitigation/nfip_v1_enhanced":
                 "hazard_mitigation.nfip_v1_enhanced.load",
@@ -329,6 +326,9 @@ export default class ApiService extends Service {
 
               "/data-types/npmrds/npmrds-travel-times/makeTravelTimesExportTablesAuthoritative":
                 "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative",
+
+              "POST /data-types/npmrds/network-analysis/getTmcFeatures":
+                "dama/data_types/npmrds/network-analysis.getTmcFeatures",
             },
           },
 
