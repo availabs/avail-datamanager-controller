@@ -856,10 +856,10 @@ class DamaMeta extends DamaContextAttachedResource {
     new_row: Record<string, any>,
     pg_env = this.pg_env
   ) {
-    console.log("got here", new_row);
+    logger.info(`new_row in Create Source: ${new_row}`);
     const q = await this.generateCreateDamaSourceQuery(new_row, pg_env);
-    console.log("show me the query", q);
-    console.log("do I have a pg env", pg_env);
+    logger.info(`show me the query:  ${q}`);
+    logger.info(`do I have a pg env: ${pg_env}`);
 
     const {
       rows: [new_dama_source],
