@@ -137,7 +137,6 @@ export default {
     getDamaGisDatasetViewTableSchemaSummary,
     generateGisDatasetViewGeoJsonSqlQuery,
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator,
-<<<<<<< HEAD
 
     //------------------------------------------------
     // -- export Downloads 
@@ -147,7 +146,3 @@ export default {
     createDownload
   }
 }
-=======
-  },
-};
->>>>>>> e408b1e6edb394df9e803de3f24ee4e7b740fa45
