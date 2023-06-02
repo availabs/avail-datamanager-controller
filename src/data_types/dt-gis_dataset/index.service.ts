@@ -1,6 +1,7 @@
 import { Context } from "moleculer";
 import uploadFile from './upload/upload'
 import publish from './publish/publish'
+import createDownload from './createDownload/createDownload'
 import {
   createViewMbtiles,
   getDamaGisDatasetViewTableSchemaSummary,
@@ -57,7 +58,13 @@ export default {
     createViewMbtiles,
     getDamaGisDatasetViewTableSchemaSummary,
     generateGisDatasetViewGeoJsonSqlQuery,
-    makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator
+    makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator,
 
+    //------------------------------------------------
+    // -- export Downloads 
+    // 
+    //
+    //------------------------------------------------
+    createDownload
   }
 }

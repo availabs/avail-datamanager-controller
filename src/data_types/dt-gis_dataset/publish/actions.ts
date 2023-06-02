@@ -113,5 +113,7 @@ export async function createSource(ctx, source_values) {
   } catch (err ) {
     console.log('createNewDamaSource error:', JSON.stringify(err, null, 3))
   }
+
+  console.log('here is damaSource', damaSource)
   return damaSource
 }
