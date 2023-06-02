@@ -231,7 +231,7 @@ class DamaEvents extends DamaContextAttachedResource {
             parent_context_id
           FROM data_manager.etl_contexts
           WHERE etl_context_id = $1
-        UNION    
+        UNION
         SELECT
             a.etl_context_id,
             a.parent_context_id
@@ -795,7 +795,7 @@ class DamaEvents extends DamaContextAttachedResource {
       pgFormat(
         `
           SELECT
-              * 
+              *
             FROM (
               SELECT
                   *,

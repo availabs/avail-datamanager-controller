@@ -216,6 +216,8 @@ export default class ApiService extends Service {
               "gis-dataset/createDownload": "gis-dataset.createDownload",
 
 
+              "gis-dataset/getTaskFinalEvent/:etlContextId": "gis-dataset.getTaskFinalEvent",
+
               // --- end data set --//
               "gis/create-mbtiles/damaViewId/:damaViewId":
                 "dama/gis.createDamaGisDatasetViewMbtiles",

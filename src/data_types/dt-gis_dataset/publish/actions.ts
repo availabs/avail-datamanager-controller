@@ -1,9 +1,14 @@
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
+import dama_db from "data_manager/dama_db";
+import dama_meta from "data_manager/meta";
+import logger from "data_manager/logger";
+import { getEtlContextId } from "data_manager/contexts";
 
-export async function createView(ctx, view_values) {
-
+export async function createView(
+  view_values: Record<string, string | number | any>
+) {
   const {
     source_id,
     user_id,
@@ -12,16 +17,13 @@ export async function createView(ctx, view_values) {
     viewDependency,
   } = view_values;
 
-  let newDamaView = (
-    await ctx.call("dama/metadata.createNewDamaView",
-      {
-        source_id,
-        user_id,
-        view_dependencies: [viewDependency],
-        metadata: {...(customViewAttributes || {}), ...(viewMetadata || {})},
-      }
-    )
-  );
+  let newDamaView = await dama_meta.createNewDamaView({
+    user_id,
+    source_id,
+    etl_context_id: getEtlContextId(),
+    view_dependencies: [viewDependency],
+    metadata: { ...(customViewAttributes || {}), ...(viewMetadata || {}) },
+  });
 
   const {
     view_id: damaViewId,
@@ -29,8 +31,6 @@ export async function createView(ctx, view_values) {
     table_name: origTableName,
     metadata,
   } = newDamaView;
-
-  console.log('new dama view', newDamaView);
 
   const table_schema = origTableSchema || "gis_datasets";
   let table_name = origTableName;
@@ -42,7 +42,7 @@ export async function createView(ctx, view_values) {
 
     const {
       rows: [{ dama_view_name }],
-    } = await ctx.call("dama_db.query", {
+    } = await dama_db.query({
       text,
       values: [damaViewId],
     });
@@ -69,9 +69,9 @@ export async function createView(ctx, view_values) {
       values: [table_schema, table_name, dataTable, damaViewId],
     };
 
-    await ctx.call("dama_db.query", q);
+    await dama_db.query(q);
 
-    const { rows } = await ctx.call("dama_db.query", {
+    const { rows } = await dama_db.query({
       text: "SELECT * FROM data_manager.views WHERE ( view_id = $1 );",
       values: [damaViewId],
     });
@@ -82,38 +82,29 @@ export async function createView(ctx, view_values) {
   return newDamaView;
 }
 
-export async function createSource(ctx, source_values) {
+export async function createSource(
+  source_values: Record<string, string | number>
+  ) {
+  logger.info(`Create Source Called  :  ${source_values}`);
   // const uniqId = uuid().replace(/[^0-9A-Z]/gi, "");
-  let damaSource = undefined
+  let damaSource: any;
   const {
-      name, // = `untitled dataset ${uniqId}`,
-      type = 'gis_dataset',
-      update_interval =  '',
-      description = '',
-  } = source_values
+    name, // = `untitled dataset ${uniqId}`,
+    type = "gis_dataset",
+    update_interval = "",
+    description = "",
+  } = source_values;
   // create source
   try {
-    console.log(
-      'values for create source',
+    logger.info(`In the create source method: \nName: ${name}, \ntype: ${type}, \nupdate_interval: ${update_interval}, \ndescription: ${description},`);
+    damaSource = await dama_meta.createNewDamaSource({
       name,
-          type,
-          update_interval,
-          description
-    )
-    damaSource = await ctx.call(
-        "dama/metadata.createNewDamaSource",
-        {
-          name,
-          type,
-          update_interval,
-          description,
-        }
-    )
-
-  } catch (err ) {
-    console.log('createNewDamaSource error:', JSON.stringify(err, null, 3))
+      type,
+      update_interval,
+      description,
+    });
+  } catch (err) {
+    logger.error(`createNewDamaSource error:, ${JSON.stringify(err, null, 3)}`);
   }
-
-  console.log('here is damaSource', damaSource)
   return damaSource
 }
