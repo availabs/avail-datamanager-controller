@@ -54,6 +54,12 @@
         "ff24624671b7419a82415723f2f40915_s15_v7_20230227T152648795Z": {
             "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/ff24624671b7419a82415723f2f40915_s15_v7_20230227T152648795Z.mbtiles"
         },
+        "freight_data_s11_v4_1685029249175": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/freight_data_s11_v4_1685029249175.mbtiles"
+        },
+        "freight_data_s9_v3_1685028899716": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/freight_data_s9_v3_1685028899716.mbtiles"
+        },
         "pan_s27_v18_1677530638567": {
             "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s27_v18_1677530638567.mbtiles"
         },
@@ -161,6 +167,12 @@
         },
         "pan_s77_v692_1682610303782": {
             "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s77_v692_1682610303782.mbtiles"
+        },
+        "pan_s78_v693_1682617895953": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s78_v693_1682617895953.mbtiles"
+        },
+        "pan_s79_v694_1682620696524": {
+            "mbtiles": "/home/alex/code/avail/avail-data-manager-controller/dama_mbtiles/pan_s79_v694_1682620696524.mbtiles"
         }
     }
 }

@@ -73,3 +73,4 @@ etl-work-dir/
 data/
 dama_mbtiles/
 tmp-etl/
+dama-files/

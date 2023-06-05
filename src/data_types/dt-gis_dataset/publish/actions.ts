@@ -106,5 +106,5 @@ export async function createSource(
   } catch (err) {
     logger.error(`createNewDamaSource error:, ${JSON.stringify(err, null, 3)}`);
   }
-  return damaSource;
+  return damaSource
 }

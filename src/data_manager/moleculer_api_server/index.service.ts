@@ -213,6 +213,8 @@ export default class ApiService extends Service {
                 "gis-dataset.getLayerAnalysis",
 
               "gis-dataset/publish": "gis-dataset.publish",
+              "gis-dataset/createDownload": "gis-dataset.createDownload",
+
 
               "gis-dataset/getTaskFinalEvent/:etlContextId": "gis-dataset.getTaskFinalEvent",
 

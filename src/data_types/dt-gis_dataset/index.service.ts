@@ -1,4 +1,7 @@
-import { Context as MoleculerContext } from "moleculer";
+import { Context } from "moleculer";
+import uploadFile from './upload/upload'
+import publish from './publish/publish'
+import createDownload from './createDownload/createDownload'
 import dama_host_id from "constants/damaHostId";
 import dama_events from "data_manager/events";
 import { join } from "path";
@@ -55,7 +58,7 @@ export default {
     publish: {
       visibility: "published",
 
-      async handler(ctx: MoleculerContext) {
+      async handler(ctx) {
         let damaSource: any;
         // @ts-ignore
         let source_id: number = ctx?.params?.source_id;
@@ -75,7 +78,7 @@ export default {
 
         const worker_path = join(__dirname, "./publish/publish.worker.ts");
 
-        const dama_task_descr: QueuedDamaTaskDescriptor = {
+        const dama_task_descr = {
           worker_path,
           // @ts-ignore
           parent_context_id: null,
@@ -107,9 +110,9 @@ export default {
     getTaskFinalEvent: {
       visibility: "published",
 
-      async handler(ctx: MoleculerContext) {
+      async handler(ctx) {
         // @ts-ignore
-        const etl_context_id: number = ctx?.params?.etlContextId;
+        const etl_context_id = ctx?.params?.etlContextId;
 
         try {
           logger.info("\ncalled getTaskFinalEvent\n");
@@ -134,5 +137,12 @@ export default {
     getDamaGisDatasetViewTableSchemaSummary,
     generateGisDatasetViewGeoJsonSqlQuery,
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator,
-  },
-};
+
+    //------------------------------------------------
+    // -- export Downloads 
+    // 
+    //
+    //------------------------------------------------
+    createDownload
+  }
+}
