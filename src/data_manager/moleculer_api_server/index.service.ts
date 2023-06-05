@@ -327,6 +327,9 @@ export default class ApiService extends Service {
               "/data-types/npmrds/npmrds-travel-times/makeTravelTimesExportTablesAuthoritative":
                 "dama/data_types/npmrds/dt-npmrds_travel_times.makeTravelTimesExportTablesAuthoritative",
 
+              "POST /data-types/npmrds/network-analysis/getTmcs":
+                "dama/data_types/npmrds/network-analysis.getTmcs",
+
               "POST /data-types/npmrds/network-analysis/getTmcFeatures":
                 "dama/data_types/npmrds/network-analysis.getTmcFeatures",
             },

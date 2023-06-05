@@ -157,7 +157,7 @@ export default {
 
   actions: {
     // NOTE: Queues a batch ETL worker, not aggregate.
-    getTmcFeatures: {
+    getTmcs: {
       visibility: "published",
 
       async handler(ctx: MoleculerContext) {
@@ -166,10 +166,6 @@ export default {
 
         // @ts-ignore
         const { dependency_cells_meta } = params;
-
-        console.log("$".repeat(100));
-        console.log(JSON.stringify({ dependency_cells_meta }, null, 4));
-        console.log("$".repeat(100));
 
         const [
           {
@@ -200,33 +196,62 @@ export default {
             `
               WITH ${ctes}
                 SELECT
-                  jsonb_build_object(
-                    'type',       'FeatureCollection',
-                    'features',   jsonb_agg(
-                                    json_build_object(
-                                      'type',         'Feature',
-                                      'properties',   to_jsonb(b.*) - 'wkb_geometry',
-                                      'geometry',     ST_AsGeoJSON(wkb_geometry)::jsonb
-                                    )
-                                  )
-                  ) as tmc_feature_collection
-                  FROM %I AS a
-                    INNER JOIN %I.%I AS b
-                      USING (tmc)
+                    tmc
+                  FROM %I
             `,
-            `cte_${last_cell_id}`,
+            `cte_${last_cell_id}`
+          )
+        );
+
+        const { rows } = await dama_db.query({ text: sql, values });
+
+        const tmcs = rows.map(({ tmc }) => tmc);
+        return tmcs;
+      },
+    },
+
+    getTmcFeatures: {
+      visibility: "published",
+
+      async handler(ctx: MoleculerContext) {
+        // @ts-ignore
+        const { params }: { params: object } = ctx;
+
+        // @ts-ignore
+        const { year, tmcs } = params;
+
+        const sql = dedent(
+          pgFormat(
+            `
+              SELECT
+                tmc,
+                json_build_object(
+                  'type',         'Feature',
+                  'geometry',     ST_AsGeoJSON(wkb_geometry)::jsonb
+                ) AS feature
+                FROM %I.%I AS a
+                  INNER JOIN (
+                    SELECT
+                        tmc
+                      FROM UNNEST($1::TEXT[]) AS t(tmc)
+                  ) AS b USING (tmc)
+            `,
             "npmrds_tmc_shapes_analysis",
             `tmc_shapes_${year}`
           )
         );
 
-        console.log(sql);
+        const { rows } = await dama_db.query({ text: sql, values: [tmcs] });
 
-        const {
-          rows: [{ tmc_feature_collection }],
-        } = await dama_db.query({ text: sql, values });
+        const features_by_id = rows.reduce((acc, { tmc, feature }) => {
+          feature.properties = { tmc };
 
-        return tmc_feature_collection;
+          acc[tmc] = feature;
+
+          return acc;
+        }, {});
+
+        return features_by_id;
       },
     },
   },
