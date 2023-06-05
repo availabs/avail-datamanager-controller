@@ -11,7 +11,7 @@ import {
   getDamaGisDatasetViewTableSchemaSummary,
   generateGisDatasetViewGeoJsonSqlQuery,
   makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator,
-} from "./mbtiles/mbtiles2";
+} from "./mbtiles/mbtiles";
 
 import {
   getLayerNames,
@@ -70,7 +70,7 @@ export default {
           source_id = damaSource?.source_id;
           // @ts-ignore
           ctx.params.source_id = source_id;
-          logger.info("Attached source_id to ctx: ", damaSource);
+          logger.info(`Attached source_id to ctx: ", ${damaSource}`);
         }
 
         const worker_path = join(__dirname, "./publish/publish.worker.ts");
@@ -112,11 +112,11 @@ export default {
         const etl_context_id: number = ctx?.params?.etlContextId;
 
         try {
-          logger.info("\n\n\ncalled getTaskFinalEvent\n\n");
+          logger.info("\ncalled getTaskFinalEvent\n");
           const finalEvent = await dama_events.getEtlContextFinalEvent(
             etl_context_id
           );
-          logger.info(`\nfinalEvent:: \n: ${finalEvent}`);
+          logger.info(`\nfinalEvent:: \n ${finalEvent}`);
           return finalEvent;
         } catch (error) {
           return null;

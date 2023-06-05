@@ -1,4 +1,4 @@
-import _, { rest } from 'lodash'
+import { difference, uniq } from "lodash";
 import dedent from "dedent";
 import pgFormat from "pg-format";
 import { spawn } from "child_process";
@@ -11,14 +11,18 @@ import { rename as renameAsync } from "fs/promises";
 import { join, basename } from "path";
 import tmp from "tmp";
 
+import dama_db from "data_manager/dama_db";
+import dama_events from "data_manager/events";
+import dama_meta from "data_manager/meta";
+import logger from "data_manager/logger";
+
+import { getPgEnv } from "data_manager/contexts";
+import { NodePgQueryResult } from "data_manager/dama_db/postgres/PostgreSQL";
 import installTippecanoe from "../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
-
 import { etlDir, mbtilesDir, libDir } from "../../../constants";
+import { getStyleFromJsonType } from "./default-styles";
 
-import { getStyleFromJsonType } from './default-styles'
-
-// path to tippecanoe executable
-const tippecanoePath = join(libDir, "tippecanoe/tippecanoe")
+const tippecanoePath = join(libDir, "tippecanoe/tippecanoe");
 
 function asyncGeneratorToNdjsonStream(iter) {
   async function* toNdjson() {
@@ -32,33 +36,12 @@ function asyncGeneratorToNdjsonStream(iter) {
 
 const pipelineAsync = promisify(pipeline);
 
-// export type CreateMBTilesConfig = {
-//   layerName: string;
-//   mbtilesFilePath: string;
-//   featuresAsyncIterator: AsyncGenerator<Feature>;
-//   etlWorkDir?: string;
-// };
-
-export async function createViewMbtiles(ctx) {
-  const {
-    // @ts-ignore
-    params: {
-      damaViewId,
-      damaSourceId
-    },
-    meta: {
-      pgEnv,
-      etl_context_id
-    }
-  } = ctx;
-
-  console.log('createGisDatasetViewMbtiles context_id: ',
-    etl_context_id,
-    ctx.meta,
-    damaViewId,
-    damaSourceId)
-
-  const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
+export async function createViewMbtiles(
+  damaViewId: number,
+  damaSourceId: number,
+  etlContextId: number
+) {
+  const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup }: any =
     await new Promise((resolve, reject) =>
       tmp.dir({ tmpdir: etlDir }, (err, path, cleanupCallback) => {
         if (err) {
@@ -68,10 +51,13 @@ export async function createViewMbtiles(ctx) {
       })
     );
 
-  const layerName = `s${damaSourceId}_v${damaViewId}`;
-  const timestamp = new Date().getTime()
+  const pg_env = getPgEnv();
+  logger.info(`pg Env: ${pg_env}`);
 
-  const tilesetName = `${pgEnv}_${layerName}_${timestamp}`;
+  const layerName = `s${damaSourceId}_v${damaViewId}`;
+  const timestamp = new Date().getTime();
+
+  const tilesetName = `${pg_env}_${layerName}_${timestamp}`;
   const mbtilesFileName = `${tilesetName}.mbtiles`;
   const mbtilesFilePath = join(etlWorkDir, mbtilesFileName);
 
@@ -81,19 +67,23 @@ export async function createViewMbtiles(ctx) {
       damaViewId,
       timestamp,
     },
-    meta: { etl_context_id },
+    meta: {
+      etl_context_id: etlContextId,
+      timestamp: new Date(),
+    },
   };
 
-  await ctx.call("data_manager/events.dispatch", initialEvent);
+  await dama_events.dispatch(initialEvent, etlContextId);
 
+  const featuresAsyncIterator =
+    makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(damaViewId, {
+      properties: ["ogc_fid"],
+    });
 
-  const featuresAsyncIterator = (
-    await ctx.call(
-      "gis-dataset.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator",
-      { ...ctx.params, config: { properties: ['ogc_fid'] } }
-    )
+  logger.debug(
+    "\n\nfeaturesAsyncIterator inside createViewMbtiles():",
+    featuresAsyncIterator
   );
-
   try {
     const { tippecanoeArgs, tippecanoeStdout, tippecanoeStderr } =
       await createMbtilesTask({
@@ -102,70 +92,45 @@ export async function createViewMbtiles(ctx) {
         featuresAsyncIterator,
         etlWorkDir,
       });
-
     const mbtilesBaseName = basename(mbtilesFilePath);
     const servedMbtilesPath = join(mbtilesDir, mbtilesBaseName);
 
     await renameAsync(mbtilesFilePath, servedMbtilesPath);
-
-    //const source_id = damaViewGlobalId;
     const source_layer_name = layerName;
-    const source_type = "vector";
 
-    const geojson_type = await ctx.call("dama/metadata.getDamaViewProperties", {
-      damaViewId, properties: ["geojson_type"]
-    })
+    const geojson_type = await dama_meta.getDamaViewProperties(damaViewId, [
+      "geojson_type",
+    ]);
 
-    //console.log
-
-
-    // const newRow = {
-    //   view_id: damaViewId,
-    //   geojson_type,
-    //   tileset_name: tilesetName,
-    //   source_layer_name,
-    //   source_type,
-    //   tippecanoe_args: JSON.stringify(tippecanoeArgs),
-
-    // };
-
-    //console.log('mbtiles created', newRow)
-
+    logger.debug("\n\ngeojson_type inside createViewMbtiles():", geojson_type);
     const tiles = {
-      "tiles": {
-        "sources": [
+      tiles: {
+        sources: [
           {
-            "id": tilesetName,
-            "source": {
-               "url": `$HOST/data/${tilesetName}.json`,
-               "type": "vector"
-            }
-          }
+            id: tilesetName,
+            source: {
+              url: `$HOST/data/${tilesetName}.json`,
+              type: "vector",
+            },
+          },
         ],
-        "layers": [
-           {
-              "id": source_layer_name,
-              ...getStyleFromJsonType(geojson_type),
-              "source": tilesetName,
-              "source-layer": source_layer_name
-           }
-        ]
-      }
-    }
+        layers: [
+          {
+            id: source_layer_name,
+            ...getStyleFromJsonType(geojson_type),
+            source: tilesetName,
+            "source-layer": source_layer_name,
+          },
+        ],
+      },
+    };
 
-    // console.log('tiles', tiles, damaViewId)
-    let results = await ctx.call("dama_db.query", {
-      text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(tiles)}'::jsonb WHERE view_id = $1;`,
+    await dama_db.query({
+      text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(
+        tiles
+      )}'::jsonb WHERE view_id = $1;`,
       values: [damaViewId],
     });
-
-    // const {
-    //   rows: [{ mbtiles_id }],
-    // } = await ctx.call("dama_db.insertNewRow", {
-    //   tableSchema: "_data_manager_admin",
-    //   tableName: "dama_views_mbtiles_metadata",
-    //   newRow,
-    // });
 
     const finalEvent = {
       type: "dataset:CREATE_MBTILES_FINAL",
@@ -174,28 +139,33 @@ export async function createViewMbtiles(ctx) {
         tippecanoeStdout,
         tippecanoeStderr,
       },
-      meta: { etl_context_id, timestamp: new Date() },
+      meta: {
+        etl_context_id: etlContextId,
+        timestamp: new Date(),
+      },
     };
 
-    console.log('final event stff')
-
-    await ctx.call("data_manager/events.dispatch", finalEvent);
+    logger.debug("\n\nshould it dispatch final event?:", finalEvent);
+    await dama_events.dispatch(finalEvent, etlContextId);
   } catch (err) {
+    const { message, stack } = <Error>err;
     const errorEvent = {
       type: "createDamaGisDatasetViewMbtiles:ERROR",
-      payload: { message: err.message },
+      payload: { message, stack },
+      meta: {
+        etl_context_id: etlContextId,
+        timestamp: new Date(),
+      },
       error: true,
-      meta: { etl_context_id },
     };
 
-    await ctx.call("data_manager/events.dispatch", errorEvent);
+    await dama_events.dispatch(errorEvent, etlContextId);
 
     throw err;
   } finally {
     await eltWorkDirCleanup();
   }
 }
-
 
 export async function createMbtilesTask({
   layerName,
@@ -219,7 +189,7 @@ export async function createMbtilesTask({
     path: geojsonFilePath,
     fd: geojsonFileDescriptor,
     cleanupCallback: geojsonFileCleanup,
-  } = await new Promise((resolve, reject) =>
+  }: any = await new Promise((resolve, reject) =>
     tmp.file(
       { tmpdir: etlWorkDir, postfix: ".geojson.gz" },
       (err, path, fd, cleanupCallback) => {
@@ -314,40 +284,37 @@ export async function createMbtilesTask({
   };
 }
 
-export const getDamaGisDatasetViewTableSchemaSummary  = {
-      async handler(ctx) {
-        const {
-          // @ts-ignore
-          params: { damaViewId },
-        } = ctx;
+export async function getDamaGisDatasetViewTableSchemaSummary(
+  damaViewId: number
+) {
+  const damaViewPropsColsQ = dedent(`
+    SELECT
+        column_name,
+        is_geometry_col
+      FROM _data_manager_admin.dama_table_column_types
+      WHERE (
+        ( view_id = $1 )
+      )
+  `);
 
-        const damaViewPropsColsQ = dedent(`
-          SELECT
-              column_name,
-              is_geometry_col
-            FROM _data_manager_admin.dama_table_column_types
-            WHERE (
-              ( view_id = $1 )
-            )
-        `);
-        console.log('getDamaGisDatasetViewTableSchemaSummary', damaViewId)
-        const { rows } = await ctx.call("dama_db.query", {
-          text: damaViewPropsColsQ,
-          values: [damaViewId],
-        });
+  console.log("getDamaGisDatasetViewTableSchemaSummary", damaViewId);
+  const { rows } = await dama_db.query({
+    text: damaViewPropsColsQ,
+    values: [damaViewId],
+  });
 
-        if (rows.length === 0) {
-          throw new Error(`Invalid DamaViewId: ${damaViewId}`);
-        }
+  if (rows.length === 0) {
+    throw new Error(`Invalid DamaViewId: ${damaViewId}`);
+  }
 
-        const nonGeometryColumns = rows
-          .filter(({ is_geometry_col }) => !is_geometry_col)
-          .map(({ column_name }) => column_name);
+  const nonGeometryColumns = rows
+    .filter(({ is_geometry_col }) => !is_geometry_col)
+    .map(({ column_name }) => column_name);
 
-        const { column_name: geometryColumn = null } =
-          rows.find(({ is_geometry_col }) => is_geometry_col) || {};
+  const { column_name: geometryColumn = null } =
+    rows.find(({ is_geometry_col }) => is_geometry_col) || {};
 
-        const damaViewIntIdQ = dedent(`
+  const damaViewIntIdQ = dedent(`
           SELECT
               table_schema,
               table_name,
@@ -357,54 +324,46 @@ export const getDamaGisDatasetViewTableSchemaSummary  = {
             WHERE ( view_id = $1 )
         `);
 
-        const damaViewIntIdRes: NodePgQueryResult = await ctx.call(
-          "dama_db.query",
-          {
-            text: damaViewIntIdQ,
-            values: [damaViewId],
-          }
-        );
+  const damaViewIntIdRes: NodePgQueryResult = await dama_db.query({
+    text: damaViewIntIdQ,
+    values: [damaViewId],
+  });
 
-        if (!damaViewIntIdRes.rows.length) {
-          throw new Error(
-            `Unable to get primary key metadata for DamaView ${damaViewId}`
-          );
-        }
+  if (!damaViewIntIdRes.rows.length) {
+    throw new Error(
+      `Unable to get primary key metadata for DamaView ${damaViewId}`
+    );
+  }
 
-        const {
-          rows: [
-            {
-              table_schema: tableSchema,
-              table_name: tableName,
-              primary_key_summary,
-              int_id_column_name: intIdColName,
-            },
-          ],
-        } = damaViewIntIdRes;
-
-        const primaryKeyCols = primary_key_summary.map(
-          ({ column_name }) => column_name
-        );
-
-        return {
-          tableSchema,
-          tableName,
-          primaryKeyCols,
-          intIdColName,
-          nonGeometryColumns,
-          geometryColumn,
-        };
-      },
-    },
-
-export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisDatasetViewGeoJsonSqlQuery(ctx) {
   const {
-    // @ts-ignore
-    params: { damaViewId, config = {} },
-  } = ctx;
+    rows: [
+      {
+        table_schema: tableSchema,
+        table_name: tableName,
+        primary_key_summary,
+        int_id_column_name: intIdColName,
+      },
+    ],
+  } = damaViewIntIdRes;
 
-  console.log('generateGisDatasetViewGeoJsonSqlQuery', config, ctx.params)
+  const primaryKeyCols = primary_key_summary.map(
+    ({ column_name }) => column_name
+  );
 
+  return {
+    tableSchema,
+    tableName,
+    primaryKeyCols,
+    intIdColName,
+    nonGeometryColumns,
+    geometryColumn,
+  };
+}
+
+export async function generateGisDatasetViewGeoJsonSqlQuery(
+  damaViewId: number,
+  config: any = {}
+) {
   let { properties } = config;
 
   if (properties && properties !== "*" && !Array.isArray(properties)) {
@@ -417,12 +376,7 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
     intIdColName,
     nonGeometryColumns,
     geometryColumn,
-  } = await ctx.call('gis-dataset.getDamaGisDatasetViewTableSchemaSummary',
-    {
-      damaViewId ,
-      parentCtx: ctx
-    }
-  );
+  } = await getDamaGisDatasetViewTableSchemaSummary(damaViewId);
 
   if (!geometryColumn) {
     throw new Error(
@@ -437,7 +391,7 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
   }
 
   if (Array.isArray(properties)) {
-    const invalidProps = _.difference(properties, nonGeometryColumns);
+    const invalidProps = difference(properties, nonGeometryColumns);
 
     if (invalidProps.length) {
       throw new Error(
@@ -445,7 +399,7 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
       );
     }
 
-    props = _.uniq(properties);
+    props = uniq(properties);
   }
 
   const featureIdBuildObj = {
@@ -465,7 +419,7 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
     { placeholders: <string[]>[], values: <string[]>[] }
   );
 
-  const selectColsClause = _.uniq([intIdColName, geometryColumn, ...props])
+  const selectColsClause = uniq([intIdColName, geometryColumn, ...props])
     .filter(Boolean)
     .reduce(
       (acc, col) => {
@@ -499,33 +453,20 @@ export const generateGisDatasetViewGeoJsonSqlQuery = async function generateGisD
     tableName
   );
 
-  console.log('feature generator sql', sql)
+  console.log("feature generator sql", sql);
 
   return sql;
 }
 
-export const makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator = {
-  async *handler(ctx) {
-    const {
-      // @ts-ignore
-      params: { config = {} },
-    } = ctx;
+export async function* makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
+  damaViewId: number,
+  config = {}
+) {
+  const sql = await generateGisDatasetViewGeoJsonSqlQuery(damaViewId, config);
 
-    console.log('makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator', config, ctx.params)
-    const sql = await ctx.call('gis-dataset.generateGisDatasetViewGeoJsonSqlQuery',
-      ctx.params
-    );
+  const iter = <AsyncGenerator<any>>dama_db.makeIterator(sql, config);
 
-    const iter = <AsyncGenerator<any>>await ctx.call(
-      "dama_db.makeIterator",
-      {
-        query: sql,
-        config,
-      }
-    );
-
-    for await (const { feature } of iter) {
-      yield feature;
-    }
+  for await (const { feature } of iter) {
+    yield feature;
   }
 }

@@ -5,7 +5,7 @@ import dama_db from "data_manager/dama_db";
 import { getPgEnv } from "data_manager/contexts";
 import logger from "data_manager/logger";
 
-import { createViewMbtiles } from "./../mbtiles/mbtiles2";
+import { createViewMbtiles } from "./../mbtiles/mbtiles";
 
 import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
@@ -107,7 +107,7 @@ export default async function publish({
       // dama_events.setEtlContextSourceId(etlContextId, damaSourceId);
     }
 
-    // UN WANTED
+    // TODO: remove this
     // ctx.params.damaViewId = damaViewId;
     // ctx.meta.etl_context_id = etlContextId;
 
@@ -140,15 +140,6 @@ export default async function publish({
     logger.info(`Should I dispatch start event of the ACS ${JSON.stringify(startEvent, null, 3)}`);
     await dama_events.dispatch(startEvent, etlContextId);
   }
-
-  // if ((!source_id && newDamaViewId)) {
-  //   logger.debug(`newDamaViewId inside ::  ${newDamaViewId}`);
-  //   logger.info("called inside setSourceMetadata");
-  //   await dama_db.query({
-  //     text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
-  //     values: [newDamaViewId],
-  //   });
-  // }
 
   const finalEvent = {
     type: EventTypes.FINAL,
