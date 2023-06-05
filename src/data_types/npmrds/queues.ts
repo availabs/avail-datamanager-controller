@@ -4,7 +4,7 @@ export const TaskQueueConfigs = {
   // NOTE: Increasing concurrency can lead to "sorry, too many clients already" node-pg error.
   [TaskQueue.AGGREGATE_ETL]: {
     worker_options: {
-      teamSize: 3,
+      teamSize: 1,
       teamConcurrency: 3,
       teamRefill: true,
     },
