@@ -5,7 +5,7 @@
 require("ts-node").register();
 require("tsconfig-paths").register();
 
-const { join } = require("fs");
+const { join } = require("path");
 
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
