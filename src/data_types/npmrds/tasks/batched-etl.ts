@@ -35,7 +35,7 @@ const MAX_DOWNLOAD_PARTITIONS_PER_STATE = 3;
 export default async function main(initial_event: InitialEvent) {
   verifyIsInTaskEtlContext();
 
-  this.logger.info(`==> batch-etl.main pid=${process.pid}`);
+  logger.info(`==> batch-etl.main pid=${process.pid}`);
 
   const {
     payload: {

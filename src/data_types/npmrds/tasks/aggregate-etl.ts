@@ -539,7 +539,7 @@ export default async function main(
 ): Promise<DoneData> {
   verifyIsInTaskEtlContext();
 
-  this.logger.info(`==> aggregate-etl.main pid=${process.pid}`);
+  logger.info(`==> aggregate-etl.main pid=${process.pid}`);
 
   const events = await dama_events.getAllEtlContextEvents();
 
