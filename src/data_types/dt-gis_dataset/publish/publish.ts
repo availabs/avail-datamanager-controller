@@ -35,9 +35,9 @@ export default async function publish({
     userId: ${userId},
     gisUploadId: ${gisUploadId},
     layerName: ${layerName},
-    tableDescriptor: ${tableDescriptor},
+    tableDescriptor: ${JSON.stringify(tableDescriptor, null, 3)},
     source_id: ${source_id},
-    source_values: ${source_values},
+    source_values: ${JSON.stringify(source_values, null, 3)},
     schemaName: ${schemaName},
     customViewAttributes: ${JSON.stringify(customViewAttributes, null, 3)},
     viewMetadata: ${JSON.stringify(viewMetadata, null, 3)},
@@ -85,7 +85,7 @@ export default async function publish({
       logger.info(`inside the load table : layerName: ${layerName} and PgEnv: ${pgEnv}`);
       await gdi.loadTable({ layerName, pgEnv });
     } catch (err) {
-      logger.error(`migration error -- \n ${JSON.stringify(err, null, 3)}`);
+      logger.info(`migration error -- \n ${JSON.stringify(err, null, 3)}`);
     }
     const {
       table_schema: tableSchema,

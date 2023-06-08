@@ -1,7 +1,5 @@
 import { Context } from "moleculer";
-import uploadFile from './upload/upload'
-import publish from './publish/publish'
-import createDownload from './createDownload/createDownload'
+import createDownload from "./createDownload/createDownload";
 import dama_host_id from "constants/damaHostId";
 import dama_events from "data_manager/events";
 import { join } from "path";
@@ -138,11 +136,12 @@ export default {
     generateGisDatasetViewGeoJsonSqlQuery,
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator,
 
-    //------------------------------------------------
-    // -- export Downloads 
-    // 
+    // ------------------------------------------------
+    // -- export Downloads
     //
-    //------------------------------------------------
-    createDownload
-  }
-}
+    //
+    // ------------------------------------------------
+    createDownload,
+  },
+};
+

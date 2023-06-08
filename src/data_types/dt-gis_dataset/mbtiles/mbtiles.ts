@@ -52,7 +52,7 @@ export async function createViewMbtiles(
     );
 
   const pg_env = getPgEnv();
-  logger.info(`pg Env: ${pg_env}`);
+  logger.info(`pg Env inside createViewMbtiles: ${pg_env}`);
 
   const layerName = `s${damaSourceId}_v${damaViewId}`;
   const timestamp = new Date().getTime();
@@ -72,7 +72,7 @@ export async function createViewMbtiles(
       timestamp: new Date(),
     },
   };
-
+  logger.info(`Should the initial event inside createViewMbtiles of mbtile happen? : ${JSON.stringify(initialEvent, null, 3)}`);
   await dama_events.dispatch(initialEvent, etlContextId);
 
   const featuresAsyncIterator =
@@ -80,9 +80,9 @@ export async function createViewMbtiles(
       properties: ["ogc_fid"],
     });
 
-  logger.debug(
-    "\n\nfeaturesAsyncIterator inside createViewMbtiles():",
-    featuresAsyncIterator
+  logger.info(
+    `\n\nfeaturesAsyncIterator inside createViewMbtiles():
+    ${JSON.stringify(featuresAsyncIterator, null, 3)}`
   );
   try {
     const { tippecanoeArgs, tippecanoeStdout, tippecanoeStderr } =
@@ -102,7 +102,7 @@ export async function createViewMbtiles(
       "geojson_type",
     ]);
 
-    logger.debug("\n\ngeojson_type inside createViewMbtiles():", geojson_type);
+    logger.info(`\ngeojson_type inside createViewMbtiles():, ${geojson_type}`);
     const tiles = {
       tiles: {
         sources: [
@@ -125,12 +125,16 @@ export async function createViewMbtiles(
       },
     };
 
-    await dama_db.query({
-      text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(
-        tiles
-      )}'::jsonb WHERE view_id = $1;`,
-      values: [damaViewId],
-    });
+    try {
+      await dama_db.query({
+        text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(
+          tiles
+        )}'::jsonb WHERE view_id = $1;`,
+        values: [damaViewId],
+      });
+    } catch (error) {
+      logger.info(`Query fails inside createViewMbtiles : ${JSON.stringify(error, null, 3)}`);
+    }
 
     const finalEvent = {
       type: "dataset:CREATE_MBTILES_FINAL",
