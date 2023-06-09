@@ -8,8 +8,8 @@ export type NodePgDbConnection = NodePgClient | NodePgPoolClient;
 export type ParsedNpmrdsTravelTimesExportTableMetadata = {
   damaViewId: number;
 
-  tableSchema: string;
-  tableName: string;
+  table_schema: string;
+  table_name: string;
 
   lastUpdated: string;
 
@@ -17,13 +17,13 @@ export type ParsedNpmrdsTravelTimesExportTableMetadata = {
   year: number;
   month: number;
 
-  isCompleteWeek: boolean;
-  isCompleteMonth: boolean;
-  isExpanded: boolean;
+  is_complete_week: boolean;
+  is_complete_month: boolean;
+  is_expanded: boolean;
 
   // [ startDate, endDate ]
-  data_start_date: string;
-  data_end_date: string;
+  start_date: string;
+  end_date: string;
 };
 
 export type EttViewsMetaSummary = {

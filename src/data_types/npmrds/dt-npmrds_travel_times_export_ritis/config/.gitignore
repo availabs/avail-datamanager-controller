@@ -1,0 +1,4 @@
+*
+!.gitignore
+!browser_options.ts
+!credentials.template.ts

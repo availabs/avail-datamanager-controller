@@ -58,6 +58,14 @@ export const stateAbbr2FipsCode = {
   wi: "55",
   wv: "54",
   wy: "56",
+
+  ab: "81",
+  bc: "82",
+  mb: "83",
+  nb: "84",
+  on: "88",
+  qc: "90",
+  sk: "91",
 };
 
 export const stateFipsCode2Abbr = _.invert(stateAbbr2FipsCode);

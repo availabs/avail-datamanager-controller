@@ -4,6 +4,8 @@ import credentials from "../config/transcom_credentials.json";
 
 import logger from "data_manager/logger";
 
+import { sleep } from "data_utils/time";
+
 export default class TranscomAuthTokenCollector {
   _browser_p: Promise<Browser> | null;
   jwt_token_p?: Promise<string>;
@@ -57,11 +59,13 @@ export default class TranscomAuthTokenCollector {
         }
       );
 
-      await page.waitForTimeout(1000);
+      await sleep(1000);
 
       await page.click(".btn");
 
-      await page.waitForNetworkIdle();
+      await page.waitForNetworkIdle({
+        timeout: 1_000 * 60 * 15,
+      });
 
       logger.debug("TranscomAuthTokenCollector: logged in");
 

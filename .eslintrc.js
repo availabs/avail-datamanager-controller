@@ -52,6 +52,7 @@ module.exports = {
     "@typescript-eslint/no-misused-new": "error",
     "@typescript-eslint/no-namespace": "error",
     "@typescript-eslint/no-parameter-properties": "off",
+    "@typescript-eslint/no-shadow": "error",
     "@typescript-eslint/no-use-before-define": "off",
     "@typescript-eslint/no-var-requires": "error",
     "@typescript-eslint/prefer-for-of": "error",
@@ -103,12 +104,7 @@ module.exports = {
     "no-invalid-this": "off",
     "no-multiple-empty-lines": "error",
     "no-new-wrappers": "error",
-    "no-shadow": [
-      "error",
-      {
-        hoist: "all",
-      },
-    ],
+    "no-shadow": "off",
     "no-throw-literal": "error",
     "no-trailing-spaces": "error",
     "no-undef-init": "error",

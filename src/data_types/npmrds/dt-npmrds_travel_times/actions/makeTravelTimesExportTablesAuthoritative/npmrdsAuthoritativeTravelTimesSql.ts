@@ -2,17 +2,24 @@ import dedent from "dedent";
 import pgFormat from "pg-format";
 import _ from "lodash";
 
-import { stateAbbr2FipsCode } from "../../../../../data_utils/constants/stateFipsCodes";
+import dama_db from "data_manager/dama_db";
 
-import { NpmrdsDatabaseSchemas, NpmrdsDataSources } from "../../../domain";
+import { stateAbbr2FipsCode } from "data_utils/constants/stateFipsCodes";
 
 import {
-  NodePgDbConnection,
+  NpmrdsDatabaseSchemas,
+  NpmrdsDataSources,
+  NpmrdsState,
+} from "data_types/npmrds/domain";
+
+import {
   ParsedNpmrdsTravelTimesExportTableMetadata,
   EttViewsMetaSummary,
 } from "./domain";
 
-const schemaName = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
+import create_state_npmrds_travel_times_table from "../../ddl/create_state_npmrds_travel_times_table";
+
+const npmrds_travel_times_schema = NpmrdsDatabaseSchemas.NpmrdsTravelTimes;
 
 export const getNpmrdsStateYearMonthTableName = (
   state: string,
@@ -24,88 +31,30 @@ export const getNpmrdsStateYearMonthTableName = (
   return `npmrds_${state}_${year}${mm}`;
 };
 
-export async function createAuthoritativeRootTable(dbConn: NodePgDbConnection) {
-  const sql = dedent(
-    `
-      CREATE TABLE IF NOT EXISTS public.npmrds_test (
-        tmc                               VARCHAR(9),
-        date                              DATE,
-        epoch                             SMALLINT,
-        travel_time_all_vehicles          REAL,
-        travel_time_passenger_vehicles    REAL,
-        travel_time_freight_trucks        REAL,
-        data_density_all_vehicles         CHAR,
-        data_density_passenger_vehicles   CHAR,
-        data_density_freight_trucks       CHAR,
-        state                             CHAR(2) NOT NULL
-      )
-        PARTITION BY LIST (state)
-      ;
-    `
-  );
-
-  const result = await dbConn.query(sql);
-
-  return result;
-}
-
-export async function createAuthoritativePartitionsSchema(
-  dbConn: NodePgDbConnection
-) {
+export async function createAuthoritativePartitionsSchema() {
   const sql = dedent(
     pgFormat(
       `
         CREATE SCHEMA IF NOT EXISTS %I ;
       `,
-      schemaName
+      npmrds_travel_times_schema
     )
   );
 
-  await dbConn.query(sql);
-
-  return { schemaName };
-}
-
-export async function createAuthoritativeStateTable(
-  dbConn: NodePgDbConnection,
-  state: string
-) {
-  const tableName = `npmrds_${state}`;
-
-  await createAuthoritativePartitionsSchema(dbConn);
-  await createAuthoritativeRootTable(dbConn);
-
-  const sql = dedent(
-    pgFormat(
-      `
-        CREATE TABLE IF NOT EXISTS %I.%I
-          PARTITION OF public.npmrds_test
-          FOR VALUES IN (%L)
-          PARTITION BY RANGE (date)
-        ;
-      `,
-      schemaName,
-      tableName,
-      state
-    )
-  );
-
-  await dbConn.query(sql);
-
-  return { schemaName, tableName };
+  await dama_db.query(sql);
 }
 
 export async function createAuthoritativeStateYearTable(
-  dbConn: NodePgDbConnection,
-  state: string,
+  state: NpmrdsState,
   year: number
 ) {
-  const { tableName: parentTableName } = await createAuthoritativeStateTable(
-    dbConn,
-    state
-  );
+  const { table_schema: parent_table_schema, table_name: parent_table_name } =
+    await create_state_npmrds_travel_times_table(state);
 
-  const tableName = `npmrds_${state}_${year}`;
+  await createAuthoritativePartitionsSchema();
+
+  const table_name = `npmrds_${state}_${year}`;
+
   const sql = dedent(
     pgFormat(
       `
@@ -115,30 +64,29 @@ export async function createAuthoritativeStateYearTable(
           PARTITION BY RANGE (date)
         ;
       `,
-      schemaName,
-      tableName,
-      schemaName,
-      parentTableName,
+      npmrds_travel_times_schema,
+      table_name,
+      parent_table_schema,
+      parent_table_name,
       `${year}-01-01`,
       `${year + 1}-01-01`
     )
   );
 
-  await dbConn.query(sql);
+  await dama_db.query(sql);
 
-  return { schemaName, tableName };
+  return { table_schema: npmrds_travel_times_schema, table_name };
 }
 
 export async function createAuthoritativeStateYearMonthTable(
-  dbConn: NodePgDbConnection,
-  state: string,
+  state: NpmrdsState,
   year: number,
   month: number
 ) {
-  const { tableName: parentTableName } =
-    await createAuthoritativeStateYearTable(dbConn, state, year);
+  const { table_name: parent_table_name } =
+    await createAuthoritativeStateYearTable(state, year);
 
-  const tableName = getNpmrdsStateYearMonthTableName(state, year, month);
+  const table_name = getNpmrdsStateYearMonthTableName(state, year, month);
 
   const startDate = new Date(year, month - 1, 1)
     .toISOString()
@@ -155,22 +103,21 @@ export async function createAuthoritativeStateYearMonthTable(
           PARTITION BY RANGE (date)
         ;
       `,
-      schemaName,
-      tableName,
-      schemaName,
-      parentTableName,
+      npmrds_travel_times_schema,
+      table_name,
+      npmrds_travel_times_schema,
+      parent_table_name,
       startDate,
       endDate
     )
   );
 
-  await dbConn.query(sql);
+  await dama_db.query(sql);
 
-  return { schemaName, tableName };
+  return { table_schema: npmrds_travel_times_schema, table_name };
 }
 
 export async function attachPartitionTable(
-  dbConn: NodePgDbConnection,
   authoritativeSchemaName: string,
   authoritativeTableName: string,
   ettTableSchema: string,
@@ -195,14 +142,13 @@ export async function attachPartitionTable(
     )
   );
 
-  await dbConn.query(attachPartitionSql);
+  await dama_db.query(attachPartitionSql);
 }
 
 export async function detachAttView(
-  dbConn: NodePgDbConnection,
   attView: ParsedNpmrdsTravelTimesExportTableMetadata
 ) {
-  const { state, year, month, tableSchema, tableName } = attView;
+  const { state, year, month, table_schema, table_name } = attView;
 
   const npmrdsStateYrMoTableName = getNpmrdsStateYearMonthTableName(
     state,
@@ -217,24 +163,22 @@ export async function detachAttView(
           DETACH PARTITION %I.%I
         ;
       `,
-      schemaName,
+      npmrds_travel_times_schema,
       npmrdsStateYrMoTableName,
-      tableSchema,
-      tableName
+      table_schema,
+      table_name
     )
   );
 
-  await dbConn.query(dettachPartitionSql);
+  await dama_db.query(dettachPartitionSql);
 }
 
 export async function updateNpmrdsAuthTravTimesViewMeta(
-  dbConn: NodePgDbConnection,
   prevNpmrdsAuthTravTimesViewMeta: any,
   attViewsToDetach: ParsedNpmrdsTravelTimesExportTableMetadata[],
   attViewsMeta: EttViewsMetaSummary | null,
   ettViewsMeta: EttViewsMetaSummary,
-  dateExtentsByState: Record<string, [string, string]>,
-  etl_context_id: number
+  dateExtentsByState: Record<string, [string, string]>
 ) {
   const {
     sortedByStateThenStartDate: ettViewIds,
@@ -250,16 +194,15 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
     lastUpdated: attLastUpdated = ettLastUpdated,
   } = attViewsMeta || {};
 
-  const data_start_date =
-    attStartDate < ettStartDate ? attStartDate : ettStartDate;
+  const start_date = attStartDate < ettStartDate ? attStartDate : ettStartDate;
 
-  const data_end_date = attEndDate > ettEndDate ? attEndDate : ettEndDate;
+  const end_date = attEndDate > ettEndDate ? attEndDate : ettEndDate;
 
   const lastUpdated =
     attLastUpdated > ettLastUpdated ? attLastUpdated : ettLastUpdated;
 
-  const dataStartDateNumeric = data_start_date.replace(/[^0-9]/g, "");
-  const dataEndDateNumeric = data_end_date.replace(/[^0-9]/g, "");
+  const dataStartDateNumeric = start_date.replace(/[^0-9]/g, "");
+  const dataEndDateNumeric = end_date.replace(/[^0-9]/g, "");
 
   const intervalVersion = `${dataStartDateNumeric}-${dataEndDateNumeric}`;
 
@@ -310,8 +253,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
       end_date,                       -- $6
       last_updated,                   -- $7
       view_dependencies,              -- $8
-      metadata,                       -- $9
-      etl_context_id                  -- $10
+      metadata                        -- $9
     ) VALUES (
       'public',
       'npmrds_test',
@@ -324,7 +266,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
           WHERE ( name = $1 )
       ),
 
-      $2, $3, $4, $5, $6, $7, $8, $9, $10
+      $2, $3, $4, $5, $6, $7, $8, $9
 
     ) RETURNING *
   `);
@@ -334,18 +276,17 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
     intervalVersion,
     stateFipsCSL,
     newVersion,
-    data_start_date,
-    data_end_date,
+    start_date,
+    end_date,
     lastUpdated,
     viewDependencies,
     metadata,
-    etl_context_id,
   ];
 
   const {
     // rows: [{ view_id: newDamaViewId, active_start_timestamp }],
     rows: [newDamaViewMeta],
-  } = await dbConn.query({ text: insertSql, values });
+  } = await dama_db.query({ text: insertSql, values });
 
   const { view_id: newDamaViewId } = newDamaViewMeta;
 
@@ -364,7 +305,7 @@ export async function updateNpmrdsAuthTravTimesViewMeta(
           WHERE ( view_id = $2 )
     `);
 
-    await dbConn.query({
+    await dama_db.query({
       text: updateSql,
       values: [newDamaViewId, prevDamaViewId],
     });

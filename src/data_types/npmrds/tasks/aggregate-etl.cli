@@ -1,0 +1,103 @@
+#!/usr/bin/env node
+
+/* eslint-disable @typescript-eslint/no-var-requires */
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { join } = require("path");
+
+const yargs = require("yargs/yargs");
+const { hideBin } = require("yargs/helpers");
+
+const dama_events = require("data_manager/events").default;
+const logger = require("data_manager/logger").default;
+const dama_host_id = require("constants/damaHostId").default;
+
+const { runInDamaContext } = require("data_manager/contexts");
+
+const aggregate_etl_main = require("./aggregate-etl").default;
+
+const worker_path = join(__dirname, "./aggregate-etl.worker.ts");
+
+const { pg_env, state, start_date, end_date, is_expanded, logging_level } =
+  yargs(hideBin(process.argv))
+    // .usage(
+    // // "Usage $0 --pg_env [PostgresSQL Database] --etl_context_id [Etl Context ID]"
+    // )
+    .strict()
+    .options({
+      pg_env: {
+        alias: "p",
+        describe: "The PostgresSQL Database",
+        demandOption: true,
+      },
+
+      state: {
+        describe: "The state",
+        string: true,
+        demandOptions: true,
+      },
+      start_date: {
+        describe: "The start_date",
+        string: true,
+        demandOption: true,
+      },
+      end_date: {
+        describe: "The end_date",
+        string: true,
+        demandOption: true,
+      },
+      is_expanded: {
+        describe: "Use the RITIS expanded map",
+        boolean: true,
+        default: true,
+      },
+      logging_level: {
+        alias: "l",
+        describe: "The logging level",
+        demandOption: false,
+        default: "debug",
+        choices: ["error", "warn", "info", "debug", "silly"],
+      },
+    }).argv;
+
+logger.level = logging_level;
+
+async function main() {
+  const etl_context_id = await dama_events.spawnEtlContext(null, null, pg_env);
+
+  const ctx = {
+    meta: { pgEnv: pg_env, etl_context_id },
+  };
+
+  await runInDamaContext(ctx, async () => {
+    const initial_event = {
+      type: ":INITIAL",
+      payload: {
+        state,
+        start_date,
+        end_date,
+        is_expanded,
+      },
+      meta: {
+        note: `aggregate ETL from CLI: ${state} ${start_date} to ${end_date}`,
+        // Because we are by-passing the TaskQueue, we need this to use ./runTask if later needed.
+        __dama_task_manager__: {
+          dama_host_id,
+          worker_path,
+        },
+      },
+    };
+
+    await dama_events.dispatch(initial_event);
+
+    logger.info(`==> etl_context_id: ${etl_context_id}`);
+
+    await aggregate_etl_main(initial_event);
+
+    console.log("after");
+  });
+}
+
+main();

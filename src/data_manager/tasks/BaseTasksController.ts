@@ -136,6 +136,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
       source_id = null,
       initial_event,
       worker_path,
+      etl_work_dir,
     } = dama_task_descr;
 
     if (!worker_path) {
@@ -183,6 +184,7 @@ export default class BaseTasksController extends DamaContextAttachedResource {
             // The following two pieces of information are required by the TaskRunner.
             worker_path,
             dama_host_id,
+            etl_work_dir,
           },
         };
 

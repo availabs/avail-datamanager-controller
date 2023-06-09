@@ -253,7 +253,10 @@ class DamaDb extends DamaContextAttachedResource {
    *
    * @returns the result of the passed function
    */
-  async runInTransactionContext(fn: () => unknown, pg_env = this.pg_env) {
+  async runInTransactionContext<T>(
+    fn: () => T | Promise<T>,
+    pg_env = this.pg_env
+  ): Promise<T> {
     let current_context: EtlContext;
 
     //  TODO: Implement SAVEPOINTs?
@@ -300,7 +303,7 @@ class DamaDb extends DamaContextAttachedResource {
     try {
       await db.query("BEGIN ;");
 
-      const result = await runInDamaContext(txn_context, fn);
+      const result = <T>await runInDamaContext(txn_context, fn);
 
       logger.silly("COMMITING", txn_id);
 

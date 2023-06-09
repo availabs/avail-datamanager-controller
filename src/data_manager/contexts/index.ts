@@ -23,11 +23,15 @@ import logger, { getLoggerForProcess } from "data_manager/logger";
 
 import { PgEnv } from "../dama_db/postgres/PostgreSQL";
 
+export type EtlContextId = number;
+export type EtlWorkDir = string;
+
 export type EtlContext = Record<string, any> & {
   logger?: Logger;
   meta: {
     pgEnv: PgEnv;
-    etl_context_id?: number | null;
+    etl_context_id?: EtlContextId | null;
+    etl_work_dir?: EtlWorkDir | null;
   };
 };
 
@@ -36,8 +40,9 @@ export type TaskEtlContext = EtlContext & {
   logger: Logger;
   meta: {
     pgEnv: PgEnv;
-    etl_context_id: number;
-    parent_context_id?: number;
+    etl_context_id: EtlContextId;
+    etl_work_dir?: EtlWorkDir | null;
+    parent_context_id?: number | null;
   };
 };
 
@@ -106,13 +111,21 @@ export function getPgEnv(): PgEnv {
   return pgEnv;
 }
 
-export function getEtlContextId(): number | null {
+export function getEtlContextId(): EtlContextId | null {
   const {
     // @ts-ignore
     meta: { etl_context_id } = {},
   } = getContext();
 
   return etl_context_id || null;
+}
+
+// We want to enable Tasks to set the EtlWorkDir for SubTasks.
+// That way, SubTasks can share and continue the work of other SubTasks.
+export function getEtlWorkDir(): EtlWorkDir | null {
+  const { initial_event, meta: { etl_work_dir } = {} } = getContext();
+
+  return etl_work_dir || initial_event?.meta?.etl_work_dir || null;
 }
 
 export function getLogger(): Logger {
@@ -137,7 +150,7 @@ export default class DamaContextAttachedResource {
     return getPgEnv();
   }
 
-  get etl_context_id(): number | null {
+  get etl_context_id(): EtlContextId | null {
     return getEtlContextId();
   }
 

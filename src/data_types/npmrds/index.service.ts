@@ -1,14 +1,25 @@
-import { Context } from "moleculer";
+import { join } from "path";
 
-import dama_meta from "data_manager/meta";
-import dama_events from "data_manager/events";
-import logger from "data_manager/logger";
+import { Context as MoleculerContext } from "moleculer";
+
+import dama_tasks from "data_manager/tasks";
+
+import { TaskQueueConfigs } from "./queues";
+
+import { TaskQueue } from "./domain";
 
 import {
-  npmrdsDataSourcesInitialMetadataByName,
-  toposortedSourceNames,
-  toposortedNpmrdsDataSourcesInitialMetadata,
-} from "./domain";
+  getToposortedDamaSourcesMeta,
+  initializeDamaSources,
+} from "./utils/dama_sources";
+
+import { InitialEvent as BatchedEtlInitialEvent } from "./tasks/batched-etl";
+
+const batch_etl_worker_path = join(__dirname, "./tasks/batched-etl.worker.ts");
+const scheduled_etl_worker_path = join(
+  __dirname,
+  "./tasks/scheduled-etl.worker.ts"
+);
 
 export const serviceName = "dama/data_types/npmrds";
 
@@ -16,74 +27,93 @@ export default {
   name: serviceName,
 
   actions: {
-    async getToposortedDamaSourcesMeta() {
-      const metaByName: Record<string, object> =
-        await dama_meta.getDamaSourceMetadataByName(toposortedSourceNames);
+    getToposortedDamaSourcesMeta,
 
-      const toposortedMeta = toposortedSourceNames.map(
-        (name) =>
-          // NOTE: if not in metaByName, will not have a source_id
-          metaByName[name] || npmrdsDataSourcesInitialMetadataByName[name]
-      );
+    initializeDamaSources,
 
-      logger.silly(
-        `==> ${serviceName} getToposortedDamaSourcesMeta ${JSON.stringify(
-          toposortedMeta,
-          null,
-          4
-        )}`
-      );
+    startTaskQueues: {
+      visibility: "public",
 
-      return toposortedMeta;
+      async handler() {
+        const task_queue_names = Object.keys(TaskQueueConfigs);
+
+        for (const name of task_queue_names) {
+          const { worker_options } = TaskQueueConfigs[name];
+
+          await dama_tasks.registerTaskQueue(name, worker_options);
+
+          await dama_tasks.startDamaQueueWorker(name);
+        }
+      },
     },
 
-    async initializeDamaSources(ctx: Context) {
-      let toposortedDamaSrcMeta: any = await ctx.call(
-        `${serviceName}.getToposortedDamaSourcesMeta`
-      );
+    // NOTE: Queues a batch ETL worker, not aggregate.
+    queueNpmrdsAggregateEtl: {
+      visibility: "public",
 
-      if (
-        toposortedDamaSrcMeta.every(({ source_id: id }) => Number.isFinite(id))
-      ) {
-        logger.info(
-          `==> ${serviceName} initializeDamaSources: All NPMRDS DataSources already created.`
+      async handler(ctx: MoleculerContext) {
+        const params: any = ctx.params;
+
+        const {
+          state,
+          start_date,
+          end_date,
+          is_expanded,
+          override_max_paritions,
+        } = params;
+
+        const initial_event: BatchedEtlInitialEvent = {
+          type: ":INITIAL",
+          payload: {
+            state,
+            start_date,
+            end_date,
+            is_expanded,
+            override_max_paritions,
+          },
+          meta: { note: "NPMRDS aggregate ETL" },
+        };
+
+        const dama_task_descr = {
+          worker_path: batch_etl_worker_path,
+          dama_task_queue_name: TaskQueue.AGGREGATE_ETL,
+          initial_event,
+        };
+
+        const options = { retryLimit: 1, expireInHours: 7 * 24 };
+
+        const etl_context_id = await dama_tasks.queueDamaTask(
+          dama_task_descr,
+          options
         );
 
-        return toposortedDamaSrcMeta;
-      }
+        return { etl_context_id };
+      },
+    },
 
-      const etl_context_id = await dama_events.spawnEtlContext();
+    scheduleNpmrdsEtl: {
+      visibility: "public",
 
-      const initialEvent = {
-        type: `${serviceName}.initializeDamaSources:INITIAL`,
-      };
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { cron },
+        } = ctx;
 
-      await dama_events.dispatch(initialEvent, etl_context_id);
+        const dama_task_descr = {
+          worker_path: scheduled_etl_worker_path,
+          dama_task_queue_name: TaskQueue.AGGREGATE_ETL,
+          cron,
+          initial_event: {
+            type: ":INITIAL",
+            meta: { note: "Scheduled NPMRDS ETL" },
+          },
+        };
 
-      toposortedDamaSrcMeta = await dama_meta.loadToposortedDamaSourceMetadata(
-        toposortedNpmrdsDataSourcesInitialMetadata
-      );
+        const options = { retryLimit: 1, expireInHours: 12 };
 
-      const final_event = {
-        type: `${serviceName}.initializeDamaSources:FINAL`,
-        payload: { toposortedDamaSrcMeta },
-      };
-
-      logger.info(
-        `==> ${serviceName} initializeDamaSources: NPMRDS DataSources created.`
-      );
-
-      logger.debug(
-        `==> ${serviceName} initializeDamaSources ${JSON.stringify(
-          { final_event },
-          null,
-          4
-        )}`
-      );
-
-      await dama_events.dispatch(final_event, etl_context_id);
-
-      return toposortedDamaSrcMeta;
+        await dama_tasks.scheduleDamaTask(dama_task_descr, options);
+      },
     },
   },
 };
