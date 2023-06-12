@@ -82,9 +82,10 @@ export async function createViewMbtiles(
   );
   await dama_events.dispatch(initialEvent, etlContextId);
 
+  const optionalColumns = mbtilesOptions?.preserveColumns || [] 
   const featuresAsyncIterator =
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(damaViewId, {
-      properties: ["ogc_fid"],
+      properties: ["ogc_fid", ...optionalColumns],
     });
 
   logger.info(
@@ -272,16 +273,16 @@ export async function createMbtilesTask({
       3
     )}`
   );
-  if (
-    mbtilesOptions &&
-    mbtilesOptions?.preserveColumns &&
-    mbtilesOptions?.preserveColumns?.length > 0
-  ) {
-    (mbtilesOptions?.preserveColumns || []).forEach((col: string) => {
-      tippecanoeArgs.unshift(`${col}`);
-      tippecanoeArgs.unshift("-y");
-    });
-  }
+  // if (
+  //   mbtilesOptions &&
+  //   mbtilesOptions?.preserveColumns &&
+  //   mbtilesOptions?.preserveColumns?.length > 0
+  // ) {
+  //   (mbtilesOptions?.preserveColumns || []).forEach((col: string) => {
+  //     tippecanoeArgs.unshift(`${col}`);
+  //     tippecanoeArgs.unshift("-y");
+  //   });
+  // }
 
   logger.info(
     `\n\nNew final updated tippecanoeArgs:  \n\n ${JSON.stringify(
