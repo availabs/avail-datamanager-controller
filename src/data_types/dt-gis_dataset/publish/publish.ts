@@ -26,6 +26,7 @@ export default async function publish({
   customViewAttributes,
   viewMetadata,
   viewDependency,
+  mbtilesOptions,
 
   isNewSourceCreate,
 }) {
@@ -42,7 +43,8 @@ export default async function publish({
     customViewAttributes: ${JSON.stringify(customViewAttributes, null, 3)},
     viewMetadata: ${JSON.stringify(viewMetadata, null, 3)},
     viewDependency: ${viewDependency}
-    isNewSourceCreate: ${isNewSourceCreate}`
+    isNewSourceCreate: ${isNewSourceCreate},
+    mbtilesOptions: ${JSON.stringify(mbtilesOptions, null, 3)}`
   );
 
   const pgEnv = getPgEnv();
@@ -123,7 +125,7 @@ export default async function publish({
       logger.info(
         `Inside the createViewMbtiles etlContextId: ${etlContextId}`
       );
-      await createViewMbtiles(damaViewId, damaSourceId, etlContextId);
+      await createViewMbtiles(damaViewId, damaSourceId, etlContextId, mbtilesOptions);
     }
   } else {
     const startEvent = {
