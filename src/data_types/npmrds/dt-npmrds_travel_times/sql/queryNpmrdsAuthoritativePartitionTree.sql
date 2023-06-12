@@ -71,5 +71,5 @@ WITH RECURSIVE cte_inheritance_tree AS (
         )
       INNER JOIN data_manager.sources AS c
         USING ( source_id )
-    WHERE ( c.name = %L ) -- NpmrdsTravelTimesImp DamaSource Name
+    WHERE ( c.name = %L ) -- NpmrdsTravelTimesImports DamaSource Name
 ;

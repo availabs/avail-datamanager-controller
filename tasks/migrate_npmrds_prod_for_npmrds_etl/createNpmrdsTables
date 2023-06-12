@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+set -a
+
+source ./config/postgres.env.dev
+
+psql \
+  -v ON_ERROR_STOP=1 \
+  --single-transaction \
+  -c 'CREATE SCHEMA IF NOT EXISTS ct;' \
+  -c 'CREATE SCHEMA IF NOT EXISTS nj;' \
+  -c 'CREATE SCHEMA IF NOT EXISTS ny;' \
+  -c 'CREATE SCHEMA IF NOT EXISTS pa;' \
+  -c 'CREATE SCHEMA IF NOT EXISTS "on";' \
+  -c 'CREATE SCHEMA IF NOT EXISTS qc;' \
+  -f ./data/npmrds_tables_schema_only.sql

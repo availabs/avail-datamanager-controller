@@ -5,9 +5,13 @@ import pgFormat from "pg-format";
 
 import { Context } from "moleculer";
 
+import dama_db from "data_manager/dama_db";
+
 import { NpmrdsDataSources } from "../domain";
 
 import makeTravelTimesExportTablesAuthoritative from "./actions/makeTravelTimesExportTablesAuthoritative";
+
+import updateTmcDateRanges from "../dt-npmrds_tmc_date_ranges/main";
 
 export const serviceName = "dama/data_types/npmrds/dt-npmrds_travel_times";
 
@@ -20,25 +24,39 @@ export default {
   name: serviceName,
 
   actions: {
-    async getDependencyTree(ctx: Context) {
+    async getDependencyTree() {
       const sql = await readFileAsync(
         queryNpmrdsAuthoritativePartitionTreeSqlPath,
         { encoding: "utf8" }
       );
 
-      const query = pgFormat(sql, NpmrdsDataSources.NpmrdsTravelTimesImp);
+      const query = pgFormat(sql, NpmrdsDataSources.NpmrdsTravelTimesImports);
 
       // @ts-ignore
-      const { rows: dependencyTreeSummary } = await ctx.call(
-        "dama_db.query",
-        query
-      );
+      const { rows: dependencyTreeSummary } = await dama_db.query(query);
 
       console.log(JSON.stringify({ dependencyTreeSummary }, null, 4));
 
       return dependencyTreeSummary;
     },
 
-    makeTravelTimesExportTablesAuthoritative,
+    async makeTravelTimesExportTablesAuthoritative(ctx: Context) {
+      let {
+        // @ts-ignore
+        params: { dama_view_ids },
+      } = ctx;
+
+      dama_view_ids = Array.isArray(dama_view_ids)
+        ? dama_view_ids.map((id) => +id)
+        : [+dama_view_ids];
+
+      const done_data = await makeTravelTimesExportTablesAuthoritative(
+        dama_view_ids
+      );
+
+      await updateTmcDateRanges();
+
+      return done_data;
+    },
   },
 };

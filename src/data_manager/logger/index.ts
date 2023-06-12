@@ -108,7 +108,10 @@ export function getLoggerForContext(
 
 export type Logger = WinstonLogger;
 
-// If in an EtlContext, hands off to the context's logger. Otherwise, hands off to process' logger.
+//  If in an TaskEtlContext, hands off to the context's logger. Otherwise, hands off to process' logger.
+//  This allows
+//    * Task log files to contain exclusively that Task's logs
+//    * Tasks to log with higher verbosity than the process' log
 export default <Logger>new Proxy(
   {},
   {
@@ -116,7 +119,11 @@ export default <Logger>new Proxy(
       let logger: WinstonLogger;
 
       try {
-        logger = getLoggerForContext();
+        if (getPgEnv() && getEtlContextId()) {
+          logger = getLoggerForContext();
+        } else {
+          logger = getLoggerForProcess();
+        }
       } catch (err) {
         logger = getLoggerForProcess();
       }

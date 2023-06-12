@@ -87,7 +87,7 @@ class TaskRunner {
     const {
       meta: {
         // @ts-ignore
-        __dama_task_manager__: { worker_path },
+        __dama_task_manager__: { worker_path, etl_work_dir },
       },
     } = this.initial_event;
 
@@ -106,7 +106,7 @@ class TaskRunner {
       const etl_ctx = {
         initial_event: this.initial_event,
         logger: this.logger,
-        meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID },
+        meta: { pgEnv: PG_ENV, etl_context_id: ETL_CONTEXT_ID, etl_work_dir },
       };
 
       const final_event = await main(etl_ctx);
@@ -199,6 +199,11 @@ class TaskRunner {
     this.logger.silly("after SELECT FOR UPDATE");
 
     if (!initial_event) {
+      // FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+      //  It is real confusing when we failed to aquire the lock
+      //    because of missing __dama_task_manager__ metadata.
+      //  Multiple times this has happened and took a while to figure out.
+      //  Give a meaningful error message if the requested event does not have the dama_host_id.
       this.logger.error("Unable to aquire :INITIAL event lock.");
 
       await this.shutdown(

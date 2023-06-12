@@ -16,6 +16,7 @@ export type QueuedDamaTaskDescriptor = {
   parent_context_id?: number | null;
   source_id?: number | null;
   initial_event: InitialEvent;
+  etl_work_dir?: string | null;
 };
 
 export type ScheduledDamaTaskDescriptor = QueuedDamaTaskDescriptor & {
@@ -55,6 +56,7 @@ export type QueuedDamaTaskJob = Job & {
   data: {
     etl_context_id: number;
     worker_path: string;
+    etl_work_dir?: string;
   };
 };
 
@@ -62,6 +64,7 @@ export type ScheduledDamaTaskJob = Job & {
   data: {
     initial_event: InitialEvent;
     worker_path: string;
+    etl_work_dir?: string;
   };
 };
 

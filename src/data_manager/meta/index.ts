@@ -9,6 +9,7 @@ import dama_db from "data_manager/dama_db";
 import logger from "data_manager/logger";
 
 import { NodePgQueryConfig } from "../dama_db/postgres/PostgreSQL";
+import { DamaSource, DamaSourceName } from "./domain";
 
 type TableDescription = Record<
   string,
@@ -1009,7 +1010,7 @@ class DamaMeta extends DamaContextAttachedResource {
   async getDamaSourceMetadataByName(
     dama_source_names: string[],
     pg_env = this.pg_env
-  ) {
+  ): Promise<Record<DamaSourceName, DamaSource>> {
     const text = dedent(`
       SELECT
           *
@@ -1033,7 +1034,6 @@ class DamaMeta extends DamaContextAttachedResource {
       return acc;
     }, {});
 
-    // @ts-ignore
     const metaByName = dama_source_names.reduce(
       (acc: Record<string, any>, name: string) => {
         acc[name] = rowsByName[name] || null;
@@ -1255,9 +1255,10 @@ class DamaMeta extends DamaContextAttachedResource {
   async loadToposortedDamaSourceMetadata(
     toposorted_dama_sources_meta: Record<string, any>[],
     pg_env = this.pg_env
-  ) {
+  ): Promise<Array<DamaSource | null>> {
     // NODE: Since the callback runs in the context, no need for passing pg_env.
-    return dama_db.runInTransactionContext(async () => {
+
+    const fn = async () => {
       const queries = await this.generateToposortedLoadDataSourcesQueries(
         toposorted_dama_sources_meta
       );
@@ -1317,11 +1318,9 @@ class DamaMeta extends DamaContextAttachedResource {
           WHERE ( name = ANY( $1 ) )
       `);
 
-      const dama_src_meta_values = [toposorted_dama_src_names];
-
       const { rows: dama_src_meta_rows } = await dama_db.query({
         text: dama_src_meta_sql,
-        values: dama_src_meta_values,
+        values: [toposorted_dama_src_names],
       });
 
       const dama_src_meta_by_name = dama_src_meta_rows.reduce((acc, row) => {
@@ -1331,11 +1330,15 @@ class DamaMeta extends DamaContextAttachedResource {
       }, {});
 
       const toposorted_dama_src_meta = toposorted_dama_src_names.map(
-        (name) => dama_src_meta_by_name[name]
+        (name) => dama_src_meta_by_name[name] || null
       );
 
       return toposorted_dama_src_meta;
-    }, pg_env);
+    };
+
+    return dama_db.isInTransactionContext
+      ? fn()
+      : dama_db.runInTransactionContext(fn, pg_env);
   }
 }
 

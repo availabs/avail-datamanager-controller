@@ -26,8 +26,8 @@ export function verifyNoEttOverlaps(ettViewsMeta: EttViewsMetaSummary) {
 
           const {
             damaViewId: a_view_id,
-            data_start_date: a_start,
-            data_end_date: a_end,
+            start_date: a_start,
+            end_date: a_end,
           } = viewA;
 
           const aStart = DateTime.fromISO(a_start).startOf("day");
@@ -40,8 +40,8 @@ export function verifyNoEttOverlaps(ettViewsMeta: EttViewsMetaSummary) {
 
             const {
               damaViewId: b_view_id,
-              data_start_date: b_start,
-              data_end_date: b_end,
+              start_date: b_start,
+              end_date: b_end,
             } = viewB;
 
             const bStart = DateTime.fromISO(b_start).startOf("day");
@@ -77,11 +77,11 @@ export function verifyNoEttOverlaps(ettViewsMeta: EttViewsMetaSummary) {
 export function getEttIntervalsByViewId(ettViewsMeta: EttViewsMetaSummary) {
   const ettIntervalsByViewId = ettViewsMeta.sortedByStateThenStartDate.reduce(
     (acc, viewId) => {
-      const { damaViewId, data_start_date, data_end_date } =
+      const { damaViewId, start_date, end_date } =
         ettViewsMeta.byViewId[viewId];
 
-      const dateRangeStart = DateTime.fromISO(data_start_date).startOf("day");
-      const dateRangeEnd = DateTime.fromISO(data_end_date)
+      const dateRangeStart = DateTime.fromISO(start_date).startOf("day");
+      const dateRangeEnd = DateTime.fromISO(end_date)
         .plus({ days: 1 })
         .startOf("day");
 
@@ -124,14 +124,14 @@ export function handleHasAttViewIdsCase(
     {};
 
   for (const attViewId of attViewsMeta?.sortedByStateThenStartDate || []) {
-    const { state, year, month, data_start_date, data_end_date } = <
+    const { state, year, month, start_date, end_date } = <
       ParsedNpmrdsTravelTimesExportTableMetadata
     >attViewsMeta?.byViewId[attViewId];
 
     // Get the ATT's Interval
-    const attDateRangeStart = DateTime.fromISO(data_start_date).startOf("day");
+    const attDateRangeStart = DateTime.fromISO(start_date).startOf("day");
 
-    const attDateRangeEnd = DateTime.fromISO(data_end_date)
+    const attDateRangeEnd = DateTime.fromISO(end_date)
       .plus({ days: 1 })
       .startOf("day");
 
@@ -323,12 +323,11 @@ export function validateNoAttGaps(
       const minAttViewId = <number>_.first(byMonthByYear[minYear][minMonth]);
       const maxAttViewId = <number>_.last(byMonthByYear[maxYear][maxMonth]);
 
-      const data_start_date =
-        attViewsMeta.byViewId[minAttViewId].data_start_date;
-      const data_end_date = attViewsMeta.byViewId[maxAttViewId].data_end_date;
+      const start_date = attViewsMeta.byViewId[minAttViewId].start_date;
+      const end_date = attViewsMeta.byViewId[maxAttViewId].end_date;
 
-      const startDateTime = DateTime.fromISO(data_start_date);
-      const endDateTime = DateTime.fromISO(data_end_date)
+      const startDateTime = DateTime.fromISO(start_date);
+      const endDateTime = DateTime.fromISO(end_date)
         .plus({ days: 1 })
         .startOf("day");
 
@@ -379,10 +378,10 @@ export function validateNoAttGaps(
     (acc, state) => {
       const interval = newAttIntervalUnionsByState[state];
 
-      const data_start_date = interval.start.toISODate();
-      const data_end_date = interval.end.minus({ days: 1 }).toISODate();
+      const start_date = interval.start.toISODate();
+      const end_date = interval.end.minus({ days: 1 }).toISODate();
 
-      acc[state] = [data_start_date, data_end_date];
+      acc[state] = [start_date, end_date];
 
       return acc;
     },
