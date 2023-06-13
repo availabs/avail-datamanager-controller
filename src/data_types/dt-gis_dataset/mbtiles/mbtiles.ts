@@ -39,7 +39,8 @@ const pipelineAsync = promisify(pipeline);
 export async function createViewMbtiles(
   damaViewId: number,
   damaSourceId: number,
-  etlContextId: number
+  etlContextId: number,
+  mbtilesOptions: Record<string, Array<string> | string | number>
 ) {
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup }: any =
     await new Promise((resolve, reject) =>
@@ -72,12 +73,19 @@ export async function createViewMbtiles(
       timestamp: new Date(),
     },
   };
-  logger.info(`Should the initial event inside createViewMbtiles of mbtile happen? : ${JSON.stringify(initialEvent, null, 3)}`);
+  logger.info(
+    `Should the initial event inside createViewMbtiles of mbtile happen? : ${JSON.stringify(
+      initialEvent,
+      null,
+      3
+    )}`
+  );
   await dama_events.dispatch(initialEvent, etlContextId);
 
+  const optionalColumns = mbtilesOptions?.preserveColumns || [] 
   const featuresAsyncIterator =
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(damaViewId, {
-      properties: ["ogc_fid"],
+      properties: ["ogc_fid", ...optionalColumns],
     });
 
   logger.info(
@@ -91,6 +99,7 @@ export async function createViewMbtiles(
         mbtilesFilePath,
         featuresAsyncIterator,
         etlWorkDir,
+        mbtilesOptions,
       });
     const mbtilesBaseName = basename(mbtilesFilePath);
     const servedMbtilesPath = join(mbtilesDir, mbtilesBaseName);
@@ -133,7 +142,13 @@ export async function createViewMbtiles(
         values: [damaViewId],
       });
     } catch (error) {
-      logger.info(`Query fails inside createViewMbtiles : ${JSON.stringify(error, null, 3)}`);
+      logger.info(
+        `Query fails inside createViewMbtiles : ${JSON.stringify(
+          error,
+          null,
+          3
+        )}`
+      );
     }
 
     const finalEvent = {
@@ -176,6 +191,7 @@ export async function createMbtilesTask({
   mbtilesFilePath,
   featuresAsyncIterator,
   etlWorkDir,
+  mbtilesOptions,
 }) {
   if (!etlWorkDir) {
     etlWorkDir = await new Promise((resolve, reject) =>
@@ -250,6 +266,31 @@ export async function createMbtilesTask({
     geojsonFilePath,
   ];
 
+  logger.info(
+    `Reached here inside createMbtilesTask: ${JSON.stringify(
+      mbtilesOptions,
+      null,
+      3
+    )}`
+  );
+  // if (
+  //   mbtilesOptions &&
+  //   mbtilesOptions?.preserveColumns &&
+  //   mbtilesOptions?.preserveColumns?.length > 0
+  // ) {
+  //   (mbtilesOptions?.preserveColumns || []).forEach((col: string) => {
+  //     tippecanoeArgs.unshift(`${col}`);
+  //     tippecanoeArgs.unshift("-y");
+  //   });
+  // }
+
+  logger.info(
+    `\n\nNew final updated tippecanoeArgs:  \n\n ${JSON.stringify(
+      tippecanoeArgs,
+      null,
+      3
+    )}`
+  );
   const tippecanoeCProc = spawn(tippecanoePath, tippecanoeArgs, {
     stdio: "pipe",
   })
