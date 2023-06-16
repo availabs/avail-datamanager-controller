@@ -50,6 +50,8 @@ async function createConformalMatchesTable(year_a: number, year_b: number) {
   const create_table_sql = dedent(
     pgFormat(
       `
+        DROP TABLE IF EXISTS %I.%I CASCADE ;
+
         CREATE TABLE %I.%I (
           node_id_a         INTEGER UNIQUE,
           node_id_b         INTEGER UNIQUE,
@@ -60,6 +62,8 @@ async function createConformalMatchesTable(year_a: number, year_b: number) {
           PRIMARY KEY (node_id_a, node_id_b)
         ) WITH (fillfactor=100)
       `,
+      conformal_matches_info.table_schema,
+      conformal_matches_info.table_name,
       conformal_matches_info.table_schema,
       conformal_matches_info.table_name
     )
