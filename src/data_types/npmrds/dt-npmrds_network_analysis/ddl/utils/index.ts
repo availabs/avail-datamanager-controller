@@ -86,11 +86,11 @@ export function getNpmrdsNetworkNodeIncidentEdgesMetadataInfo(year: number) {
   };
 }
 
-export function getNpmrdsNetworkNodeLevelLabelsInfo(
-  year: number,
-  level: number
+export function getNpmrdsNetworkConformalMatchesTableInfo(
+  year_a: number,
+  year_b: number
 ) {
-  const table_name = `npmrds_network_node_level_${level}_labels_${year}`;
+  const table_name = `npmrds_network_conformal_matches_${year_a}_${year_b}`;
 
   return {
     table_schema: network_spatial_analysis_schema_name,

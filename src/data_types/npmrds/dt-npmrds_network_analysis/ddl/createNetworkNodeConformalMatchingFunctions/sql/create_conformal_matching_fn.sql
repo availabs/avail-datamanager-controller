@@ -584,8 +584,9 @@ INSERT INTO npmrds_network_spatial_analysis.incident_edges_conformal_match_queri
         SELECT
             a.node_id AS node_id_a,
             b.node_id AS node_id_b,
-            NULL::JSONB AS label,
-            NULL::JSONB AS label_fields
+
+            jsonb_agg(DISTINCT linear_id ORDER BY linear_id) AS label,
+            jsonb_build_array(''linear_id'') AS label_fields
 
           FROM %s AS a
             INNER JOIN %s AS b
