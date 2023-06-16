@@ -98,3 +98,16 @@ export function getNpmrdsNetworkConformalMatchesTableInfo(
     pkey_idx_name: `${table_name}_pkey`,
   };
 }
+
+export function getNpmrdsTmcShapeSimilarityTableInfo(
+  year_a: number,
+  year_b: number
+) {
+  const table_name = `npmrds_tmc_similarity_${year_a}_${year_b}`;
+
+  return {
+    table_schema: network_spatial_analysis_schema_name,
+    table_name,
+    pkey_idx_name: `${table_name}_pkey`,
+  };
+}

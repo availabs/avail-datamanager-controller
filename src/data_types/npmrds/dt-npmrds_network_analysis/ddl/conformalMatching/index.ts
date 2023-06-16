@@ -16,10 +16,10 @@ import {
 const min_year = 2017;
 const max_year = 2022;
 
-async function createConformalMatchingFunction() {
+async function createIncidentEdgesConformalMatchingFunction() {
   const template_sql_fpath = join(
     __dirname,
-    "./sql/create_conformal_matching_fn.sql"
+    "./sql/create_incident_edges_conformal_matches_fn.sql"
   );
 
   const template_sql = await readFileAsync(template_sql_fpath, {
@@ -35,7 +35,10 @@ async function createConformalMatchingFunction() {
   logger.debug("Create level_1_conformal_matches: DONE");
 }
 
-async function createConformalMatchesTable(year_a: number, year_b: number) {
+async function createIncidentEdgesConformalMatchingTable(
+  year_a: number,
+  year_b: number
+) {
   const incident_edges_metdata_a =
     getNpmrdsNetworkNodeIncidentEdgesMetadataInfo(year_a);
 
@@ -114,15 +117,15 @@ async function createConformalMatchesTable(year_a: number, year_b: number) {
   );
 }
 
-async function createConformalMatchesTables() {
+async function performConformalMatchings() {
   for (let year_a = min_year; year_a < max_year; ++year_a) {
     for (let year_b = year_a + 1; year_b <= max_year; ++year_b) {
-      await createConformalMatchesTable(year_a, year_b);
+      await createIncidentEdgesConformalMatchingTable(year_a, year_b);
     }
   }
 }
 
 export default async function createNetworkNodeLevel1Labels() {
-  await createConformalMatchingFunction();
-  await createConformalMatchesTables();
+  await createIncidentEdgesConformalMatchingFunction();
+  await performConformalMatchings();
 }

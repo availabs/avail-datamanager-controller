@@ -2,7 +2,8 @@ import _ from "lodash";
 
 import dama_db from "data_manager/dama_db";
 import initializeForYear from "./initialize";
-import createNetworkNodeConformalMatchingFunctions from "./createNetworkNodeConformalMatchingFunctions";
+import conformalMatching from "./conformalMatching";
+import createTmcSimilarityTables from "./createTmcSimilarityTables";
 
 const PG_ENV = "dama_dev_1";
 
@@ -17,10 +18,10 @@ async function main() {
     )
   );
 
-  await dama_db.runInTransactionContext(
-    createNetworkNodeConformalMatchingFunctions,
-    PG_ENV
-  );
+  await Promise.all([
+    dama_db.runInTransactionContext(createTmcSimilarityTables, PG_ENV),
+    dama_db.runInTransactionContext(conformalMatching, PG_ENV),
+  ]);
 }
 
 main();
