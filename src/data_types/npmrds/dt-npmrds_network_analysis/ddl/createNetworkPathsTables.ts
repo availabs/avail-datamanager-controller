@@ -8,6 +8,7 @@ import {
   getNpmrdsNetworkEdgesTableInfo,
   getNpmrdsNetworkEdgesMetadataViewInfo,
   getNpmrdsNetworkPathsTableInfo,
+  getNpmrdsNetworkPathsNodeIdxViewInfo,
 } from "./utils";
 
 async function createTable(year: number) {
@@ -16,7 +17,7 @@ async function createTable(year: number) {
   const sql = dedent(
     pgFormat(
       `
-        DROP TABLE IF EXISTS %I.%I ;
+        DROP TABLE IF EXISTS %I.%I CASCADE ;
 
         CREATE TABLE IF NOT EXISTS %I.%I (
           linear_id       INTEGER,
@@ -134,7 +135,6 @@ async function loadTable(year: number) {
               FROM cte_traverse
         ;
 
-
         CLUSTER %I.%I USING %I ;
       `,
 
@@ -169,7 +169,99 @@ async function loadTable(year: number) {
   );
 }
 
+async function createView(year: number) {
+  const edges_info = getNpmrdsNetworkEdgesTableInfo(year);
+  const paths_info = getNpmrdsNetworkPathsTableInfo(year);
+  const view_info = getNpmrdsNetworkPathsNodeIdxViewInfo(year);
+
+  const sql = dedent(
+    pgFormat(
+      `
+        DROP VIEW IF EXISTS %I.%I CASCADE ;
+
+        CREATE VIEW %I.%I
+          AS
+            SELECT
+                linear_id,
+                direction,
+
+                source_rank,
+                depth,
+                path_idx,
+
+                tmc,
+
+                pt_geom_n,
+                pt_geom_idx,
+
+                node_id,
+
+                -- https://stackoverflow.com/a/62019700
+                SUM(
+                  CASE
+                    WHEN ( node_id = prev_node_id ) THEN 0
+                    ELSE 1
+                  END
+                ) OVER (
+                  PARTITION BY linear_id, direction
+                  ORDER BY node_idx_along_path
+                ) AS node_idx_along_path
+
+            FROM (
+              SELECT
+                  a.linear_id,
+                  a.direction,
+
+                  a.source_rank,
+                  a.depth,
+                  a.path_idx,
+
+                  tmc,
+
+                  b.pt_geom_n,
+                  b.pt_geom_idx,
+
+                  b.node_id,
+
+                  LAG(b.node_id, 1) OVER (
+                    PARTITION BY a.linear_id, a.direction
+                    ORDER BY a.path_idx, b.pt_geom_idx
+                  ) AS prev_node_id,
+
+                  ROW_NUMBER() OVER (
+                    PARTITION BY a.linear_id, a.direction
+                    ORDER BY a.path_idx, b.pt_geom_idx
+                  ) AS node_idx_along_path
+
+              FROM %I.%I AS a                                 -- npmrds_network_paths
+                INNER JOIN %I.%I AS b                         -- npmrds_network_edges
+                  USING ( tmc )
+              WHERE ( b.pt_geom_n = 1 )
+          ) AS t
+      `,
+      //  DROP VIEW
+      view_info.table_schema,
+      view_info.table_name,
+
+      //  CREATE VIEW
+      view_info.table_schema,
+      view_info.table_name,
+
+      //  FROM AS a
+      paths_info.table_schema,
+      paths_info.table_name,
+
+      // INNER JOIN AS b
+      edges_info.table_schema,
+      edges_info.table_name
+    )
+  );
+
+  await dama_db.query(sql);
+}
+
 export default async function createNetworkPathsTable(year: number) {
   await createTable(year);
   await loadTable(year);
+  await createView(year);
 }

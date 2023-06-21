@@ -1,3 +1,24 @@
+/*
+  Metrics:
+
+    * Sinuosity
+      * https://en.wikipedia.org/wiki/Sinuosity
+      * https://www.netmaptools.org/Pages/NetMapHelp/channel_sinuosity.htm
+
+    * Hausdorff distance
+      * https://postgis.net/docs/ST_HausdorffDistance.html
+      * https://en.wikipedia.org/wiki/Hausdorff_distance
+
+    * Fréchet distance
+      * https://postgis.net/docs/ST_FrechetDistance.html
+      * https://en.wikipedia.org/wiki/Fr%C3%A9chet_distance
+      * http://www.kr.tuwien.ac.at/staff/eiter/et-archive/cdtr9464.pdf
+
+  NOTE: Using UTM for hausdorff and frechet distances. 4326 returns distance in degrees, not meters.
+    https://gis.stackexchange.com/a/271645
+
+*/
+
 import dedent from "dedent";
 import pgFormat from "pg-format";
 
@@ -7,12 +28,12 @@ import logger from "data_manager/logger";
 import {
   getNpmrdsTmcShapeSimilarityTableInfo,
   getTmcShapesTableInfo,
-} from "./utils";
+} from "../utils";
 
-const min_year = 2017;
-const max_year = 2022;
-
-async function createTmcShapeSimilarityTable(year_a: number, year_b: number) {
+export default async function createTmcShapeSimilarityTable(
+  year_a: number,
+  year_b: number
+) {
   const tmc_shapes_info_a = getTmcShapesTableInfo(year_a);
   const tmc_shapes_info_b = getTmcShapesTableInfo(year_b);
 
@@ -248,16 +269,4 @@ async function createTmcShapeSimilarityTable(year_a: number, year_b: number) {
   logger.debug(
     `Load ${tmc_similarity_info.table_name} DONE: ${new Date().toISOString()}`
   );
-}
-
-async function createTmcShapeSimilarityTables() {
-  for (let year_a = min_year; year_a < max_year; ++year_a) {
-    for (let year_b = year_a + 1; year_b <= max_year; ++year_b) {
-      await createTmcShapeSimilarityTable(year_a, year_b);
-    }
-  }
-}
-
-export default async function createNetworkNodeLevel1Labels() {
-  await createTmcShapeSimilarityTables();
 }

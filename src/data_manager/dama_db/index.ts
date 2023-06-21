@@ -261,7 +261,8 @@ class DamaDb extends DamaContextAttachedResource {
    */
   async runInTransactionContext<T>(
     fn: () => T | Promise<T>,
-    pg_env = this.pg_env
+    pg_env = this.pg_env,
+    log_notices = false
   ): Promise<T> {
     let current_context: EtlContext;
 
@@ -277,8 +278,19 @@ class DamaDb extends DamaContextAttachedResource {
       current_context = { meta: { pgEnv: pg_env } };
     }
 
+    function logNotice(msg: any) {
+      const level = msg.severity === "NOTICE" ? "debug" : "warn";
+      logger[level](`PG NOTICE: ${msg.message}`);
+    }
+
     // NOTE: Not yet isInTransactionContext, therefore release not disabled.
     const db = await this.getDbConnection(pg_env);
+
+    if (log_notices) {
+      // @ts-ignore
+      db.on("notice", logNotice);
+    }
+
     const txn_id = uuid();
 
     const txn_cxn = <NodePgPoolClient>new Proxy(
@@ -338,6 +350,7 @@ class DamaDb extends DamaContextAttachedResource {
       }
     } finally {
       logger.silly("release txn_context", txn_id);
+      db.off("notice", logNotice);
       db.release();
     }
   }

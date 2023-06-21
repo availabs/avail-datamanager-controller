@@ -1,3 +1,6 @@
+-- FIXME: Very slow. Would probably help to replace ST_Distance with <->.
+--        Starting with a KNN approach would also enable more sophisticated matching logic.
+--
 -- FIXME: Performs poorly for overlapping TmcLinears and places poor cartography dual carriageways.
 --
 --  CREATE OR REPLACE FUNCTION __NETWORK_SPATIAL_ANALYSIS_SCHEMA_NAME__.incident_edges_conformal_matches (

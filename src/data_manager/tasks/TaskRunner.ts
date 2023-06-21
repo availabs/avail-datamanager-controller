@@ -174,6 +174,10 @@ class TaskRunner {
     //    data, so this is not suitable for general purpose work, but can be used
     //    to avoid lock contention with multiple consumers accessing a queue-like
     //    table.
+    //
+    //  TODO:
+    //        Add a query key to the below query so we can query the pg_stat_activity table for it.
+    //        Include the PID of this process.
     const sql = dedent(`
       SELECT
           b.*

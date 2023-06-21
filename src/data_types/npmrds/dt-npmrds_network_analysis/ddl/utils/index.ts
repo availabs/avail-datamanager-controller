@@ -67,6 +67,15 @@ export function getNpmrdsNetworkPathsTableInfo(year: number) {
   };
 }
 
+export function getNpmrdsNetworkPathsNodeIdxViewInfo(year: number) {
+  const table_name = `npmrds_network_paths_node_idx_${year}`;
+
+  return {
+    table_schema: network_spatial_analysis_schema_name,
+    table_name,
+  };
+}
+
 export function getNpmrdsNetworkNodeIncidentEdgesInfo(year: number) {
   const table_name = `npmrds_network_node_incident_edges_${year}`;
 
