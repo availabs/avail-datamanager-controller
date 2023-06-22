@@ -21,7 +21,7 @@ export async function createView(
     user_id,
     source_id,
     etl_context_id: getEtlContextId(),
-    view_dependencies: [viewDependency],
+    view_dependencies: viewDependency,
     metadata: { ...(customViewAttributes || {}), ...(viewMetadata || {}) },
   });
 
