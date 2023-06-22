@@ -218,11 +218,17 @@ class DamaDb extends DamaContextAttachedResource {
 
       // @ts-ignore
       if (ctx.meta.__dama_db__) {
+        logger.silly("dama_db.isInTransactionContext: true");
         return true;
       }
 
+      logger.silly("dama_db.isInTransactionContext: false");
+
       return false;
     } catch (err) {
+      logger.silly(
+        "dama_db.isInTransactionContext: false (not in any context)"
+      );
       return false;
     }
   }
@@ -301,9 +307,15 @@ class DamaDb extends DamaContextAttachedResource {
     };
 
     try {
+      logger.silly("BEGIN transaction.");
+
       await db.query("BEGIN ;");
 
+      logger.silly("dama_db transaction function: START");
+
       const result = <T>await runInDamaContext(txn_context, fn);
+
+      logger.silly("dama_db transaction function: DONE");
 
       logger.silly("COMMITING", txn_id);
 

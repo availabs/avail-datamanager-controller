@@ -15,7 +15,7 @@ export default {
           params: { source_id = null, parent_context_id = null } = {},
         } = ctx;
 
-        console.log('spawn context ID', ctx)
+        //console.log('spawn context ID', ctx)
         return dama_events.spawnEtlContext(source_id, parent_context_id);
       },
     },

@@ -116,7 +116,7 @@ export const removeAllSelectedRoads =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.SelectedRoadList > div > div.list-header > a > span";
 
 export const confirmRemoveAllSelectedRoads =
-  "body > main > div > div.global-notifications > div > div.popup-container.undefined > div.footer > div > div > div:nth-child(1) > button";
+  "body > main > div > div.global-notifications > div > div.popup-container > div.footer > div > div > div:nth-child(1) > button";
 
 // export function getRegionSelectorListItemByIndex(i: number) {
 // return `body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div > div:nth-child(1) > div > div.input-wrapper > div > div:nth-child(2) > div.options-container.offset-container > div:nth-child(${i})`;
@@ -126,7 +126,7 @@ export const showSegementIdsButton =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.SelectedRoadList > div > div.selected-road-buttons > div.show-segments-button.IconButton";
 
 export const showSegmentIdsPopupTextArea =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.SelectedRoadList > div > div.selected-road-buttons > div.SegmentIdsPopup > div > div.popup-container.undefined > div.body > textarea";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.SelectedRoadList > div > div.selected-road-buttons > div.SegmentIdsPopup > div > div.popup-container > div.body > textarea";
 
 export const closeShowSegmentIdsPopup =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.SelectedRoadList > div > div.selected-road-buttons > div:nth-child(3)";
@@ -218,10 +218,10 @@ export const sendNotificationsClickTarget =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(10) > div.EmailNotificationCheckbox > label > span";
 
 export const formSubmittedModalOkButton =
-  "body > main > div > div.global-notifications > div > div.popup-container.undefined > div.footer > div > div > div > button";
+  "body > main > div > div.global-notifications > div > div.popup-container > div.footer > div > div > div > button";
 
 export const pleaseChooseAtLeastOneStateWarningText =
-  "body > main > div > div.global-notifications > div > div.popup-container.undefined > div.body";
+  "body > main > div > div.global-notifications > div > div.popup-container > div.body";
 
 export const pleaseChooseAtLeastOneStateAlertButton =
-  "body > main > div > div.global-notifications > div > div.popup-container.undefined > div.footer > div > div > div > button";
+  "body > main > div > div.global-notifications > div > div.popup-container > div.footer > div > div > div > button";
