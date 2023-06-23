@@ -39,7 +39,7 @@ CREATE VIEW npmrds_network_spatial_analysis.npmrds_network_matched_tmc_nodes_:YE
                   USING (tmc)
                 INNER JOIN npmrds_network_spatial_analysis.npmrds_network_edge_metadata_:YEAR_B AS b
                   USING (tmc)
-              WHERE ( x.start_pt_diff_meters <= 1.5 AND x.start_pt_diff_meters < 1.5)
+              WHERE ( x.start_pt_diff_meters <= 1.5 AND x.end_pt_diff_meters <= 1.5)
               ORDER BY node_id_a, node_id_b, x.start_pt_diff_meters, x.end_pt_diff_meters
           ) AS t1
 
@@ -65,7 +65,7 @@ CREATE VIEW npmrds_network_spatial_analysis.npmrds_network_matched_tmc_nodes_:YE
                   USING (tmc)
                 INNER JOIN npmrds_network_spatial_analysis.npmrds_network_edge_metadata_:YEAR_B AS b
                   USING (tmc)
-              WHERE ( x.start_pt_diff_meters <= 1.5 AND x.start_pt_diff_meters < 1.5)
+              WHERE ( x.start_pt_diff_meters <= 1.5 AND x.end_pt_diff_meters <= 1.5)
               ORDER BY node_id_a, node_id_b, x.start_pt_diff_meters, x.end_pt_diff_meters
           ) AS t2
       ) AS t

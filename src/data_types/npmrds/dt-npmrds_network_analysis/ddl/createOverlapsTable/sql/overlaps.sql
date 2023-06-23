@@ -30,7 +30,14 @@ CREATE TABLE npmrds_network_spatial_analysis.npmrds_network_path_overlaps_:YEAR 
 
 WITH RECURSIVE cte_shared_nodes AS (
   -- Collect all nodes shared between two TmcLinears
-  SELECT
+  SELECT DISTINCT ON (  node_id,
+                        linear_id_a,
+                        direction_a,
+                        linear_id_b,
+                        direction_b,
+                        node_idx_along_path_a,
+                        node_idx_along_path_b
+                     )
         node_id,
 
         a.linear_id AS linear_id_a,
@@ -46,6 +53,15 @@ WITH RECURSIVE cte_shared_nodes AS (
         INNER JOIN npmrds_network_spatial_analysis.npmrds_network_paths_node_idx_:YEAR AS b
           USING ( node_id )
       WHERE ( a.linear_id < b.linear_id )
+      ORDER BY
+          node_id,
+          linear_id_a,
+          direction_a,
+          linear_id_b,
+          direction_b,
+          node_idx_along_path_a,
+          node_idx_along_path_b
+
 ), cte_overlapping_node_sequences AS (
   -- Recursively expand the overlapping nodes ranges for each TmcLinear.
   SELECT
@@ -190,6 +206,8 @@ WITH RECURSIVE cte_shared_nodes AS (
       WHERE (
         --  We loosen the restriction for inclusion here to accommodate
         --  single node differences between two TmcLinears.
+        --
+        --  FIXME: ? Is this still correct/required since fixing npmrds_network_paths_node_idx_:YEAR ?
         ( ( b.start_node_idx_along_path_a - a.end_node_idx_along_path_a ) BETWEEN 0 AND 1 )
         OR
         ( ( b.start_node_idx_along_path_b - a.end_node_idx_along_path_b ) BETWEEN 0 AND 1 )

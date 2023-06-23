@@ -9,6 +9,7 @@ const PG_ENV = "dama_dev_1";
 
 // exclusive on max
 const years = _.range(2017, 2023);
+// const years = [2017, 2022];
 
 async function main() {
   await Promise.all(
