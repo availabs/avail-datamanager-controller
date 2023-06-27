@@ -86,7 +86,7 @@ async function createDownloadable(pgEnv, source_id, view_id, outputType) {
 
   const {source_name, view_version, data_table } = rows[0]
 
-  const fileNameBase = `${source_name}_${view_id}`
+  const fileNameBase = `${source_name}_${view_id}${view_version ? `_${view_version}` : ''}`
   const extension = outputTypeFileExtensions[outputType];
   const fileName = extension ? `${fileNameBase}.${extension}` : fileNameBase;
   const outputDir = `${dataDir}/${pgEnv}_${view_id}`
