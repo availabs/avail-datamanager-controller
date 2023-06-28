@@ -234,9 +234,13 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     let {
       // eslint-disable-next-line prefer-const
       id: etl_task_id,
-      // @ts-ignore
-      // eslint-disable-next-line prefer-const
-      data: { worker_path, etl_context_id, initial_event, source_id },
+      data: {
+        worker_path,
+        etl_context_id,
+        initial_event,
+        source_id,
+        etl_work_dir,
+      },
     } = dama_job;
 
     this.logger.debug(`Starting DamaTask ${JSON.stringify(dama_job, null, 4)}`);
@@ -265,6 +269,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
             // The following two pieces of information are required by the TaskRunner.
             worker_path,
             dama_host_id,
+            etl_work_dir,
           },
         };
 
@@ -530,6 +535,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     pg_env = this.pg_env
   ) {
     const task_meta = await super.scheduleDamaTask(
+      // @ts-ignore
       dama_task_descr,
       pgboss_send_options,
       pg_env

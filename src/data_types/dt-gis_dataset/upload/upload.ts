@@ -17,6 +17,7 @@ export default async function uploadGeospatialDataset(ctx) {
     },
   } = ctx;
   // https://moleculer.services/docs/0.14/moleculer-web.html#File-upload-aliases
+  console.log('get to uploadMetadata')
   const fileStream = <ReadStream>params;
   const etlContextId = +uploadMetadata.etlContextId;
   const user_id = +uploadMetadata.user_id;

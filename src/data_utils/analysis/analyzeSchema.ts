@@ -257,6 +257,12 @@ export default async function analyzeSchema(
               break pgTypeCheck;
             }
 
+            // If zero-padded, make TEXT
+            if (/^0/.test(s) && /[1-9]/.test(s)) {
+              summary.db_type = PgDataType.TEXT;
+              break pgTypeCheck;
+            }
+
             // The value parses to a valid number.
 
             // NUMERIC is the sink for pgNumericTypes

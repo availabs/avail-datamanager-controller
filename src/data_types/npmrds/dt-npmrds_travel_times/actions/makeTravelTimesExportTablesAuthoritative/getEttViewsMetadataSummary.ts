@@ -1,30 +1,31 @@
 import dedent from "dedent";
 import { DateTime } from "luxon";
 
+import dama_db from "data_manager/dama_db";
+
 import {
   ParsedNpmrdsTravelTimesExportTableMetadata,
   EttViewsMetaSummary,
-  NodePgDbConnection,
 } from "./domain";
 
 import { NpmrdsDataSources } from "../../../domain";
 
-const { NpmrdsTravelTimesImp } = NpmrdsDataSources;
+const { NpmrdsTravelTimesImports } = NpmrdsDataSources;
 
 export function parseNpmrdsTravelTimesExportTableMetadata(
   ettViewMeta: any
 ): ParsedNpmrdsTravelTimesExportTableMetadata {
   const {
     view_id: damaViewId,
-    table_schema: tableSchema,
-    table_name: tableName,
+    table_schema,
+    table_name,
     last_updated,
-    metadata: { state, is_expanded, data_start_date, data_end_date },
+    metadata: { state, is_expanded, start_date, end_date },
   } = ettViewMeta;
 
   const lastUpdated = (<Date>last_updated).toISOString();
 
-  const startDateTime = DateTime.fromISO(data_start_date);
+  const startDateTime = DateTime.fromISO(start_date);
 
   const {
     year: dataStartYear,
@@ -38,7 +39,7 @@ export function parseNpmrdsTravelTimesExportTableMetadata(
     isStartOfMonth ||
     startDateTime.get("day") === startDateTime.startOf("week").get("day");
 
-  const endDateTime = DateTime.fromISO(data_end_date);
+  const endDateTime = DateTime.fromISO(end_date);
 
   const isEndOfMonth =
     endDateTime.get("day") === endDateTime.endOf("month").get("day");
@@ -47,14 +48,14 @@ export function parseNpmrdsTravelTimesExportTableMetadata(
     isEndOfMonth ||
     endDateTime.get("day") === endDateTime.endOf("week").get("day");
 
-  const isCompleteMonth = isStartOfMonth && isEndOfMonth;
-  const isCompleteWeek = !isCompleteMonth && isStartOfWeek && isEndOfWeek;
+  const is_complete_month = isStartOfMonth && isEndOfMonth;
+  const is_complete_week = !is_complete_month && isStartOfWeek && isEndOfWeek;
 
   return {
     damaViewId,
 
-    tableSchema,
-    tableName,
+    table_schema,
+    table_name,
 
     lastUpdated,
 
@@ -62,18 +63,17 @@ export function parseNpmrdsTravelTimesExportTableMetadata(
     year: dataStartYear,
     month: dataStartMonth,
 
-    isCompleteWeek,
-    isCompleteMonth,
+    is_complete_week,
+    is_complete_month,
 
-    isExpanded: !!is_expanded,
+    is_expanded: !!is_expanded,
 
-    data_start_date,
-    data_end_date,
+    start_date,
+    end_date,
   };
 }
 
 export default async function getEttViewsMetadataSummary(
-  dbConn: NodePgDbConnection,
   damaViewIds: number[]
 ): Promise<EttViewsMetaSummary | null> {
   const sql = dedent(`
@@ -87,13 +87,13 @@ export default async function getEttViewsMetadataSummary(
       WHERE ( b.view_id = ANY($1) )
   `);
 
-  const { rows } = await dbConn.query({
+  const { rows } = await dama_db.query({
     text: sql,
     values: [damaViewIds],
   });
 
   const nonEttViews = rows.filter(
-    ({ source_name }) => source_name !== NpmrdsTravelTimesImp
+    ({ source_name }) => source_name !== NpmrdsTravelTimesImports
   );
 
   if (nonEttViews.length) {
@@ -119,7 +119,7 @@ export default async function getEttViewsMetadataSummary(
 
   const { byViewId, dataDateRange, lastUpdated } = ettViewsMeta.reduce(
     (acc, row) => {
-      const { damaViewId, lastUpdated, data_start_date, data_end_date } = row;
+      const { damaViewId, lastUpdated, start_date, end_date } = row;
 
       acc.byViewId[damaViewId] = row;
 
@@ -127,12 +127,12 @@ export default async function getEttViewsMetadataSummary(
         acc.lastUpdated = lastUpdated;
       }
 
-      if (!acc.dataDateRange[0] || acc.dataDateRange[0] > data_start_date) {
-        acc.dataDateRange[0] = data_start_date;
+      if (!acc.dataDateRange[0] || acc.dataDateRange[0] > start_date) {
+        acc.dataDateRange[0] = start_date;
       }
 
-      if (!acc.dataDateRange[1] || acc.dataDateRange[1] < data_end_date) {
-        acc.dataDateRange[1] = data_end_date;
+      if (!acc.dataDateRange[1] || acc.dataDateRange[1] < end_date) {
+        acc.dataDateRange[1] = end_date;
       }
 
       return acc;
@@ -140,8 +140,8 @@ export default async function getEttViewsMetadataSummary(
     {
       byViewId: {},
       dataDateRange: <[string, string]>[
-        ettViewsMeta[0].data_start_date,
-        ettViewsMeta[0].data_end_date,
+        ettViewsMeta[0].start_date,
+        ettViewsMeta[0].end_date,
       ],
       lastUpdated: ettViewsMeta[0].lastUpdated,
     }
@@ -149,8 +149,8 @@ export default async function getEttViewsMetadataSummary(
 
   const sortedByStateThenStartDate = ettViewsMeta
     .sort((rowA, rowB) => {
-      const { state: stateA, data_start_date: startDateA } = rowA;
-      const { state: stateB, data_start_date: startDateB } = rowB;
+      const { state: stateA, start_date: startDateA } = rowA;
+      const { state: stateB, start_date: startDateB } = rowB;
 
       return (
         stateA.localeCompare(stateB) || startDateA.localeCompare(startDateB)

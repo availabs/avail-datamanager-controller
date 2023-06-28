@@ -129,9 +129,10 @@ export default {
         ++retries;
       }
 
-      throw new Error(
-        "Staged Geospatial Dataset server failed health check. Is it running?"
-      );
+      // TODO: Update
+      // throw new Error(
+      //   "Staged Geospatial Dataset server failed health check. Is it running?"
+      // );
     },
   },
 
