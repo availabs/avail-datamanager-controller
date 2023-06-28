@@ -16,9 +16,8 @@ with
               EXTRACT(MONTH FROM MIN(incident_begin_date)) begin_month,
               EXTRACT(MONTH FROM MAX(incident_end_date))   end_month
        FROM ${ofd_schema}.${dds_table}
-       WHERE EXTRACT(YEAR FROM incident_begin_date ) BETWEEN 1996 AND 2019
-          AND disaster_number NOT BETWEEN 3000 and  3999
-      AND incident_type not in ('Biological', 'Terrorist', 'Other')
+       WHERE disaster_number NOT BETWEEN 3000 and  3999
+       AND incident_type not in ('Biological', 'Terrorist', 'Other')
        GROUP BY 1, 2, 3
        ORDER BY 1 DESC
      ),
@@ -28,9 +27,8 @@ with
 		   incident_type,
            SUM(COALESCE(project_amount, 0)) project_amount
     FROM ${ofd_schema}.${pafpd_table}
-    WHERE EXTRACT(YEAR from declaration_date) >= 1996 AND EXTRACT(YEAR from declaration_date) <= 2019
-	  AND  dcc NOT IN ('A', 'B', 'Z')
-      AND disaster_number NOT BETWEEN 3000 and  3999
+    WHERE dcc NOT IN ('A', 'B', 'Z')
+    AND disaster_number NOT BETWEEN 3000 and  3999
     GROUP BY 1, 2, 3
 -- 	HAVING SUM(COALESCE(project_amount, 0)) > 0
 	  ),
@@ -40,8 +38,7 @@ with
                 incident_type,
                 SUM(COALESCE(rpfvl, 0) + COALESCE(ppfvl, 0))                                as ihp_verified_loss
          FROM ${ofd_schema}.${ihp_table}
-         WHERE EXTRACT(YEAR from declaration_date) >= 1996 and EXTRACT(YEAR from declaration_date) <= 2019
-           AND disaster_number::integer NOT BETWEEN 3000 and  3999
+         WHERE disaster_number::integer NOT BETWEEN 3000 and  3999
          GROUP BY 1, 2, 3
 -- 		HAVING SUM(COALESCE(rpfvl, 0) + COALESCE(ppfvl, 0)) > 0
 	),
@@ -52,7 +49,6 @@ with
          JOIN disasters dd
          ON REPLACE(sba.fema_disaster_number, 'DR', '') = dd.disaster_number
          AND sba.geoid = dd.geoid
-         WHERE year >= 1996 AND year <= 2019
 		 GROUP BY 1, 2
 -- 		 HAVING LENGTH(REPLACE(fema_disaster_number, 'DR', '')) BETWEEN 1 and 4
 -- 			AND SUM(total_verified_loss) > 0

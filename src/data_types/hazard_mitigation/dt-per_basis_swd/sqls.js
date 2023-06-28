@@ -1,122 +1,297 @@
 export const per_basis_swd = (table_name, view_id, ncei_schema, ncei_table, startYear, endYear) => `
-  with   buildings as (
+    with buildings as (
+    select 'buildings'   ctype,
+            event_id,
+            substring(geoid, 1, 5) geoid,
+            nri_category,
+            min(begin_date_time)::date     swd_begin_date,
+            max(end_date_time) ::date      swd_end_date,
+            coalesce(sum(property_damage), 0) damage
+    FROM ${ncei_schema}.${ncei_table}
+    WHERE year between ${startYear} and ${endYear}
+    AND geoid is not null
+    AND nri_category is not null
+    GROUP BY 1, 2, 3, 4
+        ),
+        crop as (
     select
-        'buildings' ctype,
+        'crop' ctype,
         event_id,
-        substring(geoid, 1, 5) geoid,
+        substring (geoid, 1, 5) geoid,
         nri_category,
-        min(begin_date_time)::date     swd_begin_date,
-        max(end_date_time)  ::date      swd_end_date,
-        coalesce(sum(property_damage), 0)     damage
+        min (begin_date_time):: date swd_begin_date,
+        max (end_date_time):: date swd_end_date,
+        coalesce (sum (crop_damage), 0) damage
     FROM ${ncei_schema}.${ncei_table}
     WHERE year between ${startYear} and ${endYear}
       AND geoid is not null
       AND nri_category is not null
     GROUP BY 1, 2, 3, 4
-),
-       crop as (
-           select
-               'crop' ctype,
-               event_id,
-               substring(geoid, 1, 5) geoid,
-               nri_category,
-               min(begin_date_time)::date      swd_begin_date,
-               max(end_date_time)::date        swd_end_date,
-               coalesce(sum(crop_damage), 0)         damage
-           FROM ${ncei_schema}.${ncei_table}
-           WHERE year between ${startYear} and ${endYear}
-             AND geoid is not null
-             AND nri_category is not null
-           GROUP BY 1, 2, 3, 4
-       ),
-       population as (
-           select
-               'population' ctype,
-               event_id,
-               substring(geoid, 1, 5) geoid,
-               nri_category,
-               min(begin_date_time)::date      swd_begin_date,
-               max(end_date_time)::date        swd_end_date,
-               coalesce(sum(
-                                    coalesce(deaths_direct::float,0) +
-                                    coalesce(deaths_indirect::float,0) +
-                                    (
-                                            (
-                                                    coalesce(injuries_direct::float,0) +
-                                                    coalesce(injuries_indirect::float,0)
-                                                ) / 10
-                                        )
-                            ), 0) * 7600000   damage
-           FROM ${ncei_schema}.${ncei_table}
-           WHERE year between ${startYear} and ${endYear}
-             AND geoid is not null
-             AND nri_category is not null
-           GROUP BY 1, 2, 3, 4
-       ), alldata as (
-    select * from buildings
+        ),
+        population as (
+    select
+        'population' ctype,
+        event_id,
+        substring (geoid, 1, 5) geoid,
+        nri_category,
+        min (begin_date_time):: date swd_begin_date,
+        max (end_date_time):: date swd_end_date,
+        coalesce (
+          sum (
+            coalesce (deaths_direct:: float, 0) +
+            coalesce (deaths_indirect:: float, 0) +
+            (
+              (
+              coalesce (injuries_direct:: float, 0) +
+              coalesce (injuries_indirect:: float, 0)
+              ) / 10
+            )
+          )
+        , 0) * 11600000 damage
+    FROM ${ncei_schema}.${ncei_table}
+    WHERE year between ${startYear} and ${endYear}
+      AND geoid is not null
+      AND nri_category is not null
+    GROUP BY 1, 2, 3, 4
+        ),
+        alldata as (
+          select * from buildings
+          union all
+          select * from crop
+          union all
+          select * from population
+        ),
+        consec_aggregation_prep_get_neighbors as (
+         SELECT
+        geoid, nri_category, ctype, swd_begin_date event_day_date, swd_begin_date, swd_end_date,
+        lead(swd_begin_date, 1) OVER(partition by geoid, nri_category, ctype
+            order by swd_begin_date, swd_end_date) lead_begin_date_begin,
+        lead(swd_end_date, 1) OVER(partition by geoid, nri_category, ctype
+            order by swd_begin_date, swd_end_date) lead_end_date_begin,
+        lag(swd_begin_date, 1) OVER(partition by geoid, nri_category, ctype
+            order by swd_begin_date, swd_end_date) lag_begin_date_begin,
+        lag(swd_end_date, 1) OVER(partition by geoid, nri_category, ctype
+            order by swd_begin_date, swd_end_date) lag_end_date_begin, damage
+        from alldata
+        where nri_category IN ('coastal', 'hurricane', 'tsunami')
+        )
+        , consec_aggregation_prep_match_neighbors as (
+    select
+        row_number() over(order by geoid, nri_category, ctype, swd_begin_date, swd_end_date) as id, CASE
+        WHEN
+          tsrange(swd_begin_date - 1, swd_end_date + 1, '[]') @> tsrange(lag_begin_date_begin, lag_end_date_begin, '[]') OR
+          tsrange(lag_begin_date_begin, lag_end_date_begin, '[]') @> tsrange(swd_begin_date - 1, swd_end_date + 1, '[]')
+        THEN true
+        ELSE false
+        END lag_match_begin, CASE
+        WHEN
+          tsrange(lead_begin_date_begin - 1, lead_end_date_begin + 1, '[]') @> tsrange(swd_begin_date, swd_end_date, '[]') OR
+          tsrange(swd_begin_date, swd_end_date, '[]') @> tsrange(lead_begin_date_begin - 1, lead_end_date_begin + 1, '[]')
+        THEN true
+        ELSE false
+        END lead_match_begin, CASE
+        WHEN
+          -- order by begin date, capture if current date falls in lead dates
+          tsrange(lead_begin_date_begin, lead_end_date_begin, '[]') @>
+          tsrange(swd_begin_date, swd_end_date, '[]')
+            OR
+          -- order by begin date, capture if lag dates fall in current dates
+          tsrange(swd_begin_date, swd_end_date, '[]') @>
+          tsrange(lag_begin_date_begin, lag_end_date_begin, '[]')
+        THEN '~1' -- b/w
 
-    union all
+        WHEN
+          -- +1 on both ends to capture consecutive dates
+          tsrange(lead_begin_date_begin - 1, lead_end_date_begin + 1, '[]') @>
+          tsrange(swd_begin_date, swd_end_date, '[]')
+            OR
+          tsrange(swd_begin_date - 1, swd_end_date + 1, '[]') @>
+          tsrange(lag_begin_date_begin, lag_end_date_begin, '[]')
+        THEN '~1' -- consec begin
+        ELSE swd_begin_date::text
+        END consec_days, *
+    from consec_aggregation_prep_get_neighbors
+    order by geoid, nri_category, ctype, swd_begin_date, swd_end_date
+        ),
+        consec_aggregation_prep_label as (
+    SELECT id, consec_days,
+        CASE
+          WHEN NOT (lag_match_begin OR lead_match_begin ) THEN 'N/A'
+          WHEN NOT (lag_match_begin ) AND (lead_match_begin ) THEN 'BEGIN'
+          WHEN (lag_match_begin) AND (lead_match_begin ) THEN 'CONT'
+          WHEN NOT (lead_match_begin ) AND (lag_match_begin ) THEN 'END'
+          ELSE 'DEBUG ME'
+        END status,
+        CASE
+          WHEN NOT (lag_match_begin ) AND (lead_match_begin ) THEN id                                                  -- begin
+          WHEN (lag_match_begin) AND (lead_match_begin )                                                               -- 'cont'
+          THEN                                                                                                         -- really silly way to do this.
+            CASE
+                WHEN NOT (lag(lag_match_begin, 1) OVER (ORDER BY id)) AND (lag(lead_match_begin, 1) OVER (ORDER BY id)) -- 1 lag = begin
+                    THEN lag(id, 1) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 2) OVER (ORDER BY id)) AND (lag(lead_match_begin, 2) OVER (ORDER BY id))      -- 2 lag = begin
+                    THEN lag(id, 2) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 3) OVER (ORDER BY id)) AND (lag(lead_match_begin, 3) OVER (ORDER BY id))      -- 3 lag = begin
+                    THEN lag(id, 3) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 4) OVER (ORDER BY id)) AND (lag(lead_match_begin, 4) OVER (ORDER BY id))      -- 4 lag = begin
+                    THEN lag(id, 4) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 5) OVER (ORDER BY id)) AND (lag(lead_match_begin, 5) OVER (ORDER BY id))      -- 5 lag = begin
+                    THEN lag(id, 5) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 6) OVER (ORDER BY id)) AND (lag(lead_match_begin, 6) OVER (ORDER BY id))      -- 6 lag = begin
+                    THEN lag(id, 6) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 7) OVER (ORDER BY id)) AND (lag(lead_match_begin, 7) OVER (ORDER BY id))      -- 7 lag = begin
+                    THEN lag(id, 7) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 8) OVER (ORDER BY id)) AND (lag(lead_match_begin, 8) OVER (ORDER BY id))      -- 8 lag = begin
+                    THEN lag(id, 8) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 9) OVER (ORDER BY id)) AND (lag(lead_match_begin, 9) OVER (ORDER BY id))      -- 9 lag = begin
+                    THEN lag(id, 9) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 10) OVER (ORDER BY id)) AND (lag(lead_match_begin, 10) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 10) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 11) OVER (ORDER BY id)) AND (lag(lead_match_begin, 11) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 11) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 12) OVER (ORDER BY id)) AND (lag(lead_match_begin, 12) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 12) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 13) OVER (ORDER BY id)) AND (lag(lead_match_begin, 13) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 13) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 14) OVER (ORDER BY id)) AND (lag(lead_match_begin, 14) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 14) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 15) OVER (ORDER BY id)) AND (lag(lead_match_begin, 15) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 15) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 16) OVER (ORDER BY id)) AND (lag(lead_match_begin, 16) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 16) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 17) OVER (ORDER BY id)) AND (lag(lead_match_begin, 17) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 17) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 18) OVER (ORDER BY id)) AND (lag(lead_match_begin, 18) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 18) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 19) OVER (ORDER BY id)) AND (lag(lead_match_begin, 19) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 19) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 20) OVER (ORDER BY id)) AND (lag(lead_match_begin, 20) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 20) over (order by id)
+                ELSE id
+            END
+          WHEN NOT (lead_match_begin ) AND (lag_match_begin )                                                          -- end
+          THEN
+            CASE
+                WHEN NOT (lag(lag_match_begin, 1) OVER (ORDER BY id)) AND (lag(lead_match_begin, 1) OVER (ORDER BY id)) -- 1 lag = begin
+                    THEN lag(id, 1) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 2) OVER (ORDER BY id)) AND (lag(lead_match_begin, 2) OVER (ORDER BY id))      -- 2 lag = begin
+                    THEN lag(id, 2) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 3) OVER (ORDER BY id)) AND (lag(lead_match_begin, 3) OVER (ORDER BY id))      -- 3 lag = begin
+                    THEN lag(id, 3) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 4) OVER (ORDER BY id)) AND (lag(lead_match_begin, 4) OVER (ORDER BY id))      -- 4 lag = begin
+                    THEN lag(id, 4) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 5) OVER (ORDER BY id)) AND (lag(lead_match_begin, 5) OVER (ORDER BY id))      -- 5 lag = begin
+                    THEN lag(id, 5) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 6) OVER (ORDER BY id)) AND (lag(lead_match_begin, 6) OVER (ORDER BY id))      -- 6 lag = begin
+                    THEN lag(id, 6) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 7) OVER (ORDER BY id)) AND (lag(lead_match_begin, 7) OVER (ORDER BY id))      -- 7 lag = begin
+                    THEN lag(id, 7) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 8) OVER (ORDER BY id)) AND (lag(lead_match_begin, 8) OVER (ORDER BY id))      -- 8 lag = begin
+                    THEN lag(id, 8) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 9) OVER (ORDER BY id)) AND (lag(lead_match_begin, 9) OVER (ORDER BY id))      -- 9 lag = begin
+                    THEN lag(id, 9) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 10) OVER (ORDER BY id)) AND (lag(lead_match_begin, 10) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 10) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 11) OVER (ORDER BY id)) AND (lag(lead_match_begin, 11) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 11) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 12) OVER (ORDER BY id)) AND (lag(lead_match_begin, 12) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 12) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 13) OVER (ORDER BY id)) AND (lag(lead_match_begin, 13) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 13) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 14) OVER (ORDER BY id)) AND (lag(lead_match_begin, 14) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 14) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 15) OVER (ORDER BY id)) AND (lag(lead_match_begin, 15) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 15) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 16) OVER (ORDER BY id)) AND (lag(lead_match_begin, 16) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 16) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 17) OVER (ORDER BY id)) AND (lag(lead_match_begin, 17) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 17) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 18) OVER (ORDER BY id)) AND (lag(lead_match_begin, 18) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 18) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 19) OVER (ORDER BY id)) AND (lag(lead_match_begin, 19) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 19) over (order by id)
+                WHEN NOT (lag(lag_match_begin, 20) OVER (ORDER BY id)) AND (lag(lead_match_begin, 20) OVER (ORDER BY id))    -- 10 lag = begin
+                    THEN lag(id, 20) over (order by id)
+                ELSE id
+            END
+          ELSE id
+        END as transaction, *
+    FROM consec_aggregation_prep_match_neighbors
+    order by id
+        ),
+        consec_aggregation as (
+          select geoid, nri_category, ctype, transaction,
+              MIN (event_day_date) as event_day_date,
+              ARRAY_AGG(status),
+              count (1) num_events,
+              sum (damage) damage
+          from consec_aggregation_prep_label
+          group by 1, 2, 3, transaction
+        ),
+        day_expansion as (
+          SELECT ctype,
+              generate_series(
+                swd_begin_date:: date,
+                LEAST(
+                        swd_end_date:: date,
+                        CASE WHEN nri_category = 'drought' THEN swd_begin_date:: date + INTERVAL '365 days' ELSE swd_begin_date:: date + INTERVAL '31 days' END
+                     ),
+                '1 day':: interval):: date event_day_date,
+              nri_category,
+              geoid,
+              sum (damage:: double precision /
+                  LEAST(
+                          swd_end_date:: date - swd_begin_date:: date + 1,
+                          CASE WHEN nri_category = 'drought' THEN 365 ELSE 31 END
+                      )
+                  ) damage
+          FROM alldata
+          WHERE nri_category in ('coldwave', 'drought', 'heatwave', 'icestorm', 'riverine', 'winterweat')
+            AND geoid is not null
+          group by 1, 2, 3, 4
+          order by 1, 2, 3, 4
+    ),
+      timeframe_agg_prep as (
+        SELECT ctype, geoid, nri_category, swd_begin_date, swd_end_date, damage
+        FROM (
+          SELECT ctype, geoid, nri_category, swd_begin_date, swd_end_date, damage
+          FROM alldata
+          WHERE nri_category IN ('avalanche', 'earthquack', 'hail', 'lightning', 'wind', 'volcano', 'wildfire')
+          UNION ALL
+          SELECT ctype, geoid, nri_category, event_day_date as swd_begin_date, event_day_date as swd_end_date, damage
+          FROM day_expansion
+          ) a
+      ),
+      timeframe_agg as (
+        SELECT ctype, geoid, nri_category, count (1) num_events, swd_begin_date event_day_date, sum (damage) damage
+        FROM timeframe_agg_prep
+        GROUP BY 1, 2, 3, swd_begin_date, swd_end_date
+      ),
+        final as (
+        select ctype, nri_category, geoid, event_day_date, null as event_ids, num_events, damage, null :: double precision damage_adjusted
+        from consec_aggregation
 
-    select * from crop
+        UNION ALL
 
-    union all
+        select ctype, nri_category, geoid, event_day_date, null as event_ids, num_events, damage, null :: double precision damage_adjusted
+        from timeframe_agg
 
-    select * from population
-),
+        UNION ALL
 
-       day_expansion as (
-           SELECT ctype,
-                  generate_series(swd_begin_date::date,
-                                  LEAST(
-                                          swd_end_date::date,
-                                          CASE WHEN nri_category = 'drought' THEN swd_begin_date::date + INTERVAL '365 days' ELSE swd_begin_date::date + INTERVAL '31 days' END
-                                      ), '1 day'::interval)::date event_day_date,
-                  nri_category,
-                  geoid,
-                  sum(damage::double precision/LEAST(
-                                  swd_end_date::date - swd_begin_date::date + 1,
-                                  CASE WHEN nri_category = 'drought' THEN 365 ELSE 31 END)) damage
-           FROM alldata
-           WHERE nri_category in ('coldwave', 'drought', 'heatwave', 'icestorm', 'riverine', 'winterweat')
-             AND geoid is not null
-           group by 1, 2, 3, 4
-           order by 1, 2, 3, 4),
-       aggregation as (
-           SELECT
-               ctype,
-               nri_category,
-               geoid,
-               swd_begin_date event_day_date,
-               ARRAY_AGG(event_id)       event_ids,
-               count(1)                  num_events,
-               sum (damage) damage
+        SELECT ctype, nri_category, geoid, swd_begin_date event_day_date, null as event_ids, null as num_events, damage, null :: double precision damage_adjusted
+        FROM alldata
+        WHERE nri_category IN ('tornado', 'landslide')
+        order by 1, 2, 3, 4
+        )
 
-           from alldata
-           where nri_category NOT IN ('coldwave', 'drought', 'heatwave', 'icestorm', 'riverine', 'winterweat')
-           group by  1, 2, 3, 4
-       ),
-       final as (
-           select ctype, nri_category, geoid, event_day_date,
-                  event_ids, num_events,
-                  damage, null::double precision damage_adjusted
-           from aggregation
-
-           UNION ALL
-
-           select ctype, nri_category, geoid, event_day_date,
-                  null as event_ids, null as num_events,
-                  damage, null::double precision damage_adjusted
-           from day_expansion
-
-           order by 1, 2, 3, 4
-       )
-
-SELECT row_number() over () id, * INTO ${ncei_schema}.${table_name}_${view_id} FROM final;
+    SELECT row_number() over () id, *
+    INTO ${ncei_schema}.${table_name}_${view_id}
+    FROM final;
 `;
 
 export const pad_zero_losses = (table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table, startYear, endYear) => `
 with pb as (
-    select pb.geoid geoid, pb.nri_category, ctype, event_day_date, tor_f_scale
+    select pb.geoid geoid, pb.nri_category, ctype, event_day_date, tor_f_scale, damage
     from ${ncei_schema}.${table_name}_${view_id} pb
              LEFT JOIN (
         SELECT DISTINCT substring(geoid, 1, 5) geoid,
@@ -161,7 +336,8 @@ with pb as (
                          WHEN nri_category IN ('tornado')
                              THEN TRND_AFREQ
                          ELSE null
-                    END) * (${endYear} - ${startYear})) - count(1) records_to_insert
+                    END) * (${endYear} - ${startYear})) - count(1) records_to_insert,
+                SUM(CASE WHEN damage > 0 THEN 1 ELSE 0 END) original_count
          FROM ${nri_schema}.${nri_table} a
                   JOIN pb b
                        ON a.stcofips = b.geoid
@@ -179,7 +355,7 @@ with pb as (
                 ctype, nri_category, geoid,
                 null event_day_date, null event_ids, null num_events, 0 damage, 0 damage_adjusted
          from zero_loss_count
-         where records_to_insert >= 1
+         where records_to_insert >= 1 and original_count > 0
            and nri_category not in ('drought')
            and ctype = 'buildings'
 
@@ -189,7 +365,7 @@ with pb as (
                 ctype, nri_category, geoid,
                 null event_day_date, null event_ids, null num_events, 0 damage, 0 damage_adjusted
          from zero_loss_count
-         where records_to_insert >= 1
+         where records_to_insert >= 1 and original_count > 0
            and nri_category in (
                                 'coldwave', 'drought', 'hail',
                                 'heatwave', 'hurricane', 'riverine',
@@ -203,7 +379,7 @@ with pb as (
                 ctype, nri_category, geoid,
                 null event_day_date, null event_ids, null num_events, 0 damage, 0 damage_adjusted
          from zero_loss_count
-         where records_to_insert >= 1
+         where records_to_insert >= 1 and original_count > 0
            and nri_category not in ('drought')
            and ctype = 'population'
      )

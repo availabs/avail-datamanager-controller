@@ -300,6 +300,9 @@ export default class ApiService extends Service {
               "/hazard_mitigation/nriLoader":
                 "hazard_mitigation.nriLoader.load",
 
+              "/hazard_mitigation/nriTractsLoader":
+                "hazard_mitigation.nriTractsLoader.load",
+
               "/hazard_mitigation/pbSWDLoader":
                 "hazard_mitigation.pbSWDLoader.load",
 
