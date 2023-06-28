@@ -67,12 +67,13 @@ export function getNpmrdsNetworkPathsTableInfo(year: number) {
   };
 }
 
-export function getNpmrdsNetworkPathsNodeIdxViewInfo(year: number) {
+export function getNpmrdsNetworkPathsNodeIdxInfo(year: number) {
   const table_name = `npmrds_network_paths_node_idx_${year}`;
 
   return {
     table_schema: network_spatial_analysis_schema_name,
     table_name,
+    pkey_idx_name: `${table_name}_pkey`,
   };
 }
 
@@ -88,6 +89,15 @@ export function getNpmrdsNetworkNodeIncidentEdgesInfo(year: number) {
 
 export function getNpmrdsNetworkNodeIncidentEdgesMetadataInfo(year: number) {
   const table_name = `npmrds_network_node_incident_edges_metadata_${year}`;
+
+  return {
+    table_schema: network_spatial_analysis_schema_name,
+    table_name,
+  };
+}
+
+export function getNpmrdsNetworkNodeDescriptionsInfo(year: number) {
+  const table_name = `npmrds_network_node_descriptions_${year}`;
 
   return {
     table_schema: network_spatial_analysis_schema_name,
@@ -118,5 +128,26 @@ export function getNpmrdsTmcShapeSimilarityTableInfo(
     table_schema: network_spatial_analysis_schema_name,
     table_name,
     pkey_idx_name: `${table_name}_pkey`,
+  };
+}
+
+export function getNpmrdsNetworkTmcDynamicReferenceInfo(year: number) {
+  const table_name = `npmrds_network_tmc_dynamic_reference_${year}`;
+
+  return {
+    table_schema: network_spatial_analysis_schema_name,
+    table_name,
+  };
+}
+
+export function getCrossYearDynamicReferenceInfo(
+  year_a: number,
+  year_b: number
+) {
+  const table_name = `npmrds_network_tmc_cross_year_dynamic_reference_${year_a}_${year_b}`;
+
+  return {
+    table_schema: network_spatial_analysis_schema_name,
+    table_name,
   };
 }

@@ -2,6 +2,8 @@
 //        2. Create a table with Overlapping TmcLinear segments
 //        3. DELETE "Intersections" between Merges and Splits
 //        4. Get Bearings using https://postgis.net/docs/ST_PointN.html
+//
+// TODO: Document how because crossings may be TMC internal nodes, a TMC may be both INBOUND and OUTBOUND.
 
 import pgFormat from "pg-format";
 import dedent from "dedent";
@@ -94,11 +96,15 @@ async function loadTablePass1(year: number) {
               b.tmc AS to_tmc,
               b.pt_geom_idx AS to_pt_geom_idx
 
-            FROM %I.%I AS a                   -- npmrds_network_edges
+            FROM %I.%I AS a                   -- npmrds_network_edges; The from/inbound TMCs
               INNER JOIN %I.%I AS x           -- tmc_shapes
                 ON ( a.tmc = x.tmc )
-              INNER JOIN %I.%I AS b           -- npmrds_network_edges
-                ON ( a.node_id = b.node_id )
+              INNER JOIN %I.%I AS b           -- npmrds_network_edges; The to/outbound TMCs
+                ON (
+                  ( a.tmc != b.tmc )
+                  AND
+                  ( a.node_id = b.node_id )
+                )
               INNER JOIN %I.%I AS y           -- tmc_shapes
                 ON ( b.tmc = y.tmc )
               INNER JOIN %I.%I AS z           -- npmrds_network_edges_max_geom_idx
@@ -107,7 +113,20 @@ async function loadTablePass1(year: number) {
               (
                 ( x.linear_id != y.linear_id )
                 OR
-                ( x.direction != y.direction )
+                (
+                  -- No continue straight along linear_id
+                  ( x.direction != y.direction )
+                  AND
+                  -- No U-Turns if same linear_id
+                  (
+                    CASE ( x.direction )
+                      WHEN 'NORTHBOUND' THEN ( y.direction != 'SOUTHBOUND' )
+                      WHEN 'SOUTHBOUND' THEN ( y.direction != 'NORTHBOUND' )
+                      WHEN 'EASTBOUND'  THEN ( y.direction != 'WESTBOUND'  )
+                      WHEN 'WESTBOUND'  THEN ( y.direction != 'EASTBOUND'  )
+                    END
+                  )
+                )
               )
               AND
               ( -- Node from from_tmc segment cannot be 1st node
@@ -121,21 +140,10 @@ async function loadTablePass1(year: number) {
                 AND
                 ( b.pt_geom_idx < z.max_pt_geom_idx )
               )
-              AND
-              -- No U-Turns
-              ( 
-                CASE ( x.direction )
-                  WHEN 'NORTHBOUND' THEN ( y.direction != 'SOUTHBOUND' )
-                  WHEN 'SOUTHBOUND' THEN ( y.direction != 'NORTHBOUND' )
-                  WHEN 'EASTBOUND'  THEN ( y.direction != 'WESTBOUND'  )
-                  WHEN 'WESTBOUND'  THEN ( y.direction != 'EASTBOUND'  )
-                END
-              )
             )
         )
-          INSERT INTO %I.%I (
+          INSERT INTO %I.%I (                             -- npmrds_network_node_incident_edges
             node_id,
-
             tmc,
             pt_geom_idx,
             traversal_direction

@@ -5,10 +5,11 @@ import dama_db from "data_manager/dama_db";
 import logger from "data_manager/logger";
 
 import {
+  getNpmrdsNetworkNodesTableInfo,
   getNpmrdsNetworkEdgesTableInfo,
   getNpmrdsNetworkEdgesMetadataViewInfo,
   getNpmrdsNetworkPathsTableInfo,
-  getNpmrdsNetworkPathsNodeIdxViewInfo,
+  getNpmrdsNetworkPathsNodeIdxInfo,
 } from "./utils";
 
 async function createTable(year: number) {
@@ -119,194 +120,335 @@ async function loadTable(year: number) {
   );
 }
 
-async function createView(year: number) {
-  const edges_info = getNpmrdsNetworkEdgesTableInfo(year);
-  const paths_info = getNpmrdsNetworkPathsTableInfo(year);
-  const view_info = getNpmrdsNetworkPathsNodeIdxViewInfo(year);
+async function createNodeIdxAlongPathTable(year: number) {
+  const node_idx_info = getNpmrdsNetworkPathsNodeIdxInfo(year);
 
   const sql = dedent(
     pgFormat(
       `
-        DROP VIEW IF EXISTS %I.%I CASCADE ;
+        DROP TABLE IF EXISTS %I.%I CASCADE ;
 
-        CREATE VIEW %I.%I
-          AS
-            WITH cte_bar AS (
-              SELECT
-                  a.linear_id,
-                  a.direction,
+        CREATE TABLE %I.%I (
+          linear_id                 INTEGER,
+          direction                 TEXT,
 
-                  a.tmc AS tmc_a,
-                  a.road_order AS road_order_a,
-                  c.pt_geom_idx AS v_geom_idx_a,
-                  d.pt_geom_idx AS w_geom_idx_a,
+          tmc                       TEXT NOT NULL,
+          road_order                INTEGER,
+          path_idx                  INTEGER NOT NULL,
+          pt_geom_idx               INTEGER NOT NULL,
 
-                  b.tmc AS tmc_b,
-                  b.road_order AS road_order_b,
-                  e.pt_geom_idx AS v_geom_idx_b,
-                  f.pt_geom_idx AS w_geom_idx_b,
+          node_id                   INTEGER NOT NULL,
+          node_idx_along_path       INTEGER NOT NULL,
 
-                  ARRAY[c.node_id, d.node_id] AS node_pair
+          dist_from_prev_meters     DOUBLE PRECISION,
+          dist_to_next_meters       DOUBLE PRECISION,
 
-                FROM %I.%I AS a
-                  INNER JOIN %I.%I AS b
-                    ON (
-                      ( a.linear_id = b.linear_id )
-                      AND
-                      ( a.direction = b.direction )
-                      AND
-                      ( a.path_idx < b.path_idx )
-                    )
-                  INNER JOIN %I.%I AS c
-                    ON (
-                      ( a.tmc = c.tmc )
-                      AND
-                      ( c.pt_geom_n = 1 )
-                    )
-                  INNER JOIN %I.%I AS d
-                    ON (
-                      ( a.tmc = d.tmc )
-                      AND
-                      ( d.pt_geom_n = 1 )
-                      AND
-                      ( ( c.pt_geom_idx + 1 ) = d.pt_geom_idx )
-                    )
-                  INNER JOIN %I.%I AS e
-                    ON (
-                      ( b.tmc = e.tmc )
-                      AND
-                      ( e.pt_geom_n = 1 )
-                    )
-                  INNER JOIN %I.%I AS f
-                    ON (
-                      ( b.tmc = f.tmc )
-                      AND
-                      ( f.pt_geom_n = 1 )
-                      AND
-                      ( ( e.pt_geom_idx + 1 ) = f.pt_geom_idx )
-                    )
-                WHERE ( (c.node_id, d.node_id) = (e.node_id, f.node_id) )
-            ), cte_1 AS (
-              SELECT
-                  a.linear_id,
-                  a.direction,
+          dist_along_path_meters    DOUBLE PRECISION,
 
-                  a.tmc,
-                  a.road_order,
+          PRIMARY KEY (linear_id, direction, node_idx_along_path, path_idx)
 
-                  a.path_idx,
-                  b.pt_geom_idx,
-
-                  b.node_id,
-
-                  LAG(b.node_id, 1) OVER (
-                    PARTITION BY a.linear_id, a.direction
-                    ORDER BY a.path_idx, b.pt_geom_idx
-                  ) AS prev_node_id
-
-                FROM %I.%I AS a
-                  INNER JOIN %I.%I AS b
-                    USING (tmc)
-
-                WHERE ( b.pt_geom_n = 1 )
-            ), cte_2 AS (
-              SELECT
-                  a.*
-                FROM cte_1 AS a
-                  LEFT OUTER JOIN cte_bar AS b
-                    ON (
-                      ( a.tmc = b.tmc_b )
-                      AND
-                      (
-                        ( a.pt_geom_idx = b.v_geom_idx_b )
-                        OR
-                        ( a.pt_geom_idx = b.w_geom_idx_b )
-                      )
-                    )
-                WHERE ( b.tmc_b IS NULL )
-            ), cte_3 AS (
-              SELECT
-                  a.*,
-                  b.tmc_a,
-                  b.v_geom_idx_a,
-                  b.w_geom_idx_a
-                FROM cte_1 AS a
-                  INNER JOIN cte_bar AS b
-                    ON (
-                      ( a.tmc = b.tmc_b )
-                      AND
-                      (
-                        ( a.pt_geom_idx = b.v_geom_idx_b )
-                        OR
-                        ( a.pt_geom_idx = b.w_geom_idx_b )
-                      )
-                    )
-            ), cte_4 AS (
-              SELECT
-                  linear_id,
-                  direction,
-
-                  tmc,
-                  road_order,
-
-                  path_idx,
-                  pt_geom_idx,
-
-                  node_id,
-
-                  -- https://stackoverflow.com/a/62019700
-                  SUM(
-                    CASE
-                      WHEN ( node_id = prev_node_id ) THEN 0
-                      ELSE 1
-                    END
-                  ) OVER (
-                    PARTITION BY linear_id, direction
-                    ORDER BY path_idx, pt_geom_idx
-                  ) AS node_idx_along_path
-
-                FROM cte_2
-            ), cte_5 AS (
-              SELECT DISTINCT ON ( tmc, pt_geom_idx )
-                  a.linear_id,
-                  a.direction,
-
-                  a.tmc,
-                  a.road_order,
-
-                  a.path_idx,
-                  a.pt_geom_idx,
-
-                  node_id,
-
-                  b.node_idx_along_path
-                FROM cte_3 AS a
-                  INNER JOIN cte_4 AS b
-                    USING ( linear_id, direction, node_id )
-                WHERE (
-                  ( a.tmc_a = b.tmc )
-                  AND
-                  (
-                    ( a.v_geom_idx_a = b.pt_geom_idx )
-                    OR
-                    ( a.w_geom_idx_a = b.pt_geom_idx )
-                  )
-                )
-                ORDER BY tmc, pt_geom_idx
-            )
-              SELECT * FROM cte_4
-              UNION ALL
-              SELECT * FROM cte_5
+        ) WITH (fillfactor=100) ;
       `,
 
-      //  DROP VIEW
-      view_info.table_schema,
-      view_info.table_name,
+      //  DROP TABLE
+      node_idx_info.table_schema,
+      node_idx_info.table_name,
 
-      //  CREATE VIEW
-      view_info.table_schema,
-      view_info.table_name,
+      //  CREATE TABLE
+      node_idx_info.table_schema,
+      node_idx_info.table_name
+    )
+  );
 
+  await dama_db.query(sql);
+}
+
+async function loadNodeIdxAlongPathTable(year: number) {
+  const nodes_info = getNpmrdsNetworkNodesTableInfo(year);
+  const edges_info = getNpmrdsNetworkEdgesTableInfo(year);
+  const paths_info = getNpmrdsNetworkPathsTableInfo(year);
+  const node_idx_info = getNpmrdsNetworkPathsNodeIdxInfo(year);
+
+  const sql = dedent(
+    pgFormat(
+      `
+        WITH cte_bar AS (
+          SELECT
+              a.linear_id,
+              a.direction,
+
+              a.tmc AS tmc_a,
+              a.road_order AS road_order_a,
+              c.pt_geom_idx AS v_geom_idx_a,
+              d.pt_geom_idx AS w_geom_idx_a,
+
+              b.tmc AS tmc_b,
+              b.road_order AS road_order_b,
+              e.pt_geom_idx AS v_geom_idx_b,
+              f.pt_geom_idx AS w_geom_idx_b,
+
+              ARRAY[c.node_id, d.node_id] AS node_pair
+
+            FROM %I.%I AS a
+              INNER JOIN %I.%I AS b
+                ON (
+                  ( a.linear_id = b.linear_id )
+                  AND
+                  ( a.direction = b.direction )
+                  AND
+                  ( a.path_idx < b.path_idx )
+                )
+              INNER JOIN %I.%I AS c
+                ON (
+                  ( a.tmc = c.tmc )
+                  AND
+                  ( c.pt_geom_n = 1 )
+                )
+              INNER JOIN %I.%I AS d
+                ON (
+                  ( a.tmc = d.tmc )
+                  AND
+                  ( d.pt_geom_n = 1 )
+                  AND
+                  ( ( c.pt_geom_idx + 1 ) = d.pt_geom_idx )
+                )
+              INNER JOIN %I.%I AS e
+                ON (
+                  ( b.tmc = e.tmc )
+                  AND
+                  ( e.pt_geom_n = 1 )
+                )
+              INNER JOIN %I.%I AS f
+                ON (
+                  ( b.tmc = f.tmc )
+                  AND
+                  ( f.pt_geom_n = 1 )
+                  AND
+                  ( ( e.pt_geom_idx + 1 ) = f.pt_geom_idx )
+                )
+            WHERE ( (c.node_id, d.node_id) = (e.node_id, f.node_id) )
+        ), cte_1 AS (
+          SELECT
+              a.linear_id,
+              a.direction,
+
+              a.tmc,
+              a.road_order,
+
+              a.path_idx,
+              b.pt_geom_idx,
+
+              b.node_id,
+
+              LAG(b.node_id, 1) OVER (
+                PARTITION BY a.linear_id, a.direction
+                ORDER BY a.path_idx, b.pt_geom_idx
+              ) AS prev_node_id
+
+            FROM %I.%I AS a
+              INNER JOIN %I.%I AS b
+                USING (tmc)
+
+            WHERE ( b.pt_geom_n = 1 )
+        ), cte_2 AS (
+          SELECT
+              a.*
+            FROM cte_1 AS a
+              LEFT OUTER JOIN cte_bar AS b
+                ON (
+                  ( a.tmc = b.tmc_b )
+                  AND
+                  (
+                    ( a.pt_geom_idx = b.v_geom_idx_b )
+                    OR
+                    ( a.pt_geom_idx = b.w_geom_idx_b )
+                  )
+                )
+            WHERE ( b.tmc_b IS NULL )
+        ), cte_3 AS (
+          SELECT
+              a.*,
+              b.tmc_a,
+              b.v_geom_idx_a,
+              b.w_geom_idx_a
+            FROM cte_1 AS a
+              INNER JOIN cte_bar AS b
+                ON (
+                  ( a.tmc = b.tmc_b )
+                  AND
+                  (
+                    ( a.pt_geom_idx = b.v_geom_idx_b )
+                    OR
+                    ( a.pt_geom_idx = b.w_geom_idx_b )
+                  )
+                )
+        ), cte_4 AS (
+          SELECT
+              linear_id,
+              direction,
+
+              tmc,
+              road_order,
+
+              path_idx,
+              pt_geom_idx,
+
+              node_id,
+
+              -- https://stackoverflow.com/a/62019700
+              SUM(
+                CASE
+                  WHEN ( node_id = prev_node_id ) THEN 0
+                  ELSE 1
+                END
+              ) OVER (
+                PARTITION BY linear_id, direction
+                ORDER BY path_idx, pt_geom_idx
+              ) AS node_idx_along_path
+
+            FROM cte_2
+        ), cte_5 AS (
+          SELECT DISTINCT ON ( tmc, pt_geom_idx )
+              a.linear_id,
+              a.direction,
+
+              a.tmc,
+              a.road_order,
+
+              a.path_idx,
+              a.pt_geom_idx,
+
+              node_id,
+
+              b.node_idx_along_path
+            FROM cte_3 AS a
+              INNER JOIN cte_4 AS b
+                USING ( linear_id, direction, node_id )
+            WHERE (
+              ( a.tmc_a = b.tmc )
+              AND
+              (
+                ( a.v_geom_idx_a = b.pt_geom_idx )
+                OR
+                ( a.w_geom_idx_a = b.pt_geom_idx )
+              )
+            )
+            ORDER BY tmc, pt_geom_idx
+        ), cte_6 AS (
+            SELECT
+                linear_id,
+                direction,
+                tmc,
+                road_order,
+                path_idx,
+                pt_geom_idx,
+                node_id,
+                node_idx_along_path
+              FROM cte_4
+            UNION ALL
+            SELECT
+                linear_id,
+                direction,
+                tmc,
+                road_order,
+                path_idx,
+                pt_geom_idx,
+                node_id,
+                node_idx_along_path
+              FROM cte_5
+        ), cte_7 AS (
+
+            SELECT
+                *,
+                SUM(dist_from_prev_meters) OVER (
+                  PARTITION BY
+                    linear_id,
+                    direction
+                  ORDER BY node_idx_along_path
+                ) AS dist_along_path_meters
+              FROM (
+                SELECT 
+                    linear_id,
+                    direction,
+                    node_id,
+                    node_idx_along_path,
+                    ST_Distance(
+                      GEOGRAPHY( 
+                        LAG(wkb_geometry, 1) OVER (
+                          PARTITION BY
+                            linear_id,
+                            direction
+                          ORDER BY node_idx_along_path
+                        )
+                      ),
+                      GEOGRAPHY(wkb_geometry)
+                    ) AS dist_from_prev_meters,
+
+                    ST_Distance(
+                      GEOGRAPHY( 
+                        LEAD(wkb_geometry, 1) OVER (
+                          PARTITION BY
+                            linear_id,
+                            direction
+                          ORDER BY node_idx_along_path
+                        )
+                      ),
+                      GEOGRAPHY(wkb_geometry)
+                    ) AS dist_to_next_meters
+
+                  FROM %I.%I AS a
+                    INNER JOIN (
+                      SELECT DISTINCT ON (linear_id, direction, node_idx_along_path)
+                          linear_id,
+                          direction,
+                          node_idx_along_path,
+                          node_id
+                        FROM cte_6
+                        ORDER BY linear_id, direction, node_idx_along_path
+                    ) AS b USING ( node_id )
+              ) AS t
+
+        )
+          INSERT INTO %I.%I (
+            linear_id,
+            direction,
+
+            tmc,
+            road_order,
+            path_idx,
+            pt_geom_idx,
+
+            node_id,
+            node_idx_along_path,
+
+            dist_from_prev_meters,
+            dist_to_next_meters,
+
+            dist_along_path_meters
+          )
+            SELECT
+                linear_id,
+                direction,
+
+                tmc,
+                road_order,
+                path_idx,
+                pt_geom_idx,
+
+                node_id,
+                node_idx_along_path,
+
+                dist_from_prev_meters,
+                dist_to_next_meters,
+
+                COALESCE(dist_along_path_meters, 0) AS dist_along_path_meters
+              FROM cte_6
+                INNER JOIN cte_7
+                  USING (linear_id, direction, node_id, node_idx_along_path)
+        ;
+
+        CLUSTER %I.%I USING %I ;
+      `,
       //  cte_bar
       //    FROM AS a
       paths_info.table_schema,
@@ -333,7 +475,20 @@ async function createView(year: number) {
       paths_info.table_name,
       //    INNER JOIN AS b
       edges_info.table_schema,
-      edges_info.table_name
+      edges_info.table_name,
+
+      // cte_7
+      nodes_info.table_schema,
+      nodes_info.table_name,
+
+      //  INSERT INTO
+      node_idx_info.table_schema,
+      node_idx_info.table_name,
+
+      //  CLUSTER
+      node_idx_info.table_schema,
+      node_idx_info.table_name,
+      node_idx_info.pkey_idx_name
     )
   );
 
@@ -343,5 +498,7 @@ async function createView(year: number) {
 export default async function createNetworkPathsTable(year: number) {
   await createTable(year);
   await loadTable(year);
-  await createView(year);
+
+  await createNodeIdxAlongPathTable(year);
+  await loadNodeIdxAlongPathTable(year);
 }

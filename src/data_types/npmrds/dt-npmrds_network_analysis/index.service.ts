@@ -29,7 +29,7 @@ function getMapYearSubQuery({ cell_id, descriptor: { year } }) {
         )
       `,
       `cte_${cell_id}`,
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_shapes_${year}`
     )
   );
@@ -63,7 +63,7 @@ function getMapFilterSubQuery(
       `,
       `cte_${cell_id}`,
       `cte_${dependencies[0]}`,
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_shapes_${year}`,
       property_name
     )
@@ -120,11 +120,11 @@ function getMapTraverseSubQuery(
       `cte_${dependencies[0]}`,
 
       // b
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_network_edges_${year}`,
 
       // c
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_network_edges_${year}`,
 
       // c ON
@@ -132,11 +132,11 @@ function getMapTraverseSubQuery(
       w,
 
       // e
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_network_edges_${year}`,
 
       // f
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_network_edges_${year}`,
 
       // f ON
@@ -144,7 +144,7 @@ function getMapTraverseSubQuery(
       w,
 
       // g
-      "npmrds_tmc_shapes_analysis",
+      "npmrds_network_spatial_analysis",
       `tmc_shapes_${year}`
     )
   );
@@ -236,7 +236,7 @@ export default {
                       FROM UNNEST($1::TEXT[]) AS t(tmc)
                   ) AS b USING (tmc)
             `,
-            "npmrds_tmc_shapes_analysis",
+            "npmrds_network_spatial_analysis",
             `tmc_shapes_${year}`
           )
         );

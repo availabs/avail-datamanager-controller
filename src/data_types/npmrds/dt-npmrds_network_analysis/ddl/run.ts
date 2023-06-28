@@ -4,10 +4,11 @@ import dama_db from "data_manager/dama_db";
 import initializeForYear from "./initialize";
 import initializeConformalMatching from "./conformalMatching/initializeConformalMatching";
 import conformalMatching from "./conformalMatching";
+import dynamicReferencing from "./dynamicReferencing";
 
 const PG_ENV = "dama_dev_1";
 
-// exclusive on max
+// NOTE: _.range is exclusive on max
 const years = _.range(2017, 2023);
 // const years = [2017, 2022];
 
@@ -35,10 +36,10 @@ async function main() {
 
   await Promise.all(
     year_pairs.map((year_pair) =>
-      dama_db.runInTransactionContext(
-        () => conformalMatching(...year_pair),
-        PG_ENV
-      )
+      dama_db.runInTransactionContext(async () => {
+        await conformalMatching(...year_pair);
+        await dynamicReferencing(...year_pair);
+      }, PG_ENV)
     )
   );
 }
