@@ -333,7 +333,7 @@ async function createNpmrdsNetworkEdgesMetadataView(year: number) {
                 d.max_pt_geom_idx AS end_node_idx,
                 -- FIXME: length is using all of MultiLineString geometries, not just Geom N=1
                 public.ST_Length(
-                  public.GEOMETRY(
+                  public.GEOGRAPHY(
                     wkb_geometry
                   )
                 ) AS length_meters

@@ -28,6 +28,9 @@ export default async function createView(year: number) {
 
                 array_agg(DISTINCT tmc ORDER BY tmc) AS tmcs,
 
+                array_agg(DISTINCT firstname ORDER BY firstname)
+                  FILTER (WHERE firstname IS NOT NULL ) AS firstnames,
+
                 jsonb_agg(DISTINCT
                   jsonb_build_object(
                     'tmc',            tmc,

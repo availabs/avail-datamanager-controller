@@ -431,6 +431,8 @@ async function createMetadataView(year: number) {
   const tmc_shapes_info = getTmcShapesTableInfo(year);
   const nodes_table_info = getNpmrdsNetworkNodesTableInfo(year);
   const node_incident_edges_info = getNpmrdsNetworkNodeIncidentEdgesInfo(year);
+  const edge_max_geom_idx_info = getNpmrdsNetworkEdgeMaxGeomIdxTableInfo(year);
+
   const node_incident_edges_metadata_info =
     getNpmrdsNetworkNodeIncidentEdgesMetadataInfo(year);
 
@@ -441,7 +443,7 @@ async function createMetadataView(year: number) {
       `
         DROP VIEW IF EXISTS %I.%I CASCADE ;
 
-        CREATE VIEW %I.%I
+        CREATE VIEW %I.%I                       -- npmrds_network_node_incident_edges_metadata
           AS
             SELECT
                 a.node_id,
@@ -459,12 +461,20 @@ async function createMetadataView(year: number) {
                 c.direction,
                 c.county,
 
+                CASE
+                  WHEN ( a.pt_geom_idx = d.max_pt_geom_idx )
+                    THEN c.firstname
+                  ELSE NULL
+                END AS firstname,
+
                 b.wkb_geometry
 
               FROM %I.%I AS a                   -- npmrds_network_node_incident_edges
                 INNER JOIN %I.%I AS b           -- npmrds_network_nodes
                   USING ( node_id )
                 INNER JOIN %I.%I AS c           -- tmc_shapes
+                  USING ( tmc )
+                INNER JOIN %I.%I AS d           -- npmrds_network_edges_max_geom_idx
                   USING ( tmc )
         ;
       `,
@@ -484,7 +494,10 @@ async function createMetadataView(year: number) {
       nodes_table_info.table_name,
       //    INNER JOIN c
       tmc_shapes_info.table_schema,
-      tmc_shapes_info.table_name
+      tmc_shapes_info.table_name,
+      //    INNER JOIN d
+      edge_max_geom_idx_info.table_schema,
+      edge_max_geom_idx_info.table_name
     )
   );
 

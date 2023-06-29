@@ -105,6 +105,15 @@ export function getNpmrdsNetworkNodeDescriptionsInfo(year: number) {
   };
 }
 
+export function getTmcNetworkDescriptions(year: number) {
+  const table_name = `tmc_network_descriptions_${year}`;
+
+  return {
+    table_schema: network_spatial_analysis_schema_name,
+    table_name,
+  };
+}
+
 export function getNpmrdsNetworkConformalMatchesTableInfo(
   year_a: number,
   year_b: number
