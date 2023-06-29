@@ -254,5 +254,145 @@ export default {
         return features_by_id;
       },
     },
+
+    getTmcNetworkDescription: {
+      visibility: "published",
+
+      async handler(ctx: MoleculerContext) {
+        // @ts-ignore
+        const { params }: { params: object } = ctx;
+
+        // @ts-ignore
+        const { year, tmc } = params;
+
+        const sql = dedent(
+          pgFormat(
+            `
+              SELECT
+                  tmc,
+                  firstname,
+                  is_nhs,
+                  roadname,
+                  roadnumber,
+                  miles,
+                  state,
+                  end_longitude,
+                  county,
+                  direction,
+                  start_longitude,
+                  type,
+                  road_order,
+                  func_class,
+                  zip,
+                  start_latitude,
+                  -- FIXME: Fix this in the database.
+                  linear_id::INTEGER,
+                  end_latitude,
+                  start_node_id,
+                  start_node_idx,
+                  end_node_id,
+                  end_node_idx,
+                  length_meters,
+                  traversed_crossings_meta,
+                  start_node_inbound_tmcs,
+                  end_node_outbound_tmcs
+                FROM %I.%I
+                WHERE ( tmc = $1 )
+            `,
+            "npmrds_network_spatial_analysis",
+            `tmc_network_descriptions_${year}`
+          )
+        );
+
+        const { rows } = await dama_db.query({ text: sql, values: [tmc] });
+
+        return rows[0] || null;
+      },
+    },
+
+    getTmcCrossYearSimilarity: {
+      visibility: "published",
+
+      async handler(ctx: MoleculerContext) {
+        // @ts-ignore
+        const { params }: { params: object } = ctx;
+
+        const {
+          // @ts-ignore
+          year: years,
+          // @ts-ignore
+          tmc,
+        } = params;
+
+        const [year_a, year_b] = years.sort();
+
+        const sql = dedent(
+          pgFormat(
+            `
+              SELECT
+                  *
+                FROM %I.%I
+                WHERE ( tmc = $1 )
+            `,
+            "npmrds_network_spatial_analysis",
+            `npmrds_tmc_similarity_${year_a}_${year_b}`
+          )
+        );
+
+        const { rows } = await dama_db.query({ text: sql, values: [tmc] });
+
+        return rows[0] || null;
+      },
+    },
+
+    getTmcCrossYearReference: {
+      visibility: "published",
+
+      async handler(ctx: MoleculerContext) {
+        // @ts-ignore
+        const { params }: { params: object } = ctx;
+
+        const {
+          // @ts-ignore
+          year: years,
+          // @ts-ignore
+          tmc,
+        } = params;
+
+        const [year_a, year_b] = years.sort();
+
+        const sql = dedent(
+          pgFormat(
+            `
+              SELECT
+                  *
+                FROM %I.%I
+                WHERE (
+                  ( tmc = $1 )
+                  AND
+                  (
+                    ( start_node_reference_rank_a = 1 )
+                    OR
+                    ( end_node_reference_rank_a   = 1 )
+                    OR
+                    ( start_node_reference_rank_b = 1 )
+                    OR
+                    ( end_node_reference_rank_b   = 1 )
+                  )
+                )
+            `,
+            "npmrds_network_spatial_analysis",
+            `npmrds_network_tmc_cross_year_dynamic_reference_${year_a}_${year_b}`
+          )
+        );
+
+        console.log(sql.replace(/\$1/, `'${tmc}'`));
+
+        const { rows } = await dama_db.query({ text: sql, values: [tmc] });
+
+        // NOTE: may return between 1 to 4 rows.
+        return rows.length > 0 ? rows : null;
+      },
+    },
   },
 };

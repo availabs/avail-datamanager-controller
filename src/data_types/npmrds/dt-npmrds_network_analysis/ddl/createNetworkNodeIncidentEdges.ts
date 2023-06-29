@@ -467,6 +467,9 @@ async function createMetadataView(year: number) {
                   ELSE NULL
                 END AS firstname,
 
+                ( a.pt_geom_idx = 1 ) AS is_start_node,
+                ( a.pt_geom_idx = d.max_pt_geom_idx ) AS is_end_node,
+
                 b.wkb_geometry
 
               FROM %I.%I AS a                   -- npmrds_network_node_incident_edges

@@ -34,20 +34,26 @@ export default async function createView(year: number) {
                 jsonb_agg(DISTINCT
                   jsonb_build_object(
                     'tmc',            tmc,
+                    'linear_id',      linear_id,
                     'roadnumber',     roadnumber,
                     'roadname',       roadname,
                     'direction',      direction,
-                    'bearing',        bearing
+                    'bearing',        bearing,
+                    'firstname',      firstname,
+                    'is_end_node',    is_end_node
                   )
                 ) FILTER (WHERE traversal_direction = 'INBOUND') AS inbound_edges,
 
                 jsonb_agg(DISTINCT
                   jsonb_build_object(
                     'tmc',            tmc,
+                    'linear_id',      linear_id,
                     'roadnumber',     roadnumber,
                     'roadname',       roadname,
                     'direction',      direction,
-                    'bearing',        bearing
+                    'bearing',        bearing,
+                    'firstname',      firstname
+                    'is_start_node',  is_start_node
                   )
                 ) FILTER (WHERE traversal_direction = 'OUTBOUND') AS outbound_edges
 
