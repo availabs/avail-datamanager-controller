@@ -284,6 +284,8 @@ export default class ApiService extends Service {
 
               "/hazard_mitigation/pa_v1": "hazard_mitigation.pa_v1.load",
 
+              "/hazard_mitigation/hmgp_v2": "hazard_mitigation.hmgp_v2.load",
+
               "/hazard_mitigation/nfip_v1": "hazard_mitigation.nfip_v1.load",
 
               "/hazard_mitigation/nfip_v1_enhanced":
