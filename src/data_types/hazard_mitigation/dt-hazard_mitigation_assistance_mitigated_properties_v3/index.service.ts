@@ -3,7 +3,7 @@ import load from "./loadData";
 import serviceName from "../constants/serviceName";
 
 export default {
-  name: `${serviceName}.hmgp_summaries_v2`,
+  name: `${serviceName}.hmgp_properties_v2`,
   actions: {
     load,
   },
