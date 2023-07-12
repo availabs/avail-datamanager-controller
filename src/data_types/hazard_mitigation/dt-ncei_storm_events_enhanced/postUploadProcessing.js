@@ -34,7 +34,7 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
                 THEN 'tsunami'
               WHEN event_type IN ('Tornado','TORNADOES, TSTM WIND, HAIL','TORNADO/WATERSPOUT','Funnel Cloud','Waterspout')
                 THEN 'tornado'
-              WHEN event_type IN ('Flood','Flash Flood','THUNDERSTORM WINDS/FLASH FLOOD','THUNDERSTORM WINDS/ FLOOD','THUNDERSTORM WINDS/FLOODING', 'Lakeshore Flood')
+              WHEN event_type IN ('Flood','Flash Flood','THUNDERSTORM WINDS/FLASH FLOOD','THUNDERSTORM WINDS/ FLOOD','THUNDERSTORM WINDS/FLOODING')
                 THEN 'riverine'
               WHEN event_type IN ('Lightning','Marine Lightning')
                 THEN 'lightning'
@@ -60,7 +60,7 @@ const updateEventTypeFormatted = async (ctx, details_table_name) => {
               WHEN event_type IN ('Volcanic Ash','Volcanic Ashfall')
                 THEN 'volcano'
               WHEN event_type IN ('Coastal Flood', 'High Surf','Sneakerwave',
-                                  'Storm Surge/Tide',
+                                  'Storm Surge/Tide', 'Lakeshore Flood',
                                   'Rip Current')
                 THEN 'coastal'
               END;

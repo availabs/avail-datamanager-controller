@@ -20,7 +20,7 @@ export const loadFiles = async (ctx, view_id, table = "nri") => {
 
   console.log("uploading");
 
-  const dataFolder = `./data/${table}/`;
+  const dataFolder = `./tmp-etl/${table}/`;
   console.log('files', fs.readdirSync(dataFolder))
   const files = fs.readdirSync(dataFolder).filter(f => f === "NRI_Table_Counties.csv"); // filtering any open files
 

@@ -9,7 +9,7 @@ export default async function publish(ctx: Context) {
   let {
     // @ts-ignore
     params: {
-      table_name,
+      table_name, startYear, endYear,
       ncei_table, ncei_schema, nri_schema, nri_table
     },
   } = ctx;
@@ -26,16 +26,16 @@ export default async function publish(ctx: Context) {
     });
 
     // create table
-    sqlLog.push(per_basis_swd(table_name, view_id, ncei_schema, ncei_table));
+    sqlLog.push(per_basis_swd(table_name, view_id, ncei_schema, ncei_table, startYear, endYear));
     await ctx.call("dama_db.query", {
-      text: per_basis_swd(table_name, view_id, ncei_schema, ncei_table)
+      text: per_basis_swd(table_name, view_id, ncei_schema, ncei_table, startYear, endYear)
     });
 
     // postprocessing
 
-    sqlLog.push(pad_zero_losses(table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table));
+    sqlLog.push(pad_zero_losses(table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table, startYear, endYear));
     await ctx.call("dama_db.query", {
-      text: pad_zero_losses(table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table)
+      text: pad_zero_losses(table_name, view_id, ncei_schema, ncei_table, nri_schema, nri_table, startYear, endYear)
     });
 
     sqlLog.push(adjusted_dollar(table_name, view_id, ncei_schema));

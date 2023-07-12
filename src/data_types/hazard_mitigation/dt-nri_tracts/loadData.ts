@@ -15,8 +15,8 @@ const fetchFileList = async (currTable) => {
     fs.mkdirSync("tmp-etl/" + currTable);
   }
 
-  const url = `https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload//NRI_Table_Counties/NRI_Table_Counties.zip`;
-  const file_path = "tmp-etl/" + currTable + "/NRI_Table_Counties.zip";
+  const url = `https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload//NRI_Table_CensusTracts/NRI_Table_CensusTracts.zip`;
+  const file_path = "tmp-etl/" + currTable + "/NRI_Table_Tracts.zip";
 
   // execSync(`rm -rf ${"tmp-etl/" + currTable}`);
   execSync(`curl -o ${file_path} '${url}'`);
@@ -32,7 +32,7 @@ export default async function publish(ctx: Context) {
     params: {table_name}
   } = ctx;
 
-  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'nri'});
+  const {etl_context_id, dbConnection, source_id, view_id, sqlLog} = await init({ctx, type: 'nri_tracts'});
 
   try {
     // create schema

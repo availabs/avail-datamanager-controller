@@ -284,6 +284,12 @@ export default class ApiService extends Service {
 
               "/hazard_mitigation/pa_v1": "hazard_mitigation.pa_v1.load",
 
+              "/hazard_mitigation/hmgp_summaries_v2": "hazard_mitigation.hmgp_summaries_v2.load",
+
+              "/hazard_mitigation/hmgp_properties_v2": "hazard_mitigation.hmgp_properties_v2.load",
+
+              "/hazard_mitigation/hmgp_projects_v2": "hazard_mitigation.hmgp_projects_v2.load",
+
               "/hazard_mitigation/nfip_v1": "hazard_mitigation.nfip_v1.load",
 
               "/hazard_mitigation/nfip_v1_enhanced":
@@ -300,6 +306,9 @@ export default class ApiService extends Service {
 
               "/hazard_mitigation/nriLoader":
                 "hazard_mitigation.nriLoader.load",
+
+              "/hazard_mitigation/nriTractsLoader":
+                "hazard_mitigation.nriTractsLoader.load",
 
               "/hazard_mitigation/pbSWDLoader":
                 "hazard_mitigation.pbSWDLoader.load",
