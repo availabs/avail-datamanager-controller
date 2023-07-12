@@ -1,6 +1,6 @@
 import { runInDamaContext } from "data_manager/contexts";
 
-import publish from "./publish";
+import publish from "./load";
 
 export default async (etl_context: any) => {
   const { initial_event } = etl_context;
