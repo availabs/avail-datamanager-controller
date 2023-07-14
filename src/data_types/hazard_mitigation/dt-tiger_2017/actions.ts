@@ -1,10 +1,14 @@
 import { execSync } from "child_process";
 import fs from "fs";
 import { PoolClient } from "pg";
+import { readFile as readFileAsync } from "fs/promises";
+import { join } from "path";
 import pgFormat from "pg-format";
 import dedent from "dedent";
 import logger from "data_manager/logger";
 import dama_meta from "data_manager/meta";
+import dama_db from "data_manager/dama_db";
+import { NodePgQueryResult } from "data_manager/dama_db/postgres/PostgreSQL";
 import { getEtlContextId } from "data_manager/contexts";
 
 import { getPostgresConnectionString } from "../../../data_manager/dama_db/postgres/PostgreSQL";
@@ -93,9 +97,7 @@ export async function createView(
 export const fetchFileList = async (
   fileName: string,
   url: string,
-  table_name: string,
-  tmpLocation: string,
-  cnt: number,
+  tmpLocation: string
 ): Promise<void> => {
   console.log("fetching...", url + fileName);
   if (!fs.existsSync(tmpLocation)) {
@@ -117,10 +119,6 @@ export const fetchFileList = async (
     `${tmpLocationProcess}/${fileName.replace(".zip", ".dbf")}`
   );
 
-  if (cnt === 0) {
-    logger.info(`geoJSON is \n\n: ${JSON.stringify(geoJSON, null, 3)}`);
-  }
-  // logger.info(`\nMore logs about file ${tmpLocation}/${fileName}`);
   geoJSON.features = geoJSON?.features?.map((f: any) => {
     f.properties.geoid = f?.properties?.GEOID;
     f.properties.name = f?.properties?.NAMELSAD;
@@ -128,7 +126,7 @@ export const fetchFileList = async (
   });
 
   fs.writeFileSync(
-    `tmp-etl/tl_2017_${table_name}/${fileName.replace(".zip", ".json")}`,
+    `${tmpLocation}/${fileName.replace(".zip", ".json")}`,
     JSON.stringify(geoJSON),
     "utf8"
   );
@@ -142,7 +140,7 @@ export const uploadFiles = (
   url: string,
   table_name: string,
   view_id: number,
-  tmpLocation: any
+  tmpLocation: string
 ) => {
   logger.info(`uploading... ${url + fileName}`);
 
@@ -151,25 +149,14 @@ export const uploadFiles = (
     `ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(
       ".zip",
       ".json"
-    )} -lco GEOMETRY_NAME=wkb_geometry -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${
+    )} -lco GEOMETRY_NAME=wkb_geometry -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=ogc_fid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${
       ["state", "county"].includes(table_name?.toLowerCase())
         ? `-nln geo.tl_2017_${table_name}_${view_id}`
         : ""
     }`,
-    { cwd: `./${tmpLocation}` }
+    { cwd: `${tmpLocation}` }
   );
 
-  logger.info(
-    `Here is the command :\n\n ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(
-      ".zip",
-      ".json"
-    )} -lco GEOMETRY_NAME=wkb_geometry -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=gid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${
-      ["state", "county"].includes(table_name.toLowerCase())
-        ? `-nln geo.tl_2017_${table_name}_${view_id}`
-        : ""
-    }`,
-    { cwd: `./${tmpLocation}` }
-  );
   execSync(`rm -rf ${tmpLocation}/${fileName.replace(".zip", ".json")}`);
 };
 
@@ -257,4 +244,50 @@ export const correctGeoid = async (
   sqlLog.push(query);
 
   return dbConnection.query(query);
+};
+
+export const checkCurrentSourceInQueue = async (source_type: string) => {
+  logger.info(`__dirname: ${__dirname}`);
+  const fpath = join(
+    __dirname,
+    "./../../../data_manager/tasks/sql/create_dama_pgboss_view.sql"
+  );
+  const sql = await readFileAsync(fpath, { encoding: "utf8" });
+  await dama_db.query(sql);
+
+  const query = `
+    SELECT t.etl_context_id, t.source_id, s.name FROM data_manager.dama_task_queue AS t
+    LEFT JOIN data_manager.sources AS s
+    ON t.source_id = s.source_id
+    WHERE (
+      ( s.type = $1 )
+      AND
+      ( etl_status = 'OPEN' )
+      AND
+      ( task_state = 'active' )
+    )
+    LIMIT 1;
+    `;
+
+  const res: NodePgQueryResult = await dama_db.query({
+    text: query,
+    values: [source_type],
+  });
+
+  let response = {
+    status: "error",
+    source_id: null,
+    etl_context_id: null,
+    source_name: null,
+  };
+
+  if (res?.rows?.length) {
+    response = {
+      status: "success",
+      source_id: res?.rows[0]?.source_id,
+      etl_context_id: res?.rows[0]?.etl_context_id,
+      source_name: res?.rows[0]?.name,
+    };
+  }
+  return response;
 };

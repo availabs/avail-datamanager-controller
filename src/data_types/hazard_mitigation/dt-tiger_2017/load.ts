@@ -18,7 +18,7 @@ import {
   dropTmpTables,
   correctGeoid,
 } from "./actions";
-// import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
+import getEtlWorkDir from "var/getEtlWorkDir";
 
 export default async function publish({
   pgEnv,
@@ -26,7 +26,7 @@ export default async function publish({
   source_id,
   table_name,
   source_name,
-  etlContextId,
+  etl_context_id: etlContextId,
   existing_view_id,
   isNewSourceCreate,
   view_dependencies = "{}",
@@ -42,7 +42,10 @@ export default async function publish({
   `
   );
 
-  let damaSource: any = null;
+  let damaSource: Record<
+    string,
+    string | number | Record<string, any> | Array<string | number>
+  > | null = null;
 
   if (!source_id) {
     logger.info("Reached here inside publish source create");
@@ -89,23 +92,16 @@ export default async function publish({
   sqlLog.push("BEGIN ;");
 
   try {
-    const tmpLocation = `tmp-etl/tl_2017_${table_name}`;
+    const tmpLocation = getEtlWorkDir();
 
     logger.info(`\nGet into new try block: ${tmpLocation}`);
     const files = await getFiles(url);
-    // const sliceVar = 3;
+
     logger.info(`\nNew Files Array: ${JSON.stringify(files)}`);
+    // const sliceVar = 3;
     // if (files?.length > sliceVar) {
     //   files = files.slice(0, sliceVar);
     // }
-
-    if (isNewSourceCreate) {
-      logger.info("called inside setSourceMetadata");
-      dbConnection.query({
-        text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
-        values: [view_id],
-      });
-    }
 
     logger.info("\nreached here ----- 1 -----");
     const uploadFileEvent = {
@@ -121,9 +117,9 @@ export default async function publish({
     logger.info(`\nUpload Event ${JSON.stringify(uploadFileEvent, null, 3)}`);
     await dama_events.dispatch(uploadFileEvent, etlContextId);
 
-    await files?.reduce(async (acc, curr, ind) => {
+    await files?.reduce(async (acc, curr) => {
       await acc;
-      return fetchFileList(curr, url, table_name, tmpLocation, ind).then(() =>
+      return fetchFileList(curr, url, tmpLocation).then(() =>
         uploadFiles(curr, pgEnv, url, table_name, view_id, tmpLocation)
       );
     }, Promise.resolve());
@@ -181,7 +177,7 @@ export default async function publish({
         `\nAdding Primary Key using: \n
         ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
       );
-      dbConnection.query(
+      await dbConnection.query(
         `ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
       );
 
@@ -203,11 +199,14 @@ export default async function publish({
       await dama_events.dispatch(dropTableEvent, etlContextId);
 
       await dropTmpTables(
-        files?.map((f) => f?.replace(".zip", "")),
+        files?.map((f: string) => f?.replace(".zip", "")),
         dbConnection
       );
     }
 
+    // await dbConnection.query(
+    //   `ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
+    // );
     logger.info("\nreached here ----- 5 -----");
 
     const createIndiceEvent = {
@@ -271,6 +270,14 @@ export default async function publish({
     logger.info("\nreached here ----- 8 -----");
 
     await dbConnection.query("COMMIT;");
+
+    if (isNewSourceCreate) {
+      logger.info("called inside setSourceMetadata");
+      dbConnection.query({
+        text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
+        values: [view_id],
+      });
+    }
 
     // Create Mbtile
     await createViewMbtiles(view_id, source_id, etlContextId);
