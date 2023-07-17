@@ -19,7 +19,7 @@ export default {
 
         const res: Record<string, any> = await checkCurrentSourceInQueue(type);
 
-        if (res?.status === "success") {
+        if (res?.status === "success" && res?.source_id !== null) {
           return {
             etl_context_id: res?.etl_context_id,
             source_id: res?.source_id,

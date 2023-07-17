@@ -121,7 +121,30 @@ export const fetchFileList = async (
 
   geoJSON.features = geoJSON?.features?.map((f: any) => {
     f.properties.geoid = f?.properties?.GEOID;
+    f.properties.NAME = f?.properties?.NAMELSAD;
     f.properties.name = f?.properties?.NAMELSAD;
+
+    f.properties.STATEFP = Number(f?.properties?.STATEFP);
+    f.properties.COUNTYFP = Number(f?.properties?.COUNTYFP);
+    f.properties.COUSUBFP = Number(f?.properties?.COUSUBFP);
+    f.properties.COUSUBNS = Number(f?.properties?.COUSUBNS);
+    f.properties.GEOID = Number(f?.properties?.GEOID);
+    f.properties.LSAD = Number(f?.properties?.LSAD);
+    f.properties.CNECTAFP = Number(f?.properties?.CNECTAFP);
+    f.properties.NECTAFP = Number(f?.properties?.NECTAFP);
+    f.properties.ALAND = Number(f?.properties?.ALAND);
+    f.properties.AWATER = Number(f?.properties?.AWATER);
+    f.properties.INTPTLAT = Number(f?.properties?.INTPTLAT);
+    f.properties.INTPTLON = Number(f?.properties?.INTPTLON);
+    f.properties.NCTADVFP = Number(f?.properties?.NCTADVFP);
+
+
+    f.properties.CBSAFP = Number(f?.properties?.CBSAFP);
+    f.properties.CSAFP = Number(f?.properties?.CSAFP);
+    f.properties.METDIVFP = Number(f?.properties?.METDIVFP);
+    f.properties.FUNCSTAT = Number(f?.properties?.FUNCSTAT);
+    f.properties.CLASSFP = Number(f?.properties?.CLASSFP);
+    f.properties.MTFCC = Number(f?.properties?.MTFCC);
     return f;
   });
 
