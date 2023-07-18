@@ -40,7 +40,7 @@ export async function createViewMbtiles(
   damaViewId: number,
   damaSourceId: number,
   etlContextId: number,
-  mbtilesOptions: Record<string, Array<string> | string | number>
+  mbtilesOptions: Record<string, Array<string> | string | number | any> | any = {}
 ) {
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup }: any =
     await new Promise((resolve, reject) =>
@@ -82,14 +82,14 @@ export async function createViewMbtiles(
   );
   await dama_events.dispatch(initialEvent, etlContextId);
 
-  const optionalColumns = mbtilesOptions?.preserveColumns || [] 
+  const optionalColumns = mbtilesOptions?.preserveColumns || [];
   const featuresAsyncIterator =
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(damaViewId, {
       properties: ["ogc_fid", ...optionalColumns],
     });
 
   logger.info(
-    `\n\nfeaturesAsyncIterator inside createViewMbtiles():
+    `\nfeaturesAsyncIterator inside createViewMbtiles():\n
     ${JSON.stringify(featuresAsyncIterator, null, 3)}`
   );
   try {
@@ -135,12 +135,13 @@ export async function createViewMbtiles(
     };
 
     try {
-      await dama_db.query({
+      const result = await dama_db.query({
         text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(
           tiles
         )}'::jsonb WHERE view_id = $1;`,
         values: [damaViewId],
       });
+      logger.info(`Result of the query is : \n\n ${JSON.stringify(result, null, 3)}`);
     } catch (error) {
       logger.info(
         `Query fails inside createViewMbtiles : ${JSON.stringify(
@@ -152,6 +153,7 @@ export async function createViewMbtiles(
     }
 
     const finalEvent = {
+      // type: "dataset:CREATE_MBTILES_FINAL",
       type: "dataset:CREATE_MBTILES_FINAL",
       payload: {
         view_id: damaViewId,
@@ -273,24 +275,7 @@ export async function createMbtilesTask({
       3
     )}`
   );
-  // if (
-  //   mbtilesOptions &&
-  //   mbtilesOptions?.preserveColumns &&
-  //   mbtilesOptions?.preserveColumns?.length > 0
-  // ) {
-  //   (mbtilesOptions?.preserveColumns || []).forEach((col: string) => {
-  //     tippecanoeArgs.unshift(`${col}`);
-  //     tippecanoeArgs.unshift("-y");
-  //   });
-  // }
 
-  logger.info(
-    `\n\nNew final updated tippecanoeArgs:  \n\n ${JSON.stringify(
-      tippecanoeArgs,
-      null,
-      3
-    )}`
-  );
   const tippecanoeCProc = spawn(tippecanoePath, tippecanoeArgs, {
     stdio: "pipe",
   })
@@ -319,6 +304,8 @@ export async function createMbtilesTask({
 
   await geojsonFileCleanup();
 
+  logger.info(`tippecanoeStdout \n: ${tippecanoeStdout}`);
+  logger.error(`\ntippecanoeStderr\n : ${tippecanoeStderr}`);
   return {
     layerName,
     mbtilesFilePath,
@@ -342,7 +329,7 @@ export async function getDamaGisDatasetViewTableSchemaSummary(
       )
   `);
 
-  console.log("getDamaGisDatasetViewTableSchemaSummary", damaViewId);
+  logger.info(`getDamaGisDatasetViewTableSchemaSummary for view id: ${damaViewId}`);
   const { rows } = await dama_db.query({
     text: damaViewPropsColsQ,
     values: [damaViewId],

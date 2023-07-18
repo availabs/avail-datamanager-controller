@@ -67,7 +67,7 @@ export default {
         if (!source_id) {
           // @ts-ignore
           damaSource = await createSource(ctx?.params?.source_values);
-          logger.info(`\nNew Source Created in publish:  ${damaSource}`);
+          logger.info(`\nNew Source Created in publish:  ${JSON.stringify(damaSource, null, 2)}`);
           source_id = damaSource?.source_id;
           // @ts-ignore
           ctx.params.source_id = source_id;
