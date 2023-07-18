@@ -1,7 +1,7 @@
 export const ofd = ({
                       table_name, ofd_schema, view_id,
                       pafpd_table, ihp_table, dds_table, sba_table,
-                      nfip_table, usda_table,
+                      nfip_table, usda_table, hmgp_table
                     }
 ) => `
 with
@@ -72,12 +72,18 @@ with
       GROUP BY 1, 2, 3
 --       HAVING sum(indemnity_amount) > 0
     ),
+  hmgp as (
+    SELECT disaster_number::character varying, LPAD(state_number_code, 2, '0') || LPAD(county_code, 3, '0') AS geoid,
+           SUM(federal_share_obligated) federal_share_obligated
+    FROM ${ofd_schema}.${hmgp_table} --open_fema_data.hazard_mitigation_assistance_projects_v3_728
+    GROUP BY 1, 2
+  ),
 	disaster_declarations_summary as (
 		SELECT
 			COALESCE(disasters.disaster_number, ihp.disaster_number, pa.disaster_number,
-					 sba.disaster_number, nfip.disaster_number, croploss.disaster_number)	    disaster_number,
+					 sba.disaster_number, nfip.disaster_number, croploss.disaster_number, hmgp.disaster_number)	    disaster_number,
 			COALESCE(disasters.geoid, ihp.geoid, pa.geoid,
-					 sba.geoid, nfip.geoid, croploss.geoid) 								                  geoid,
+					 sba.geoid, nfip.geoid, croploss.geoid, hmgp.geoid) 								                  geoid,
 			COALESCE(disasters.incident_type, ihp.incident_type, pa.incident_type,
 					 nfip.incident_type, croploss.incident_type)			                        incident_type,
 			MIN(incident_begin_date)                                                   		fema_incident_begin_date,
@@ -86,6 +92,7 @@ with
 			SUM(COALESCE(project_amount, 0)) 												                      pa_loss,
 			SUM(COALESCE(total_verified_loss, 0)) 											                  sba_loss,
 			SUM(COALESCE(total_amount_paid, 0)) 											                    nfip_loss,
+		  SUM(COALESCE(federal_share_obligated, 0))                                     hmgp_funding,
 			SUM(COALESCE(ihp_verified_loss, 0) + COALESCE(project_amount, 0) +
 				COALESCE(total_verified_loss, 0) + COALESCE(total_amount_paid, 0))          fema_property_damage,
 			SUM(COALESCE(crop_loss, 0))                                                   fema_crop_damage
@@ -99,6 +106,8 @@ with
 		FULL OUTER JOIN croploss
 		USING (disaster_number, geoid)
 		FULL OUTER JOIN disasters
+		USING (disaster_number, geoid)
+		FULL OUTER JOIN hmgp
 		USING (disaster_number, geoid)
 		GROUP BY 1, 2, 3
 	)
@@ -121,7 +130,7 @@ SELECT disaster_number, geoid,
          WHEN lower(incident_type) = 'volcanic eruption'                                THEN 'volcano'
        END incident_type,
        fema_incident_begin_date, fema_incident_end_date,
-       ihp_loss, pa_loss, sba_loss, nfip_loss,
+       ihp_loss, pa_loss, sba_loss, nfip_loss, hmgp_funding,
        fema_property_damage, fema_crop_damage
 INTO  ${ofd_schema}.${table_name}_${view_id}
 FROM disaster_declarations_summary;
