@@ -10,7 +10,7 @@ export default async function publish(ctx: Context) {
     params: {
       table_name, ofd_schema,
       pafpd_table, ihp_table, dds_table, sba_table,
-      nfip_table, usda_table
+      nfip_table, usda_table, hmgp_table
     }
   } = ctx;
 
@@ -31,7 +31,7 @@ export default async function publish(ctx: Context) {
     const createTableSql = ofd({
       table_name, ofd_schema, view_id,
       pafpd_table, ihp_table, dds_table, sba_table,
-      nfip_table, usda_table,
+      nfip_table, usda_table, hmgp_table
     });
 
     sqlLog.push(createTableSql);
