@@ -20,6 +20,11 @@ import {
 } from "./actions";
 import getEtlWorkDir from "var/getEtlWorkDir";
 
+// import {
+//   existsSync,
+//   mkdirSync,
+// } from "fs";
+
 export default async function publish({
   pgEnv,
   user_id,
@@ -93,6 +98,11 @@ export default async function publish({
 
   try {
     const tmpLocation = getEtlWorkDir();
+    // const tmpLocation = `${getEtlWorkDir()}/census_${etlContextId}/`;
+    // if (!existsSync(tmpLocation)) {
+    //   mkdirSync(tmpLocation, { recursive: true });
+    // }
+    // use fs to make tmpLocation if it doesn't exist
 
     logger.info(`\nGet into new try block: ${tmpLocation}`);
     const files = await getFiles(url);
@@ -280,7 +290,7 @@ export default async function publish({
     }
 
     // Create Mbtile
-    await createViewMbtiles(view_id, source_id, etlContextId);
+    await createViewMbtiles(view_id, source_id, etlContextId, { preserveColumns: ["geoid"]});
 
     const finalEvent = {
       type: "Tiger_dataset.FINAL",

@@ -40,7 +40,7 @@ export async function createViewMbtiles(
   damaViewId: number,
   damaSourceId: number,
   etlContextId: number,
-  mbtilesOptions: Record<string, Array<string> | string | number | any> | any = {}
+  mbtilesOptions: Record<string, Array<string> | string | number | boolean> | any = {}
 ) {
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup }: any =
     await new Promise((resolve, reject) =>
