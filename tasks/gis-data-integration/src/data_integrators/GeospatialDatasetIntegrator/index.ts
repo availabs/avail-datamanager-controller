@@ -259,9 +259,16 @@ export default class GeospatialDatasetIntegrator {
       if (type === "Directory") {
         await mkdirAsync(join(<string>datasetDir, path));
       } else {
-        if (/\//.test(path)) {
-          const d = path.replace(/\/[^/]*$/, "");
-          await mkdirAsync(join(<string>datasetDir, d), { recursive: true });
+        //  There was a problem where files nested in directories
+        //    were passed to injestDatasetEntries before the directory containing them.
+        //
+        //    This resulted in ENOENT errors when the code tried to create a file
+        //      in a non-existent directory.
+        //
+        //    Therefore we need to preemptively create the directories to avoid NOENT errors.
+        if (/\//.test(path)) { // path contains a "/"
+          const dir = dirname(path);
+          await mkdirAsync(join(<string>datasetDir, dir), { recursive: true });
         }
 
         // If we havent't yet determined the datasetType, try using file extension.
