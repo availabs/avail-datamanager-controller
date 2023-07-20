@@ -53,7 +53,7 @@ export default class TasksControllerWithWorkers extends BaseTasksController {
     this.pgboss_worker_configs_by_queue_name = {};
     this.pgboss_worker_id_by_queue_name_by_pgenv = {};
 
-    this.registerTaskQueue(DEFAULT_QUEUE_NAME, {});
+    this.registerTaskQueue(DEFAULT_QUEUE_NAME, { teamSize: 2, teamConcurrency: 2, teamRefill: true });
   }
 
   private async queueExistsOnPgEnv(
