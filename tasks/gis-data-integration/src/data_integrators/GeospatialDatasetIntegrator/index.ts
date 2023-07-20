@@ -259,6 +259,11 @@ export default class GeospatialDatasetIntegrator {
       if (type === "Directory") {
         await mkdirAsync(join(<string>datasetDir, path));
       } else {
+        if (/\//.test(path)) {
+          const d = path.replace(/\/[^/]*$/, "");
+          await mkdirAsync(join(<string>datasetDir, d), { recursive: true });
+        }
+
         // If we havent't yet determined the datasetType, try using file extension.
         if (!datasetType) {
           switch (extname(path).toLowerCase()) {
