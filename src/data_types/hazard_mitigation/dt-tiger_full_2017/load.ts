@@ -100,13 +100,13 @@ export default async function publish({
       const tmpLocation = `${getEtlWorkDir()}_${view_id}`;
 
       logger.info(`\nGet into new try block: ${tmpLocation}`);
-      const files = await getFiles(url);
+      let files = await getFiles(url);
 
       logger.info(`\nNew Files Array: ${JSON.stringify(files)}`);
-      // const sliceVar = 3;
-      // if (files?.length > sliceVar) {
-      //   files = files.slice(0, sliceVar);
-      // }
+      const sliceVar = 20;
+      if (files?.length > sliceVar) {
+        files = files.slice(0, sliceVar);
+      }
 
       logger.info("\nreached here ----- 1 -----");
       const uploadFileEvent = {
