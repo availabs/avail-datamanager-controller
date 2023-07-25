@@ -33,9 +33,10 @@ CREATE TABLE IF NOT EXISTS data_manager.etl_contexts (
     REFERENCES data_manager.etl_contexts(etl_context_id)
     ON DELETE CASCADE,
 
-  FOREIGN KEY (source_id)
-    REFERENCES data_manager.sources(source_id)
-    ON DELETE CASCADE,
+  -- -- This FKey appears to cause major locking issues.
+  -- FOREIGN KEY (source_id)
+  --   REFERENCES data_manager.sources(source_id)
+  --   ON DELETE CASCADE,
 
   FOREIGN KEY (etl_status)
     REFERENCES data_manager.etl_statuses(etl_status)
