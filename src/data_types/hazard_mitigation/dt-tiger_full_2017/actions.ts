@@ -44,7 +44,7 @@ export async function createView(
     metadata,
   } = newDamaView;
 
-  const table_schema = origTableSchema || "geo";
+  const table_schema = origTableSchema || "tiger";
   let table_name = `${view_values?.table_name}_${damaViewId}`;
 
   // Assign the default table_name if one wasn't specified
@@ -168,12 +168,12 @@ export const uploadFiles = (
 
   const pg = getPostgresConnectionString(pgEnv);
   execSync(
-    `ogr2ogr -f PostgreSQL PG:"${pg} schemas=geo" ${fileName.replace(
+    `ogr2ogr -f PostgreSQL PG:"${pg} schemas=temp" ${fileName.replace(
       ".zip",
       ".json"
     )} -lco GEOMETRY_NAME=wkb_geometry -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=ogc_fid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${
       ["state", "county"].includes(table_name?.toLowerCase())
-        ? `-nln geo.tl_2017_${table_name}_${view_id}`
+        ? `-nln tiger.tl_2017_${table_name}_${view_id}`
         : ""
     }`,
     { cwd: `${tmpLocation}` }
@@ -191,12 +191,12 @@ export const mergeTables = async (
   let sql = fileNames
     ?.map(
       (file) =>
-        `SELECT wkb_geometry, statefp, countyfp, geoid2 as geoid, name2 as name, namelsad FROM geo.${file} `
+        `SELECT wkb_geometry, statefp, countyfp, geoid2 as geoid, name2 as name, namelsad FROM temp.${file} `
     )
     .join(` UNION ALL `);
 
   sql = `with t as ( ${sql} )
-        SELECT * INTO geo.tl_2017_${table_name}_${view_id} FROM t;`;
+        SELECT * INTO tiger.tl_2017_${table_name}_${view_id} FROM t;`;
 
   logger.info(`\nSQL is: \n${sql}`);
 
@@ -208,7 +208,7 @@ export const dropTmpTables = async (
   dbConnection: PoolClient
 ) => {
   let sql = fileNames
-    ?.map((file: string | any) => `DROP TABLE IF Exists geo.${file};`)
+    ?.map((file: string | any) => `DROP TABLE IF Exists temp.${file};`)
     .join(" ");
 
   logger.info(`sql here in the dropTmpTables: \n\n\n ${sql}`);
@@ -229,7 +229,7 @@ export const createIndices = async (
   const query = `
       BEGIN;
         CREATE INDEX IF NOT EXISTS wkb_geometry_idx_tl_2017_${table_name}_${view_id}
-        ON geo.tl_2017_${table_name}_${view_id} USING gist
+        ON tiger.tl_2017_${table_name}_${view_id} USING gist
         (wkb_geometry)
         TABLESPACE pg_default;
       COMMIT;
@@ -257,7 +257,7 @@ export const correctGeoid = async (
   const query: string = `
       BEGIN;
 
-      ALTER TABLE geo.tl_2017_${table_name}_${view_id}
+      ALTER TABLE tiger.tl_2017_${table_name}_${view_id}
       ALTER COLUMN geoid TYPE text USING lpad(geoid::text, ${geoLengths[table_name]}, '0');
 
       COMMIT;
@@ -269,48 +269,3 @@ export const correctGeoid = async (
   return dbConnection.query(query);
 };
 
-export const checkCurrentSourceInQueue = async (source_type: string) => {
-  logger.info(`__dirname: ${__dirname}`);
-  const fpath = join(
-    __dirname,
-    "./../../../data_manager/tasks/sql/create_dama_pgboss_view.sql"
-  );
-  const sql = await readFileAsync(fpath, { encoding: "utf8" });
-  await dama_db.query(sql);
-
-  const query = `
-    SELECT t.etl_context_id, t.source_id, s.name FROM data_manager.dama_task_queue AS t
-    LEFT JOIN data_manager.sources AS s
-    ON t.source_id = s.source_id
-    WHERE (
-      ( s.type = $1 )
-      AND
-      ( etl_status = 'OPEN' )
-      AND
-      ( task_state = 'active' )
-    )
-    LIMIT 1;
-    `;
-
-  const res: NodePgQueryResult = await dama_db.query({
-    text: query,
-    values: [source_type],
-  });
-
-  let response = {
-    status: "error",
-    source_id: null,
-    etl_context_id: null,
-    source_name: null,
-  };
-
-  if (res?.rows?.length) {
-    response = {
-      status: "success",
-      source_id: res?.rows[0]?.source_id,
-      etl_context_id: res?.rows[0]?.etl_context_id,
-      source_name: res?.rows[0]?.name,
-    };
-  }
-  return response;
-};

@@ -56,8 +56,11 @@ export default async function publish({
     source_id = damaSource?.source_id;
   }
 
-  // logger.info("is new schema geo Created?");
-  //   await dbConnection.query("CREATE SCHEMA IF NOT EXISTS geo");
+  logger.info("is new schema geo Created?");
+  let dbConnection: PoolClient = await dama_db.getDbConnection();
+  // await dbConnection.query("CREATE SCHEMA IF NOT EXISTS geo");
+  await dbConnection.query("CREATE SCHEMA IF NOT EXISTS temp");
+  await dbConnection.query("CREATE SCHEMA IF NOT EXISTS tiger");
     logger.info("Yayyyy! geo Created/updated?");
   const domain = ["STATE", "COUNTY", "TRACT", "COUSUB"];
   for (const table_name of domain) {
@@ -66,8 +69,7 @@ export default async function publish({
     const url = `https://www2.census.gov/geo/tiger/TIGER2017/${table_name}/`;
 
     const sqlLog: Array<any> = [];
-    const dbConnection: PoolClient = await dama_db.getDbConnection();
-    // const dbConnection: PoolClient = await dama_db.getDbConnection();
+    dbConnection = await dama_db.getDbConnection();
 
     logger.info("About to create new view");
     logger.info(`Old view ID: ${existing_view_id}`);
@@ -100,13 +102,22 @@ export default async function publish({
       const tmpLocation = `${getEtlWorkDir()}_${view_id}`;
 
       logger.info(`\nGet into new try block: ${tmpLocation}`);
-      let files = await getFiles(url);
+      const files = await getFiles(url);
+
+      // --------------First drop the tables if exist ----------------------
+
+      await dropTmpTables(
+        files?.map((f: string) => f?.replace(".zip", "")),
+        dbConnection
+      );
+
+      // ----------------------------------------------------------------------
 
       logger.info(`\nNew Files Array: ${JSON.stringify(files)}`);
-      const sliceVar = 20;
-      if (files?.length > sliceVar) {
-        files = files.slice(0, sliceVar);
-      }
+      // const sliceVar = 20;
+      // if (files?.length > sliceVar) {
+      //   files = files.slice(0, sliceVar);
+      // }
 
       logger.info("\nreached here ----- 1 -----");
       const uploadFileEvent = {
@@ -165,10 +176,10 @@ export default async function publish({
 
         logger.info(
           `\nAdding Primary Key using: \n
-          ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
+          ALTER TABLE tiger.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
         );
         await dbConnection.query(
-          `ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
+          `ALTER TABLE tiger.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
         );
 
         logger.info("\nreached here ----- 4 -----");
@@ -248,7 +259,7 @@ export default async function publish({
       logger.info("\nreached here ----- 7 -----");
 
       await update_view({
-        table_schema: "geo",
+        table_schema: "tiger",
         table_name: `tl_2017_${table_name.toLowerCase()}`,
         view_id,
         dbConnection,
