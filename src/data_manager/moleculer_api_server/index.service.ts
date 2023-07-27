@@ -274,6 +274,9 @@ export default class ApiService extends Service {
               "/hazard_mitigation/tigerDownloadAction":
                 "hazard_mitigation.tigerDownloadAction.load",
 
+              "/hazard_mitigation/tigerFullDownloadAction":
+                "hazard_mitigation.tigerFullDownloadAction.load",
+
               "/hazard_mitigation/versionSelectorUtils":
                 "hazard_mitigation.versionSelectorUtils.load",
 
