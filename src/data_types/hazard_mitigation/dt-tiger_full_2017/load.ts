@@ -4,9 +4,9 @@ import logger from "data_manager/logger";
 import dama_meta from "data_manager/meta";
 import dama_db from "data_manager/dama_db";
 import dama_events from "data_manager/events";
+import pgFormat from "pg-format";
 
 import { getFiles } from "./scrapper";
-import { update_view } from "../utils/macros";
 import EventTypes from "../constants/EventTypes";
 import { createViewMbtiles } from "../../dt-gis_dataset/mbtiles/mbtiles";
 import {
@@ -300,7 +300,6 @@ export default async function publish({
         // }
 
         // Create Mbtile
-
       } catch (e) {
         logger.info("\nreached here ----- 10: Error -----");
 
@@ -329,16 +328,27 @@ export default async function publish({
   dbConnection = await dama_db.getDbConnection();
   try {
     await dbConnection.query("BEGIN ;");
+
     await createViewTable(finalTableQueries, source_id, view_id, dbConnection);
+
     await dbConnection.query(
       `ALTER TABLE tiger.tl_s${source_id}_v${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
     );
-    await update_view({
-      table_schema: "tiger",
-      table_name: `tiger.tl_s${source_id}_v${view_id}`,
-      view_id,
-      dbConnection,
+
+    await dbConnection.query({
+      text: `UPDATE data_manager.views
+      SET table_schema = $1,
+          table_name   = $2,
+          data_table   = $3
+      WHERE view_id = $4`,
+      values: [
+        "tiger",
+        `tl_s${source_id}_v${view_id}`,
+        pgFormat("%I.%I", "tiger", `tl_s${source_id}_v${view_id}`),
+        view_id,
+      ],
     });
+
     await dbConnection.query({
       text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
       values: [view_id],
@@ -346,17 +356,19 @@ export default async function publish({
     await dropTmpTables(tempTableNames, dbConnection);
 
     const featureEditor = (feature: any) => {
-      feature.tippecanoe = { "layer" : `${feature.properties.tiger_type}_${feature.properties.year}` };
+      feature.tippecanoe = {
+        layer: `${feature.properties.tiger_type}_${feature.properties.year}`,
+      };
       delete feature.properties.tiger_type;
       delete feature.properties.year;
       return feature;
     };
-    await createViewMbtiles(view_id, source_id, etlContextId,
-      {
-        preserveColumns: ["geoid", "tiger_type", "year"],
-        featureEditor,
-      }
-    );
+
+    await createViewMbtiles(view_id, source_id, etlContextId, {
+      preserveColumns: ["geoid", "tiger_type", "year"],
+      featureEditor,
+    });
+
     await dbConnection.query("COMMIT;");
   } catch (error) {
     await dbConnection.query("ROLLBACK;");
