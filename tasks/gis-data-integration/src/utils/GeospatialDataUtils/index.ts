@@ -91,8 +91,8 @@ export type GeoDatasetLayerMetadata = {
   layerName: string;
   layerId: number;
   featuresCount: number;
-  srsAuthorityName: string;
-  srsAuthorityCode: string;
+  srsAuthorityName: string | null;
+  srsAuthorityCode: string | null;
   fieldsMetadata: GeoDatasetLayerFieldMetadata[];
 };
 
@@ -109,7 +109,11 @@ export function getLayersMetadata(
   const dataset = gdal.open(datasetPath);
 
   const layersMetadata = dataset.layers.map((layer, layerId) => {
-    const { name: layerName, features, fields, srs } = layer;
+    const { name: layerName, features, fields, srs, geomColumn } = layer;
+
+    if (!geomColumn) {
+      return null;
+    }
 
     const featuresCount = features.count();
 
@@ -127,10 +131,8 @@ export function getLayersMetadata(
       }
     );
 
-    // @ts-ignore
-    const srsAuthorityName = srs.getAuthorityName(null);
-    // @ts-ignore
-    const srsAuthorityCode = srs.getAuthorityCode(null);
+    const srsAuthorityName = srs?.getAuthorityName(null) ?? null;
+    const srsAuthorityCode = srs?.getAuthorityCode(null) ?? null;
 
     // NOTE: We don't get the geometry type via metadata because it is unreliable.
     return {
@@ -141,10 +143,11 @@ export function getLayersMetadata(
       srsAuthorityCode,
       fieldsMetadata,
     };
-  });
+  }).filter(Boolean);
 
   dataset.close();
 
+  // @ts-ignore
   return layersMetadata;
 }
 
