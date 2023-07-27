@@ -161,7 +161,9 @@ export const uploadFiles = (
   pgEnv = "tig_dama_dev",
   url: string,
   table_name: string,
+  source_id: number,
   view_id: number,
+  year: number,
   tmpLocation: string
 ) => {
   logger.info(`uploading... ${url + fileName}`);
@@ -173,7 +175,7 @@ export const uploadFiles = (
       ".json"
     )} -lco GEOMETRY_NAME=wkb_geometry -lco GEOM_TYPE=geometry -t_srs EPSG:4326 -lco FID=ogc_fid -lco SPATIAL_INDEX=GIST -nlt PROMOTE_TO_MULTI -overwrite ${
       ["state", "county"].includes(table_name?.toLowerCase())
-        ? `-nln tiger.tl_2017_${table_name}_${view_id}`
+        ? `-nln temp.tl_${year}_${table_name}_s${source_id}_v${view_id}`
         : ""
     }`,
     { cwd: `${tmpLocation}` }
@@ -184,7 +186,9 @@ export const uploadFiles = (
 
 export const mergeTables = async (
   fileNames: Array<string>,
+  source_id: number,
   view_id: number,
+  year: number,
   table_name: string,
   dbConnection: PoolClient
 ) => {
@@ -196,7 +200,7 @@ export const mergeTables = async (
     .join(` UNION ALL `);
 
   sql = `with t as ( ${sql} )
-        SELECT * INTO tiger.tl_2017_${table_name}_${view_id} FROM t;`;
+        SELECT * INTO temp.tl_${year}_${table_name}_s${source_id}_v${view_id} FROM t;`;
 
   logger.info(`\nSQL is: \n${sql}`);
 
@@ -220,7 +224,9 @@ export const dropTmpTables = async (
 };
 
 export const createIndices = async (
+  source_id: number,
   view_id: number,
+  year: number,
   table_name: string,
   sqlLog: Array<string>,
   dbConnection: PoolClient
@@ -229,7 +235,7 @@ export const createIndices = async (
   const query = `
       BEGIN;
         CREATE INDEX IF NOT EXISTS wkb_geometry_idx_tl_2017_${table_name}_${view_id}
-        ON tiger.tl_2017_${table_name}_${view_id} USING gist
+        ON temp.tl_${year}_${table_name}_s${source_id}_v${view_id} USING gist
         (wkb_geometry)
         TABLESPACE pg_default;
       COMMIT;
@@ -242,7 +248,9 @@ export const createIndices = async (
 };
 
 export const correctGeoid = async (
+  source_id: number,
   view_id: number,
+  year: number,
   table_name: string,
   sqlLog: Array<string>,
   dbConnection: PoolClient
@@ -257,7 +265,7 @@ export const correctGeoid = async (
   const query: string = `
       BEGIN;
 
-      ALTER TABLE tiger.tl_2017_${table_name}_${view_id}
+      ALTER TABLE temp.tl_${year}_${table_name}_s${source_id}_v${view_id}
       ALTER COLUMN geoid TYPE text USING lpad(geoid::text, ${geoLengths[table_name]}, '0');
 
       COMMIT;
@@ -269,3 +277,18 @@ export const correctGeoid = async (
   return dbConnection.query(query);
 };
 
+export const createViewTable = async (
+  typeToQueryMap: Array<string>,
+  source_id: number,
+  view_id: number,
+  dbConnection: PoolClient
+) => {
+  let sql = typeToQueryMap?.map((q) => q).join(` UNION ALL `);
+
+  sql = `with t as ( ${sql} )
+        SELECT * INTO tiger.tl_s${source_id}_v${view_id} FROM t;`;
+
+  logger.info(`\nSQL is: \n${sql}`);
+
+  return dbConnection.query(sql);
+};
