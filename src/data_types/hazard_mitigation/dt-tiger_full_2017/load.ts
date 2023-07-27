@@ -282,7 +282,9 @@ export default async function publish({
             table_name === "STATE" ? "stusps as name" : "name"
           }, ${year} as year, '${table_name?.toLowerCase()}' as tiger_type FROM temp.tl_${year}_${table_name}_s${source_id}_v${view_id}`
         );
-        tempTableNames.push(`tl_${year}_${table_name}_s${source_id}_v${view_id}`);
+        tempTableNames.push(
+          `tl_${year}_${table_name}_s${source_id}_v${view_id}`
+        );
         logger.info("\nreached here ----- 8 -----");
 
         await dbConnection.query("COMMIT;");
@@ -298,7 +300,18 @@ export default async function publish({
         // }
 
         // Create Mbtile
-        // await createViewMbtiles(view_id, source_id, etlContextId, { preserveColumns: ["geoid"]});
+        const featureEditor = (feature) => {
+          feature.tippecanoe = { "layer" : `${feature.properties.tiger_type}_${feature.properties.year}` };
+          delete feature.properties.tiger_type;
+          delete feature.properties.year;
+          return feature;
+        };
+        await createViewMbtiles(view_id, source_id, etlContextId,
+          {
+            preserveColumns: ["geoid", "tiger_type", "year"],
+            featureEditor,
+          }
+        );
       } catch (e) {
         logger.info("\nreached here ----- 10: Error -----");
 
@@ -337,10 +350,11 @@ export default async function publish({
       view_id,
       dbConnection,
     });
-    await dropTmpTables(
-      tempTableNames,
-      dbConnection
-    );
+    await dbConnection.query({
+      text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
+      values: [view_id],
+    });
+    await dropTmpTables(tempTableNames, dbConnection);
     await dbConnection.query("COMMIT;");
   } catch (error) {
     await dbConnection.query("ROLLBACK;");
