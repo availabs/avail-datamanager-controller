@@ -83,9 +83,11 @@ export async function createViewMbtiles(
   await dama_events.dispatch(initialEvent, etlContextId);
 
   const optionalColumns = mbtilesOptions?.preserveColumns || [];
+  const featureEditor = mbtilesOptions?.featuresEditor || (d) => d
   const featuresAsyncIterator =
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(damaViewId, {
       properties: ["ogc_fid", ...optionalColumns],
+      featureEditor
     });
 
   logger.info(
@@ -490,15 +492,17 @@ export async function generateGisDatasetViewGeoJsonSqlQuery(
   return sql;
 }
 
+
 export async function* makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(
   damaViewId: number,
   config = {}
 ) {
   const sql = await generateGisDatasetViewGeoJsonSqlQuery(damaViewId, config);
-
+  const {featureEditor = (d) => d }= config
   const iter = <AsyncGenerator<any>>dama_db.makeIterator(sql, config);
 
   for await (const { feature } of iter) {
-    yield feature;
+
+    yield featureEditor(feature);
   }
 }
