@@ -300,18 +300,7 @@ export default async function publish({
         // }
 
         // Create Mbtile
-        const featureEditor = (feature) => {
-          feature.tippecanoe = { "layer" : `${feature.properties.tiger_type}_${feature.properties.year}` };
-          delete feature.properties.tiger_type;
-          delete feature.properties.year;
-          return feature;
-        };
-        await createViewMbtiles(view_id, source_id, etlContextId,
-          {
-            preserveColumns: ["geoid", "tiger_type", "year"],
-            featureEditor,
-          }
-        );
+
       } catch (e) {
         logger.info("\nreached here ----- 10: Error -----");
 
@@ -355,6 +344,19 @@ export default async function publish({
       values: [view_id],
     });
     await dropTmpTables(tempTableNames, dbConnection);
+
+    const featureEditor = (feature: any) => {
+      feature.tippecanoe = { "layer" : `${feature.properties.tiger_type}_${feature.properties.year}` };
+      delete feature.properties.tiger_type;
+      delete feature.properties.year;
+      return feature;
+    };
+    await createViewMbtiles(view_id, source_id, etlContextId,
+      {
+        preserveColumns: ["geoid", "tiger_type", "year"],
+        featureEditor,
+      }
+    );
     await dbConnection.query("COMMIT;");
   } catch (error) {
     await dbConnection.query("ROLLBACK;");
