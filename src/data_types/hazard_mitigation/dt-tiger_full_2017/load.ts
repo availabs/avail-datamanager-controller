@@ -17,6 +17,7 @@ import {
   mergeTables,
   dropTmpTables,
   correctGeoid,
+  createViewTable,
 } from "./actions";
 import getEtlWorkDir from "var/getEtlWorkDir";
 
@@ -56,243 +57,298 @@ export default async function publish({
     source_id = damaSource?.source_id;
   }
 
-  // logger.info("is new schema geo Created?");
-  //   await dbConnection.query("CREATE SCHEMA IF NOT EXISTS geo");
-    logger.info("Yayyyy! geo Created/updated?");
-  const domain = ["STATE", "COUNTY", "TRACT", "COUSUB"];
-  for (const table_name of domain) {
-    logger.info("------------- For the new Table --------------------");
-    logger.info(`------------- ${table_name} --------------------`);
-    const url = `https://www2.census.gov/geo/tiger/TIGER2017/${table_name}/`;
+  let dbConnection: PoolClient = await dama_db.getDbConnection();
+  let view_id = parseInt(existing_view_id, 10);
+  let newDamaView: any = null;
 
-    const sqlLog: Array<any> = [];
-    const dbConnection: PoolClient = await dama_db.getDbConnection();
-    // const dbConnection: PoolClient = await dama_db.getDbConnection();
-
-    logger.info("About to create new view");
-    logger.info(`Old view ID: ${existing_view_id}`);
-    let view_id = parseInt(existing_view_id, 10);
-    let newDamaView: any = null;
-
-    if (isNaN(view_id)) {
-      logger.info("is View Created?");
-      newDamaView = await createView(
-        {
-          source_id,
-          user_id: 7,
-          view_dependencies: JSON.parse(view_dependencies),
-          metadata: { ...customViewAttributes },
-          table_name: `tl_2017_${table_name?.toLowerCase()}`,
-        },
-        dbConnection
-      );
-      logger.info("Yayy! View Created");
-      if (newDamaView && newDamaView?.view_id) {
-        logger.info("View_id assigned");
-        view_id = newDamaView.view_id;
-      }
+  if (isNaN(view_id)) {
+    logger.info("is View Created?");
+    newDamaView = await createView(
+      {
+        source_id,
+        user_id: 7,
+        view_dependencies: JSON.parse(view_dependencies),
+        metadata: { ...customViewAttributes },
+      },
+      dbConnection
+    );
+    logger.info("Yayy! View Created");
+    if (newDamaView && newDamaView?.view_id) {
+      logger.info("View_id assigned");
+      view_id = newDamaView.view_id;
     }
+  }
 
-    await dbConnection.query("BEGIN ;");
-    sqlLog.push("BEGIN ;");
+  logger.info("is new schema geo Created?");
+  try {
+    await dbConnection.query("CREATE SCHEMA IF NOT EXISTS temp");
+    await dbConnection.query("CREATE SCHEMA IF NOT EXISTS tiger");
+  } catch (error) {
+    logger.info("Error in the create schemas");
+  }
 
-    try {
-      const tmpLocation = `${getEtlWorkDir()}_${view_id}`;
-
-      logger.info(`\nGet into new try block: ${tmpLocation}`);
-      let files = await getFiles(url);
-
-      logger.info(`\nNew Files Array: ${JSON.stringify(files)}`);
-      const sliceVar = 20;
-      if (files?.length > sliceVar) {
-        files = files.slice(0, sliceVar);
-      }
-
-      logger.info("\nreached here ----- 1 -----");
-      const uploadFileEvent = {
-        type: `Tiger_dataset:${table_name}_GIS_FILE_UPLOAD_PROGRESS`,
-        payload: {
-          files,
-        },
-        meta: {
-          user_id,
-          timestamp: new Date().toISOString(),
-        },
-      };
-      logger.info(`\nUpload Event ${JSON.stringify(uploadFileEvent, null, 3)}`);
-      await dama_events.dispatch(uploadFileEvent, etlContextId);
-
-      await files?.reduce(async (acc, curr) => {
-        await acc;
-        return fetchFileList(curr, url, tmpLocation).then(() =>
-          uploadFiles(curr, pgEnv, url, table_name, view_id, tmpLocation)
-        );
-      }, Promise.resolve());
-
-      execSync(`rm -rf ${tmpLocation}`);
-
+  const roundOff10 = (n: number) => n - (n % 10);
+  logger.info("Yayyyy! geo Created/updated?");
+  const finalTableQueries: Array<string> = [];
+  const tempTableNames: Array<string> = [];
+  const domain = ["STATE", "COUNTY", "TRACT", "COUSUB"];
+  const years = [2017, 2020];
+  for (const [, tigerYear] of years.entries()) {
+    for (const [index, table_name] of domain.entries()) {
+      const year: number = roundOff10(tigerYear);
+      logger.info("\n\n------------- For the new Table --------------------");
       logger.info(
-        `new damaview ${newDamaView.table_name} and table_name : ${table_name}`
+        `\n\n------------- ${table_name} ------------------------\n\n`
       );
+      const url = `https://www2.census.gov/geo/tiger/TIGER${tigerYear}/${table_name}/`;
 
-      logger.info("\nreached here ----- 2 -----");
-      if (files?.length > 1) {
-        logger.info("\nreached here ----- 3 -----");
+      const sqlLog: Array<any> = [];
+      dbConnection = await dama_db.getDbConnection();
 
-        const mergeTableEvent = {
-          type: `Tiger_dataset:${table_name}_MERGE_TABLE_EVENT`,
-          payload: {
-            files,
-          },
-          meta: {
-            user_id,
-            view_id,
-            table_name,
-            timestamp: new Date().toISOString(),
-          },
-        };
-        logger.info(
-          `\nMerge Table Event ${JSON.stringify(mergeTableEvent, null, 3)} `
-        );
-        await dama_events.dispatch(mergeTableEvent, etlContextId);
+      await dbConnection.query("BEGIN ;");
+      sqlLog.push("BEGIN ;");
 
-        await mergeTables(
-          files?.map((f) => f?.replace(".zip", "")),
-          view_id,
-          table_name,
-          dbConnection
-        );
+      try {
+        const tmpLocation = `${getEtlWorkDir()}_v${view_id}_y${roundOff10(
+          year
+        )}_${index}`;
 
-        logger.info(
-          `\nAdding Primary Key using: \n
-          ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
-        );
-        await dbConnection.query(
-          `ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
-        );
+        logger.info(`\nGet into new try block: ${tmpLocation}`);
+        const files = await getFiles(url);
 
-        logger.info("\nreached here ----- 4 -----");
-
-        const dropTableEvent = {
-          type: `Tiger_dataset:${table_name}_DROP_TABLE_EVENT`,
-          payload: {
-            files,
-          },
-          meta: {
-            user_id,
-            timestamp: new Date().toISOString(),
-          },
-        };
-        logger.info(
-          `\nDrop Table Event ${JSON.stringify(dropTableEvent, null, 3)} `
-        );
-        await dama_events.dispatch(dropTableEvent, etlContextId);
-
+        // --------------First drop the tables if exist ----------------------
         await dropTmpTables(
           files?.map((f: string) => f?.replace(".zip", "")),
           dbConnection
         );
+        // --------------------------------------------------------------------
+
+        logger.info(`\nNew Files Array: ${JSON.stringify(files)}`);
+
+        logger.info("\nreached here ----- 1 -----");
+        const uploadFileEvent = {
+          type: `Tiger_dataset:${table_name}_GIS_FILE_UPLOAD_PROGRESS`,
+          payload: {
+            files,
+          },
+          meta: {
+            user_id,
+            timestamp: new Date().toISOString(),
+          },
+        };
+        logger.info(
+          `\nUpload Event ${JSON.stringify(uploadFileEvent, null, 3)}`
+        );
+        await dama_events.dispatch(uploadFileEvent, etlContextId);
+
+        await files?.reduce(async (acc, curr) => {
+          await acc;
+          return fetchFileList(curr, url, tmpLocation).then(() =>
+            uploadFiles(
+              curr,
+              pgEnv,
+              url,
+              table_name,
+              source_id,
+              view_id,
+              year,
+              tmpLocation
+            )
+          );
+        }, Promise.resolve());
+
+        execSync(`rm -rf ${tmpLocation}`);
+
+        logger.info(
+          `new damaview ${newDamaView.table_name} and table_name : ${table_name}`
+        );
+
+        logger.info("\nreached here ----- 2 -----");
+        if (files?.length > 1) {
+          logger.info("\nreached here ----- 3 -----");
+
+          const mergeTableEvent = {
+            type: `Tiger_dataset:${table_name}_MERGE_TABLE_EVENT`,
+            payload: {
+              files,
+            },
+            meta: {
+              user_id,
+              view_id,
+              table_name,
+              timestamp: new Date().toISOString(),
+            },
+          };
+          logger.info(
+            `\nMerge Table Event ${JSON.stringify(mergeTableEvent, null, 3)} `
+          );
+          await dama_events.dispatch(mergeTableEvent, etlContextId);
+
+          await mergeTables(
+            files?.map((f) => f?.replace(".zip", "")),
+            source_id,
+            view_id,
+            year,
+            table_name,
+            dbConnection
+          );
+
+          logger.info("\nreached here ----- 4 -----");
+
+          const dropTableEvent = {
+            type: `Tiger_dataset:${table_name}_DROP_TABLE_EVENT`,
+            payload: {
+              files,
+            },
+            meta: {
+              user_id,
+              timestamp: new Date().toISOString(),
+            },
+          };
+          logger.info(
+            `\nDrop Table Event ${JSON.stringify(dropTableEvent, null, 3)} `
+          );
+          await dama_events.dispatch(dropTableEvent, etlContextId);
+
+          await dropTmpTables(
+            files?.map((f: string) => f?.replace(".zip", "")),
+            dbConnection
+          );
+        }
+
+        logger.info("\nreached here ----- 5 -----");
+
+        const createIndiceEvent = {
+          type: `Tiger_dataset:${table_name}_CREATE_INDICES_EVENT`,
+          payload: {
+            files,
+          },
+          meta: {
+            user_id,
+            timestamp: new Date().toISOString(),
+          },
+        };
+        logger.info(
+          `\nCreate Indices Event ${JSON.stringify(
+            createIndiceEvent,
+            null,
+            3
+          )} `
+        );
+        await dama_events.dispatch(createIndiceEvent, etlContextId);
+
+        await createIndices(
+          source_id,
+          view_id,
+          year,
+          table_name?.toLowerCase(),
+          sqlLog,
+          dbConnection
+        );
+
+        logger.info("\nreached here ----- 6 -----");
+        const correctGeoidsEvent = {
+          type: `Tiger_dataset:${table_name}_CORRECT_GEOIDS_EVENT`,
+          payload: {
+            files,
+          },
+          meta: {
+            user_id,
+            timestamp: new Date().toISOString(),
+          },
+        };
+        logger.info(
+          `\ncorrectGeoidsEvent Event ${JSON.stringify(
+            correctGeoidsEvent,
+            null,
+            3
+          )} `
+        );
+        await dama_events.dispatch(correctGeoidsEvent, etlContextId);
+
+        await correctGeoid(
+          source_id,
+          view_id,
+          year,
+          table_name?.toLowerCase(),
+          sqlLog,
+          dbConnection
+        );
+
+        logger.info("\nreached here ----- 7 -----");
+
+        finalTableQueries.push(
+          `SELECT wkb_geometry, geoid, ${
+            table_name === "STATE" ? "stusps as name" : "name"
+          }, ${year} as year, '${table_name?.toLowerCase()}' as tiger_type FROM temp.tl_${year}_${table_name}_s${source_id}_v${view_id}`
+        );
+        tempTableNames.push(`tl_${year}_${table_name}_s${source_id}_v${view_id}`);
+        logger.info("\nreached here ----- 8 -----");
+
+        await dbConnection.query("COMMIT;");
+
+        // if (isNewSourceCreate) {
+        //   logger.info("called inside setSourceMetadata Begin");
+        //   await dbConnection.query({
+        //     text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
+        //     values: [view_id],
+        //   });
+        //   isNewSourceCreate = false;
+        //   logger.info("called inside setSourceMetadata End");
+        // }
+
+        // Create Mbtile
+        // await createViewMbtiles(view_id, source_id, etlContextId, { preserveColumns: ["geoid"]});
+      } catch (e) {
+        logger.info("\nreached here ----- 10: Error -----");
+
+        await dbConnection.query("ROLLBACK;");
+
+        const errEvent = {
+          type: EventTypes.PUBLISH_ERROR,
+          payload: {
+            message: (e as any).message,
+            successfulcreateSchema: sqlLog,
+            successfulcreateTable: sqlLog,
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            etl_context_id: etlContextId,
+          },
+        };
+        logger.info(`\nError Event ${JSON.stringify(errEvent, null, 3)} `);
+        throw e;
+      } finally {
+        dbConnection.release();
       }
-
-      logger.info("\nreached here ----- 5 -----");
-
-      const createIndiceEvent = {
-        type: `Tiger_dataset:${table_name}_CREATE_INDICES_EVENT`,
-        payload: {
-          files,
-        },
-        meta: {
-          user_id,
-          timestamp: new Date().toISOString(),
-        },
-      };
-      logger.info(
-        `\nCreate Indices Event ${JSON.stringify(createIndiceEvent, null, 3)} `
-      );
-      await dama_events.dispatch(createIndiceEvent, etlContextId);
-
-      await createIndices(
-        view_id,
-        table_name?.toLowerCase(),
-        sqlLog,
-        dbConnection
-      );
-
-      logger.info("\nreached here ----- 6 -----");
-      const correctGeoidsEvent = {
-        type: `Tiger_dataset:${table_name}_CORRECT_GEOIDS_EVENT`,
-        payload: {
-          files,
-        },
-        meta: {
-          user_id,
-          timestamp: new Date().toISOString(),
-        },
-      };
-      logger.info(
-        `\ncorrectGeoidsEvent Event ${JSON.stringify(
-          correctGeoidsEvent,
-          null,
-          3
-        )} `
-      );
-      await dama_events.dispatch(correctGeoidsEvent, etlContextId);
-
-      await correctGeoid(
-        view_id,
-        table_name?.toLowerCase(),
-        sqlLog,
-        dbConnection
-      );
-
-      logger.info("\nreached here ----- 7 -----");
-
-      await update_view({
-        table_schema: "geo",
-        table_name: `tl_2017_${table_name.toLowerCase()}`,
-        view_id,
-        dbConnection,
-        sqlLog,
-      });
-      logger.info("\nreached here ----- 8 -----");
-
-      await dbConnection.query("COMMIT;");
-
-      if (isNewSourceCreate) {
-        logger.info("called inside setSourceMetadata");
-        dbConnection.query({
-          text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
-          values: [view_id],
-        });
-        isNewSourceCreate = false;
-      }
-
-      // Create Mbtile
-      await createViewMbtiles(view_id, source_id, etlContextId, { preserveColumns: ["geoid"]});
-
-    } catch (e) {
-      logger.info("\nreached here ----- 10: Error -----");
-
-      await dbConnection.query("ROLLBACK;");
-
-      const errEvent = {
-        type: EventTypes.PUBLISH_ERROR,
-        payload: {
-          message: (e as any).message,
-          successfulcreateSchema: sqlLog,
-          successfulcreateTable: sqlLog,
-        },
-        meta: {
-          timestamp: new Date().toISOString(),
-          etl_context_id: etlContextId,
-        },
-      };
-      logger.info(`\nError Event ${JSON.stringify(errEvent, null, 3)} `);
-      throw e;
-    } finally {
-      dbConnection.release();
     }
   }
+
+  dbConnection = await dama_db.getDbConnection();
+  try {
+    await dbConnection.query("BEGIN ;");
+    await createViewTable(finalTableQueries, source_id, view_id, dbConnection);
+    await dbConnection.query(
+      `ALTER TABLE tiger.tl_s${source_id}_v${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
+    );
+    await update_view({
+      table_schema: "tiger",
+      table_name: `tiger.tl_s${source_id}_v${view_id}`,
+      view_id,
+      dbConnection,
+    });
+    await dropTmpTables(
+      tempTableNames,
+      dbConnection
+    );
+    await dbConnection.query("COMMIT;");
+  } catch (error) {
+    await dbConnection.query("ROLLBACK;");
+  } finally {
+    dbConnection.release();
+  }
+
+  logger.info(`Reached here with: ${JSON.stringify(finalTableQueries)}`);
   const finalEvent = {
     type: "Tiger_dataset.FINAL",
     payload: {

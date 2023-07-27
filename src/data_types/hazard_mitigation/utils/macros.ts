@@ -71,7 +71,6 @@ export const update_view = async ({
   table_name,
   view_id,
   dbConnection,
-  sqlLog,
 }) => {
   const updateViewMetaSql = dedent(
     `
@@ -93,8 +92,6 @@ export const update_view = async ({
     text: updateViewMetaSql,
     values: [table_schema, `${table_name}_${view_id}`, data_table, view_id],
   };
-
-  sqlLog.push(q);
 
   await dbConnection.query(q);
 };
