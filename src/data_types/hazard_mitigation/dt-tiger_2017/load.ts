@@ -98,20 +98,11 @@ export default async function publish({
 
   try {
     const tmpLocation = getEtlWorkDir();
-    // const tmpLocation = `${getEtlWorkDir()}/census_${etlContextId}/`;
-    // if (!existsSync(tmpLocation)) {
-    //   mkdirSync(tmpLocation, { recursive: true });
-    // }
-    // use fs to make tmpLocation if it doesn't exist
 
     logger.info(`\nGet into new try block: ${tmpLocation}`);
     const files = await getFiles(url);
 
     logger.info(`\nNew Files Array: ${JSON.stringify(files)}`);
-    // const sliceVar = 3;
-    // if (files?.length > sliceVar) {
-    //   files = files.slice(0, sliceVar);
-    // }
 
     logger.info("\nreached here ----- 1 -----");
     const uploadFileEvent = {
@@ -139,21 +130,6 @@ export default async function publish({
     logger.info(
       `new damaview ${newDamaView.table_name} and table_name : ${table_name}`
     );
-
-    // ---------------------  TODO ----------------------------
-    // const gdi = new GeospatialDatasetIntegrator();
-    // tableDescriptor.tableSchema = newDamaView.table_schema || "geo";
-    // tableDescriptor.tableName = newDamaView.table_name || table_name;
-
-    // await gdi.persistLayerTableDescriptor(tableDescriptor);
-
-    // try {
-    //   logger.info(`inside the load table : layerName: ${layerName} and PgEnv: ${pgEnv}`);
-    //   await gdi.loadTable({ layerName, pgEnv });
-    // } catch (err) {
-    //   logger.info(`migration error -- \n ${JSON.stringify(err, null, 3)}`);
-    // }
-    // ---------------------  TODO ----------------------------
 
     logger.info("\nreached here ----- 2 -----");
     if (files?.length > 1) {
@@ -275,7 +251,6 @@ export default async function publish({
       table_name: `tl_2017_${table_name.toLowerCase()}`,
       view_id,
       dbConnection,
-      sqlLog,
     });
     logger.info("\nreached here ----- 8 -----");
 

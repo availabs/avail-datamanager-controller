@@ -1,14 +1,10 @@
 import { execSync } from "child_process";
 import fs from "fs";
 import { PoolClient } from "pg";
-import { readFile as readFileAsync } from "fs/promises";
-import { join } from "path";
 import pgFormat from "pg-format";
 import dedent from "dedent";
 import logger from "data_manager/logger";
 import dama_meta from "data_manager/meta";
-import dama_db from "data_manager/dama_db";
-import { NodePgQueryResult } from "data_manager/dama_db/postgres/PostgreSQL";
 import { getEtlContextId } from "data_manager/contexts";
 
 import { getPostgresConnectionString } from "../../../data_manager/dama_db/postgres/PostgreSQL";
