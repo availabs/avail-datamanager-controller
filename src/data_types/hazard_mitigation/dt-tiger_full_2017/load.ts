@@ -88,7 +88,6 @@ export default async function publish({
   }
 
   const roundOff10 = (n: number) => n - (n % 10);
-  logger.info("Yayyyy! geo Created/updated?");
   const finalTableQueries: Array<string> = [];
   const tempTableNames: Array<string> = [];
   const domain = ["STATE", "COUNTY", "TRACT", "COUSUB"];
@@ -127,10 +126,8 @@ export default async function publish({
 
         logger.info("\nreached here ----- 1 -----");
         const uploadFileEvent = {
-          type: `Tiger_dataset:${table_name}_GIS_FILE_UPLOAD_PROGRESS`,
-          payload: {
-            files,
-          },
+          type: `Tiger_dataset:y${year}_${table_name}_GIS_FILE_UPLOAD_PROGRESS`,
+          payload: {},
           meta: {
             user_id,
             timestamp: new Date().toISOString(),
@@ -168,10 +165,8 @@ export default async function publish({
           logger.info("\nreached here ----- 3 -----");
 
           const mergeTableEvent = {
-            type: `Tiger_dataset:${table_name}_MERGE_TABLE_EVENT`,
-            payload: {
-              files,
-            },
+            type: `Tiger_dataset:y${year}_${table_name}_MERGE_TABLE_EVENT`,
+            payload: {},
             meta: {
               user_id,
               view_id,
@@ -196,10 +191,8 @@ export default async function publish({
           logger.info("\nreached here ----- 4 -----");
 
           const dropTableEvent = {
-            type: `Tiger_dataset:${table_name}_DROP_TABLE_EVENT`,
-            payload: {
-              files,
-            },
+            type: `Tiger_dataset:y${year}_${table_name}_DROP_TABLE_EVENT`,
+            payload: {},
             meta: {
               user_id,
               timestamp: new Date().toISOString(),
@@ -219,10 +212,8 @@ export default async function publish({
         logger.info("\nreached here ----- 5 -----");
 
         const createIndiceEvent = {
-          type: `Tiger_dataset:${table_name}_CREATE_INDICES_EVENT`,
-          payload: {
-            files,
-          },
+          type: `Tiger_dataset:y${year}_${table_name}_CREATE_INDICES_EVENT`,
+          payload: {},
           meta: {
             user_id,
             timestamp: new Date().toISOString(),
@@ -248,10 +239,8 @@ export default async function publish({
 
         logger.info("\nreached here ----- 6 -----");
         const correctGeoidsEvent = {
-          type: `Tiger_dataset:${table_name}_CORRECT_GEOIDS_EVENT`,
-          payload: {
-            files,
-          },
+          type: `Tiger_dataset:y${year}_${table_name}_CORRECT_GEOIDS_EVENT`,
+          payload: {},
           meta: {
             user_id,
             timestamp: new Date().toISOString(),
@@ -289,17 +278,6 @@ export default async function publish({
 
         await dbConnection.query("COMMIT;");
 
-        // if (isNewSourceCreate) {
-        //   logger.info("called inside setSourceMetadata Begin");
-        //   await dbConnection.query({
-        //     text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
-        //     values: [view_id],
-        //   });
-        //   isNewSourceCreate = false;
-        //   logger.info("called inside setSourceMetadata End");
-        // }
-
-        // Create Mbtile
       } catch (e) {
         logger.info("\nreached here ----- 10: Error -----");
 
@@ -318,6 +296,7 @@ export default async function publish({
           },
         };
         logger.info(`\nError Event ${JSON.stringify(errEvent, null, 3)} `);
+        await dama_events.dispatch(errEvent, etlContextId);
         throw e;
       } finally {
         dbConnection.release();
@@ -333,6 +312,17 @@ export default async function publish({
 
     await dbConnection.query(
       `ALTER TABLE tiger.tl_s${source_id}_v${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
+    );
+
+    await dbConnection.query(
+      `
+        BEGIN;
+        CREATE INDEX IF NOT EXISTS wkb_geometry_idx_tl_s${source_id}_v${view_id}
+        ON tiger.tl_s${source_id}_v${view_id} USING gist
+        (wkb_geometry)
+        TABLESPACE pg_default;
+        COMMIT;
+      `
     );
 
     await dbConnection.query({
@@ -353,25 +343,37 @@ export default async function publish({
       text: "CALL _data_manager_admin.initialize_dama_src_metadata_using_view( $1 )",
       values: [view_id],
     });
-    await dropTmpTables(tempTableNames, dbConnection);
 
-    const featureEditor = (feature: any) => {
-      feature.tippecanoe = {
-        layer: `${feature.properties.tiger_type}_${feature.properties.year}`,
-      };
-      delete feature.properties.tiger_type;
-      delete feature.properties.year;
-      return feature;
-    };
+    await dropTmpTables(tempTableNames, dbConnection);
 
     await createViewMbtiles(view_id, source_id, etlContextId, {
       preserveColumns: ["geoid", "tiger_type", "year"],
-      featureEditor,
+      featureEditor : (feature: any) => {
+        feature.tippecanoe = {
+          layer: `${feature.properties.tiger_type}_${feature.properties.year}`,
+        };
+        delete feature.properties.tiger_type;
+        delete feature.properties.year;
+        return feature;
+      },
     });
 
     await dbConnection.query("COMMIT;");
-  } catch (error) {
+  } catch (error: unknown) {
     await dbConnection.query("ROLLBACK;");
+    const errEvent = {
+      type: EventTypes.PUBLISH_ERROR,
+      payload: {
+        message: (error as any).message,
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+        etl_context_id: etlContextId,
+      },
+    };
+    logger.info(`\nError Event ${JSON.stringify(errEvent, null, 3)} `);
+    await dama_events.dispatch(errEvent, etlContextId);
+    throw error;
   } finally {
     dbConnection.release();
   }
