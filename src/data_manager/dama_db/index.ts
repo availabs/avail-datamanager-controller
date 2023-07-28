@@ -124,7 +124,7 @@ class DamaDb extends DamaContextAttachedResource {
           await dbConnection.query(sql);
         }
 
-        dbConnection.query("COMMIT ;");
+        await dbConnection.query("COMMIT ;");
 
         process.nextTick(() => resolve(db));
       } catch (err) {
