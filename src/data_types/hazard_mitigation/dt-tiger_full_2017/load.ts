@@ -349,6 +349,7 @@ export default async function publish({
     await createViewMbtiles(view_id, source_id, etlContextId, {
       preserveColumns: ["geoid", "tiger_type", "year"],
       featureEditor : (feature: any) => {
+        feature.type = "Feature";
         feature.tippecanoe = {
           layer: `${feature.properties.tiger_type}_${feature.properties.year}`,
         };

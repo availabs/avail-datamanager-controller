@@ -54,6 +54,7 @@ export async function createViewMbtiles(
 
   const pg_env = getPgEnv();
   logger.info(`pg Env inside createViewMbtiles: ${pg_env}`);
+  logger.info(`etlWorkDir will be: ${etlWorkDir}`);
 
   const layerName = `s${damaSourceId}_v${damaViewId}`;
   const timestamp = new Date().getTime();
@@ -61,6 +62,7 @@ export async function createViewMbtiles(
   const tilesetName = `${pg_env}_${layerName}_${timestamp}`;
   const mbtilesFileName = `${tilesetName}.mbtiles`;
   const mbtilesFilePath = join(etlWorkDir, mbtilesFileName);
+  logger.info(`mbtilesFilePath: ${mbtilesFilePath}`);
 
   const initialEvent = {
     type: "gis-dataset:CREATE_MBTILES_INITIAL",
@@ -186,7 +188,7 @@ export async function createViewMbtiles(
 
     throw err;
   } finally {
-    await eltWorkDirCleanup();
+    // await eltWorkDirCleanup();
   }
 }
 
@@ -263,12 +265,18 @@ export async function createMbtilesTask({
     "--force",
     "--name",
     name,
-    "--layer",
-    layerName,
+    // "--layer",
+    // layerName,
     "-o",
     mbtilesFilePath,
     geojsonFilePath,
   ];
+
+  // const { layerNames = [] } = mbtilesOptions || {};
+  // if (layerNames && layerNames.length) {
+  //   const formattedLayerNames = layerNames.map((l: string) => ["--layer", l]).flat();
+  //   tippecanoeArgs.concat(formattedLayerNames);
+  // };
 
   logger.info(
     `Reached here inside createMbtilesTask: ${JSON.stringify(
@@ -304,7 +312,7 @@ export async function createMbtilesTask({
 
   await done;
 
-  await geojsonFileCleanup();
+  // await geojsonFileCleanup();
 
   logger.info(`tippecanoeStdout \n: ${tippecanoeStdout}`);
   logger.error(`\ntippecanoeStderr\n : ${tippecanoeStderr}`);
