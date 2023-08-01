@@ -40,7 +40,9 @@ export async function createViewMbtiles(
   damaViewId: number,
   damaSourceId: number,
   etlContextId: number,
-  mbtilesOptions: Record<string, Array<string> | string | number | boolean> | any = {}
+  mbtilesOptions:
+    | Record<string, Array<string> | string | number | boolean>
+    | any = {}
 ) {
   const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup }: any =
     await new Promise((resolve, reject) =>
@@ -85,7 +87,7 @@ export async function createViewMbtiles(
   await dama_events.dispatch(initialEvent, etlContextId);
 
   const optionalColumns = mbtilesOptions?.preserveColumns || [];
-  const featureEditor = mbtilesOptions?.featuresEditor || ((d: any) => d);
+  const featureEditor = mbtilesOptions?.featureEditor || ((d: any) => d);
   const featuresAsyncIterator =
     makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(damaViewId, {
       properties: ["ogc_fid", ...optionalColumns],
@@ -115,29 +117,56 @@ export async function createViewMbtiles(
       "geojson_type",
     ]);
 
+    const isMultiLayers = mbtilesOptions?.isMultiLayers || false;
     logger.info(`\ngeojson_type inside createViewMbtiles():, ${geojson_type}`);
-    const tiles = {
-      tiles: {
-        sources: [
-          {
-            id: tilesetName,
-            source: {
-              url: `$HOST/data/${tilesetName}.json`,
-              type: "vector",
+
+    let tiles = {};
+    if (isMultiLayers) {
+      const layerNames: Array<string> = mbtilesOptions?.layerNames || [];
+      tiles = {
+        tiles: {
+          sources: [
+            {
+              id: tilesetName,
+              source: {
+                url: `$HOST/data/${tilesetName}.json`,
+                type: "vector",
+              },
             },
-          },
-        ],
-        layers: [
-          {
-            id: source_layer_name,
+          ],
+          layers: layerNames.map((l: string) => ({
+            id: l,
             ...getStyleFromJsonType(geojson_type),
             source: tilesetName,
-            "source-layer": source_layer_name,
-          },
-        ],
-      },
-    };
+            "source-layer": l,
+          })),
+        },
+      };
+    } else {
+      tiles = {
+        tiles: {
+          sources: [
+            {
+              id: tilesetName,
+              source: {
+                url: `$HOST/data/${tilesetName}.json`,
+                type: "vector",
+              },
+            },
+          ],
+          layers: [
+            {
+              id: source_layer_name,
+              ...getStyleFromJsonType(geojson_type),
+              source: tilesetName,
+              "source-layer": source_layer_name,
+            },
+          ],
+        },
+      };
+    }
 
+    logger.info(`Tiles object is: \n${JSON.stringify(tiles, null, 2)}`);
     try {
       const result = await dama_db.query({
         text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(
@@ -145,7 +174,9 @@ export async function createViewMbtiles(
         )}'::jsonb WHERE view_id = $1;`,
         values: [damaViewId],
       });
-      logger.info(`Result of the query is : \n\n ${JSON.stringify(result, null, 3)}`);
+      logger.info(
+        `Result of the query is : \n\n ${JSON.stringify(result, null, 3)}`
+      );
     } catch (error) {
       logger.info(
         `Query fails inside createViewMbtiles : ${JSON.stringify(
@@ -157,7 +188,6 @@ export async function createViewMbtiles(
     }
 
     const finalEvent = {
-      // type: "dataset:CREATE_MBTILES_FINAL",
       type: "dataset:CREATE_MBTILES_FINAL",
       payload: {
         view_id: damaViewId,
@@ -188,7 +218,7 @@ export async function createViewMbtiles(
 
     throw err;
   } finally {
-    // await eltWorkDirCleanup();
+    await eltWorkDirCleanup();
   }
 }
 
@@ -272,11 +302,10 @@ export async function createMbtilesTask({
     geojsonFilePath,
   ];
 
-  // const { layerNames = [] } = mbtilesOptions || {};
-  // if (layerNames && layerNames.length) {
-  //   const formattedLayerNames = layerNames.map((l: string) => ["--layer", l]).flat();
-  //   tippecanoeArgs.concat(formattedLayerNames);
-  // };
+  const { isMultiLayers = false } = mbtilesOptions || {};
+  if (!isMultiLayers) {
+    tippecanoeArgs.concat(["--layer", layerName]);
+  }
 
   logger.info(
     `Reached here inside createMbtilesTask: ${JSON.stringify(
@@ -312,7 +341,7 @@ export async function createMbtilesTask({
 
   await done;
 
-  // await geojsonFileCleanup();
+  await geojsonFileCleanup();
 
   logger.info(`tippecanoeStdout \n: ${tippecanoeStdout}`);
   logger.error(`\ntippecanoeStderr\n : ${tippecanoeStderr}`);
@@ -339,7 +368,9 @@ export async function getDamaGisDatasetViewTableSchemaSummary(
       )
   `);
 
-  logger.info(`getDamaGisDatasetViewTableSchemaSummary for view id: ${damaViewId}`);
+  logger.info(
+    `getDamaGisDatasetViewTableSchemaSummary for view id: ${damaViewId}`
+  );
   const { rows } = await dama_db.query({
     text: damaViewPropsColsQ,
     values: [damaViewId],

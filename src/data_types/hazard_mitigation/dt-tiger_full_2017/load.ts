@@ -90,6 +90,7 @@ export default async function publish({
   const roundOff10 = (n: number) => n - (n % 10);
   const finalTableQueries: Array<string> = [];
   const tempTableNames: Array<string> = [];
+  const layerNames: Array<string> = [];
   const domain = ["STATE", "COUNTY", "TRACT", "COUSUB"];
   const years = [2017, 2020];
   for (const [, tigerYear] of years.entries()) {
@@ -274,10 +275,10 @@ export default async function publish({
         tempTableNames.push(
           `tl_${year}_${table_name}_s${source_id}_v${view_id}`
         );
+        layerNames.push(`${table_name?.toLowerCase()}_${year}`);
         logger.info("\nreached here ----- 8 -----");
 
         await dbConnection.query("COMMIT;");
-
       } catch (e) {
         logger.info("\nreached here ----- 10: Error -----");
 
@@ -348,8 +349,7 @@ export default async function publish({
 
     await createViewMbtiles(view_id, source_id, etlContextId, {
       preserveColumns: ["geoid", "tiger_type", "year"],
-      featureEditor : (feature: any) => {
-        feature.type = "Feature";
+      featureEditor: (feature: any) => {
         feature.tippecanoe = {
           layer: `${feature.properties.tiger_type}_${feature.properties.year}`,
         };
@@ -357,6 +357,8 @@ export default async function publish({
         delete feature.properties.year;
         return feature;
       },
+      isMultiLayers: true,
+      layerNames,
     });
 
     await dbConnection.query("COMMIT;");
