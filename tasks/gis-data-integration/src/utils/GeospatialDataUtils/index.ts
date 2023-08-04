@@ -109,12 +109,13 @@ export function getLayersMetadata(
   const dataset = gdal.open(datasetPath);
 
   const layersMetadata = dataset.layers.map((layer, layerId) => {
-    const { name: layerName, features, fields, srs, geomColumn } = layer;
+    const { name: layerName, features, fields, srs, geomType } = layer;
 
-    if (!geomColumn) {
+    const sType = simplifyOGRwkbGeometryType(geomType);
+
+    if (geomType === OGRwkbGeometryType.wkbNone) {
       return null;
     }
-
     const featuresCount = features.count();
 
     const fieldsMetadata: GeoDatasetLayerFieldMetadata[] = fields.map(
