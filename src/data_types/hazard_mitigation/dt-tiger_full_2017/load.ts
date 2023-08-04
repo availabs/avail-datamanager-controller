@@ -345,6 +345,13 @@ export default async function publish({
       values: [view_id],
     });
 
+    await dama_db.query({
+      text: `UPDATE data_manager.views SET metadata = COALESCE(metadata,'{}') || '${JSON.stringify(
+          { layerNames: [...layerNames] }
+      )}'::jsonb WHERE view_id = $1;`,
+      values: [view_id],
+    });
+
     await dropTmpTables(tempTableNames, dbConnection);
 
     await createViewMbtiles(view_id, source_id, etlContextId, {

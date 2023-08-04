@@ -295,16 +295,21 @@ export async function createMbtilesTask({
     "--force",
     "--name",
     name,
-    // "--layer",
-    // layerName,
+    "--layer",
+    layerName,
     "-o",
     mbtilesFilePath,
     geojsonFilePath,
   ];
 
   const { isMultiLayers = false } = mbtilesOptions || {};
-  if (!isMultiLayers) {
-    tippecanoeArgs.concat(["--layer", layerName]);
+  if (isMultiLayers) {
+    for (let i = 0; i < tippecanoeArgs.length; i++) {
+      if (tippecanoeArgs[i] === "--layer") {
+        tippecanoeArgs.splice(i, 2);
+        i--;
+      }
+    }
   }
 
   logger.info(
