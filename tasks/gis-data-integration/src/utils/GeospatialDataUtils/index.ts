@@ -113,7 +113,7 @@ export function getLayersMetadata(
 
     const sType = simplifyOGRwkbGeometryType(geomType);
 
-    if (geomType === OGRwkbGeometryType.wkbNone) {
+    if (sType === OGRwkbGeometryType.wkbNone) {
       return null;
     }
     const featuresCount = features.count();
