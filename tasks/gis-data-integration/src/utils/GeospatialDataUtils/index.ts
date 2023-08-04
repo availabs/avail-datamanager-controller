@@ -539,10 +539,9 @@ export function generateTempTableStatement({
   return sql;
 }
 
-export function generateLoadTableStatement({
-  layerName,
-  columnTypes,
-}: TableDescriptor) {
+export function generateLoadTableStatement(tableDescriptor: TableDescriptor, isGPKG = false) {
+  const { layerName, columnTypes, } = tableDescriptor
+
   const selectClauses: string[] = [];
   const placeValues: string[] = [];
 
@@ -569,7 +568,7 @@ export function generateLoadTableStatement({
     pgFormat(
       `
         SELECT
-            ${colsDefPlaceholders}
+            ${colsDefPlaceholders}${isGPKG ? ",geom" : ""}
           FROM %I
       `,
       ...placeValues,
@@ -604,12 +603,11 @@ export async function loadTable(
   const createTableSql = createTableSqlPath
     ? await readFileAsync(createTableSqlPath)
     : generateCreateTableStatement(tableDescriptor);
-  
 
-
+    console.log('datasetPath'.repeat(100), datasetPath)
   const loadTableSql = loadTableSqlPath
     ? await readFileAsync(loadTableSqlPath)
-    : generateLoadTableStatement(tableDescriptor);
+    : generateLoadTableStatement(tableDescriptor, /\.gpkg$/i.test(datasetPath));
 
   const connStr = getPostgresConnectionString(pgEnv);
   console.timeEnd('load table create table sql')
@@ -630,7 +628,7 @@ export async function loadTable(
   tempTableDescriptor.tableName = `staging_${tstamp}`;
   const createTempTableSql = generateTempTableStatement(tempTableDescriptor);
 
-  const loadTempTableSql = generateLoadTableStatement(tableDescriptor);
+  const loadTempTableSql = generateLoadTableStatement(tableDescriptor, /\.gpkg$/i.test(datasetPath));
   console.timeEnd('loadTable generate tmp sql')
   
   console.time('loadTable temptable')
