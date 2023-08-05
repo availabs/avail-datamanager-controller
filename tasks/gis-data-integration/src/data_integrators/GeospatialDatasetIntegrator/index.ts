@@ -219,7 +219,7 @@ export default class GeospatialDatasetIntegrator {
 
     const datasetMetadata = await this.injestDatasetEntries(iter);
 
-    return { id: this.id, datasetMetadata };
+    return { id: this.id, datasetMetadata, workDirPath };
   }
 
   protected async injestDatasetEntries(
