@@ -87,9 +87,15 @@ export type GeoDatasetLayerFieldMetadata = {
   name: string;
 };
 
+export type GeoDatasetLayerGeomMeta = {
+  "geomColumn": string;
+  "geomType": OGRwkbGeometryType;
+};
+
 export type GeoDatasetLayerMetadata = {
-  layerName: string;
   layerId: number;
+  layerGeomMeta: GeoDatasetLayerGeomMeta;
+  layerName: string;
   featuresCount: number;
   srsAuthorityName: string | null;
   srsAuthorityCode: string | null;
@@ -109,7 +115,7 @@ export function getLayersMetadata(
   const dataset = gdal.open(datasetPath);
 
   const layersMetadata = dataset.layers.map((layer, layerId) => {
-    const { name: layerName, features, fields, srs, geomType } = layer;
+    const { name: layerName, features, fields, srs, geomType, geomColumn } = layer;
 
     const sType = simplifyOGRwkbGeometryType(geomType);
 
@@ -137,8 +143,12 @@ export function getLayersMetadata(
 
     // NOTE: We don't get the geometry type via metadata because it is unreliable.
     return {
-      layerName,
       layerId,
+      layerGeomMeta: {
+        geomColumn,
+        geomType,
+      },
+      layerName,
       featuresCount,
       srsAuthorityName,
       srsAuthorityCode,
@@ -539,13 +549,23 @@ export function generateTempTableStatement({
   return sql;
 }
 
-export function generateLoadTableStatement(tableDescriptor: TableDescriptor, isGPKG = false) {
-  const { layerName, columnTypes, } = tableDescriptor
+export function generateLoadTableStatement(
+  tableDescriptor: TableDescriptor,
+  isGPKG = false,
+  layerGeomMeta: GeoDatasetLayerGeomMeta | null = null
+) {
+  const { layerName, columnTypes } = tableDescriptor;
 
   const selectClauses: string[] = [];
   const placeValues: string[] = [];
 
   const includedColumnTypes = getIncludedColumnTypes(columnTypes);
+
+  const geomColumn = layerGeomMeta?.geomColumn ?? null;
+
+  if (isGPKG && !geomColumn) {
+    throw new Error("GeoPackages must have a defined geomColumn.");
+  }
 
   for (const { key, col, db_type } of includedColumnTypes) {
     // We cast ALL fields to TEXT so we can use PostgreSQL to convert them to the
@@ -562,13 +582,18 @@ export function generateLoadTableStatement(tableDescriptor: TableDescriptor, isG
     placeValues.push(key, col);
   }
 
+  if (isGPKG) {
+    selectClauses.push("%I AS %I");
+    placeValues.push(geomColumn!, geomColumn!);
+  }
+
   const colsDefPlaceholders = selectClauses.join(",\n            ");
 
   const sql = dedent(
     pgFormat(
       `
         SELECT
-            ${colsDefPlaceholders}${isGPKG ? ",geom" : ""}
+            ${colsDefPlaceholders}
           FROM %I
       `,
       ...placeValues,
@@ -582,6 +607,7 @@ export function generateLoadTableStatement(tableDescriptor: TableDescriptor, isG
 export async function loadTable(
   datasetPath: string,
   tableDescriptor: TableDescriptor,
+  layerGeomMeta: GeoDatasetLayerGeomMeta,
   pgEnv: string,
   // tableDescriptor MUST be sufficient to geneate the CREATE and load SQL,
   // but we MUST also support manual edits to the createTableSql and loadTableSql
@@ -604,10 +630,13 @@ export async function loadTable(
     ? await readFileAsync(createTableSqlPath)
     : generateCreateTableStatement(tableDescriptor);
 
-    console.log('datasetPath'.repeat(100), datasetPath)
   const loadTableSql = loadTableSqlPath
     ? await readFileAsync(loadTableSqlPath)
-    : generateLoadTableStatement(tableDescriptor, /\.gpkg$/i.test(datasetPath));
+    : generateLoadTableStatement(
+        tableDescriptor,
+        /\.gpkg$/i.test(datasetPath),
+        layerGeomMeta
+    );
 
   const connStr = getPostgresConnectionString(pgEnv);
   console.timeEnd('load table create table sql')
@@ -628,7 +657,12 @@ export async function loadTable(
   tempTableDescriptor.tableName = `staging_${tstamp}`;
   const createTempTableSql = generateTempTableStatement(tempTableDescriptor);
 
-  const loadTempTableSql = generateLoadTableStatement(tableDescriptor, /\.gpkg$/i.test(datasetPath));
+  const loadTempTableSql = generateLoadTableStatement(
+    tableDescriptor,
+    /\.gpkg$/i.test(datasetPath),
+    layerGeomMeta
+  );
+
   console.timeEnd('loadTable generate tmp sql')
   
   console.time('loadTable temptable')
