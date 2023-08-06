@@ -220,6 +220,73 @@ class DamaGis extends DamaContextAttachedResource {
     return asyncGeneratorToNdjsonStream(iter);
   }
 
+  // NOTE: Must be called from within a DamaContext.
+  async createGisDatasetViewMbtiles(dama_view_id: DamaViewID) {
+    const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
+      await new Promise<{ path: string; cleanupCallback: () => void }>(
+        (resolve, reject) =>
+          tmp.dir({ tmpdir: etlDir }, (err, path, cleanupCallback) => {
+            if (err) {
+              return reject(err);
+            }
+
+            resolve({ path, cleanupCallback });
+          })
+      );
+
+    const [damaViewNamePrefix, damaViewGlobalId] = await Promise.all([
+      dama_meta.getDamaViewNamePrefix(dama_view_id),
+      dama_meta.getDamaViewGlobalId(dama_view_id),
+      dama_meta.getDamaViewMapboxPaintStyle(dama_view_id),
+    ]);
+
+    const layerName = <string>damaViewNamePrefix;
+
+    const now = new Date();
+    const timestamp = getTimestamp(now);
+
+    const tilesetName = `${damaViewGlobalId}_${timestamp}`;
+    const mbtilesFileName = `${tilesetName}.mbtiles`;
+    const mbtilesFilePath = join(etlWorkDir, mbtilesFileName);
+
+    try {
+      const featuresAsyncIterator =
+        this.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(dama_view_id);
+
+      const { tippecanoeArgs, tippecanoeStdout, tippecanoeStderr } =
+        await createMbtilesTask({
+          layerName,
+          mbtilesFilePath,
+          featuresAsyncIterator,
+          etlWorkDir,
+        });
+
+      const mbtilesBaseName = basename(mbtilesFilePath);
+      const servedMbtilesPath = join(mbtilesDir, mbtilesBaseName);
+
+      await renameAsync(mbtilesFilePath, servedMbtilesPath);
+
+      const source_id = damaViewGlobalId;
+      const source_layer_name = layerName;
+      const source_type = "vector";
+
+      return {
+        view_id: dama_view_id,
+        tileset_timestamp: now,
+
+        tileset_name: tilesetName,
+        source_id,
+        source_layer_name,
+        source_type,
+        tippecanoe_args: tippecanoeArgs,
+        tippecanoeStdout,
+        tippecanoeStderr,
+      };
+    } finally {
+      eltWorkDirCleanup();
+    }
+  }
+
   async createDamaGisDatasetViewMbtiles(dama_view_id: DamaViewID) {
     const etl_context_id = await dama_events.spawnEtlContext();
 
@@ -228,32 +295,8 @@ class DamaGis extends DamaContextAttachedResource {
     };
 
     await runInDamaContext(ctx, async () => {
-      const { path: etlWorkDir, cleanupCallback: eltWorkDirCleanup } =
-        await new Promise<{ path: string; cleanupCallback: () => void }>(
-          (resolve, reject) =>
-            tmp.dir({ tmpdir: etlDir }, (err, path, cleanupCallback) => {
-              if (err) {
-                return reject(err);
-              }
-
-              resolve({ path, cleanupCallback });
-            })
-        );
-
-      const [damaViewNamePrefix, damaViewGlobalId] = await Promise.all([
-        dama_meta.getDamaViewNamePrefix(dama_view_id),
-        dama_meta.getDamaViewGlobalId(dama_view_id),
-        dama_meta.getDamaViewMapboxPaintStyle(dama_view_id),
-      ]);
-
-      const layerName = <string>damaViewNamePrefix;
-
       const now = new Date();
       const timestamp = getTimestamp(now);
-
-      const tilesetName = `${damaViewGlobalId}_${timestamp}`;
-      const mbtilesFileName = `${tilesetName}.mbtiles`;
-      const mbtilesFilePath = join(etlWorkDir, mbtilesFileName);
 
       const initialEvent = {
         type: "createDamaGisDatasetViewMbtiles:INITIAL",
@@ -267,35 +310,26 @@ class DamaGis extends DamaContextAttachedResource {
       await dama_events.dispatch(initialEvent);
 
       try {
-        const featuresAsyncIterator =
-          this.makeDamaGisDatasetViewGeoJsonFeatureAsyncIterator(dama_view_id);
-
-        const { tippecanoeArgs, tippecanoeStdout, tippecanoeStderr } =
-          await createMbtilesTask({
-            layerName,
-            mbtilesFilePath,
-            featuresAsyncIterator,
-            etlWorkDir,
-          });
-
-        const mbtilesBaseName = basename(mbtilesFilePath);
-        const servedMbtilesPath = join(mbtilesDir, mbtilesBaseName);
-
-        await renameAsync(mbtilesFilePath, servedMbtilesPath);
-
-        const source_id = damaViewGlobalId;
-        const source_layer_name = layerName;
-        const source_type = "vector";
-
-        const newRow = {
-          view_id: dama_view_id,
-          tileset_timestamp: now,
-
-          tileset_name: tilesetName,
+        const {
+          tileset_timestamp,
+          tileset_name,
           source_id,
           source_layer_name,
           source_type,
-          tippecanoe_args: JSON.stringify(tippecanoeArgs),
+          tippecanoe_args,
+          tippecanoeStdout,
+          tippecanoeStderr,
+        } = await this.createGisDatasetViewMbtiles(dama_view_id);
+
+        const newRow = {
+          view_id: dama_view_id,
+          tileset_timestamp,
+
+          tileset_name,
+          source_id,
+          source_layer_name,
+          source_type,
+          tippecanoe_args: JSON.stringify(tippecanoe_args),
         };
 
         const {
@@ -318,6 +352,8 @@ class DamaGis extends DamaContextAttachedResource {
         };
 
         await dama_events.dispatch(finalEvent);
+
+        return finalEvent.payload;
       } catch (err) {
         const { stack, message } = err as Error;
 
@@ -331,8 +367,6 @@ class DamaGis extends DamaContextAttachedResource {
         await dama_events.dispatch(errorEvent);
 
         throw err;
-      } finally {
-        eltWorkDirCleanup();
       }
     });
   }

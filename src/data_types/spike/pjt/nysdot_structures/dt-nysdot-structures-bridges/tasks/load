@@ -7,7 +7,9 @@ require("tsconfig-paths").register();
 
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
+const dedent = require("dedent");
 
+const dama_db = require("data_manager/dama_db").default;
 const dama_events = require("data_manager/events").default;
 const dama_meta = require("data_manager/meta").default;
 
@@ -18,6 +20,9 @@ const dama_host_id = require("constants/damaHostId").default;
 const { runInDamaContext } = require("data_manager/contexts");
 
 const { loadLayer } = require("./subtasks");
+
+const getCurrentAuthoritativeView =
+  require("../utils/getCurrentAuthoritativeView").default;
 
 const {
   LayerName,
@@ -71,89 +76,157 @@ async function main() {
       meta: { dama_host_id, extract_etl_context_id },
     };
 
-    await dama_events.dispatch(initial_event);
+    try {
+      await dama_events.dispatch(initial_event);
 
-    const extract_events = await dama_events.getAllEtlContextEvents(
-      extract_etl_context_id
-    );
-
-    const extract_final_event = extract_events.find(({ type }) =>
-      /:FINAL$/.test(type)
-    );
-
-    if (!extract_final_event) {
-      throw new Error(
-        `Could not find :FINAL event for extract etl_context_id ${extract_etl_context_id}`
-      );
-    }
-
-    const {
-      payload: { extract_id, layer_names },
-    } = extract_final_event;
-
-    if (!layer_names.some((layer_name) => layer_name === LayerName.BRIDGES)) {
-      throw new Error(`INVARIANT BROKEN: no layer named ${LayerName.BRIDGES}.`);
-    }
-
-    const { name: source_name } = bridges_dama_source_info;
-
-    const { [source_name]: existing_dama_source } =
-      await dama_meta.getDamaSourceMetadataByName([source_name]);
-
-    let source_id = existing_dama_source?.source_id ?? null;
-
-    if (source_id === null) {
-      const new_dama_source = await dama_meta.createNewDamaSource(
-        bridges_dama_source_info
+      const extract_events = await dama_events.getAllEtlContextEvents(
+        extract_etl_context_id
       );
 
-      source_id = new_dama_source.source_id;
-    }
-
-    const load_done_event_type = "dt-nysdot-bridges/load/loadLayer:DONE";
-
-    const load_start_event = {
-      type: "dt-nysdot-bridges/load/loadLayer:START",
-      payload: {
-        layer_name: LayerName.BRIDGES,
-      },
-    };
-
-    await dama_events.dispatch(load_start_event);
-
-    const load_done_data = await loadLayer(extract_id, LayerName.BRIDGES);
-
-    const load_done_event = {
-      type: load_done_event_type,
-      payload: load_done_data,
-    };
-
-    await dama_events.dispatch(load_done_event);
-
-    if (
-      load_done_data.table_schema !== bridges_dama_view_info.table_schema ||
-      load_done_data.table_name !== bridges_dama_view_info.table_name
-    ) {
-      const { table_schema, table_name } = bridges_dama_view_info;
-      throw new Error(
-        `INVARIANT BROKEN: The bridges layer MUST be loaded into ${table_schema}.${table_name}.`
+      const extract_final_event = extract_events.find(({ type }) =>
+        /:FINAL$/.test(type)
       );
+
+      if (!extract_final_event) {
+        throw new Error(
+          `Could not find :FINAL event for extract etl_context_id ${extract_etl_context_id}`
+        );
+      }
+
+      const {
+        payload: { extract_id, layer_names },
+      } = extract_final_event;
+
+      if (!layer_names.some((layer_name) => layer_name === LayerName.BRIDGES)) {
+        throw new Error(
+          `INVARIANT BROKEN: no layer named ${LayerName.BRIDGES}.`
+        );
+      }
+
+      const load_start_event = {
+        type: "dt-nysdot-bridges/load/loadLayer:START",
+        payload: {
+          layer_name: LayerName.BRIDGES,
+        },
+      };
+
+      await dama_events.dispatch(load_start_event);
+
+      const load_done_data = await loadLayer(extract_id, LayerName.BRIDGES);
+
+      if (
+        load_done_data.table_schema !== bridges_dama_view_info.table_schema ||
+        load_done_data.table_name !== bridges_dama_view_info.table_name
+      ) {
+        const { table_schema, table_name } = bridges_dama_view_info;
+        throw new Error(
+          `INVARIANT BROKEN: The bridges layer MUST be loaded into ${table_schema}.${table_name}.`
+        );
+      }
+
+      const load_done_event = {
+        type: "dt-nysdot-bridges/load/loadLayer:DONE",
+        payload: load_done_data,
+      };
+
+      await dama_events.dispatch(load_done_event);
+
+      dama_db.runInTransactionContext(async () => {
+        // Create the DamaSource if it does not exist.
+        const { name: source_name } = bridges_dama_source_info;
+
+        const { [source_name]: existing_dama_source } =
+          await dama_meta.getDamaSourceMetadataByName([source_name]);
+
+        let source_id = existing_dama_source?.source_id ?? null;
+
+        if (source_id === null) {
+          const new_dama_source = await dama_meta.createNewDamaSource(
+            bridges_dama_source_info
+          );
+
+          source_id = new_dama_source.source_id;
+        }
+
+        const old_view_id = await getCurrentAuthoritativeView(source_name);
+
+        const new_view = {
+          ...bridges_dama_view_info,
+          source_id,
+        };
+
+        const { view_id: new_view_id } = await dama_meta.createNewDamaView(
+          new_view
+        );
+
+        const queries = [];
+
+        if (old_view_id) {
+          const make_cur_nonauth_sql = dedent(
+            `
+            UPDATE data_manager.views
+              SET
+                metadata = jsonb_set(
+                             metadata,
+                             ARRAY['dama', 'versionLinkedList', 'next'],
+                             $1::TEXT::JSONB
+                           ),
+                active_end_timestamp = NOW()
+              WHERE ( view_id = $2 )
+          `
+          );
+
+          queries.push({
+            text: make_cur_nonauth_sql,
+            values: [new_view_id, old_view_id],
+          });
+        }
+
+        const make_new_auth_sql = dedent(
+          `
+            UPDATE data_manager.views
+              SET
+                metadata = jsonb_set(
+                             COALESCE(metadata, '{ "dama": {} }'::JSONB),
+                             ARRAY['dama', 'versionLinkedList'],
+                             $1::TEXT::JSONB
+                           ),
+                active_start_timestamp = NOW()
+              WHERE ( view_id = $2 )
+          `
+        );
+
+        console.log(JSON.stringify({ old_view_id, new_view_id }, null, 4));
+
+        queries.push({
+          text: make_new_auth_sql,
+          values: [{ previous: old_view_id, next: null }, new_view_id],
+        });
+
+        await dama_db.query(queries);
+
+        const final_event = {
+          type: "dt-nysdot-bridges/load:FINAL",
+          payload: { view_id: new_view_id },
+        };
+
+        await dama_events.dispatch(final_event);
+
+        console.log(`LOAD COMPLETE. Created dama_view_id: ${new_view_id}`);
+      });
+    } catch (err) {
+      const { message, stack } = err;
+
+      const error_event = {
+        type: "dt-nysdot-bridges/load:ERROR",
+        payload: { message, stack },
+        error: true,
+      };
+
+      dama_events.dispatch(error_event);
+
+      throw err;
     }
-
-    const new_dama_view = {
-      ...bridges_dama_view_info,
-      source_id,
-    };
-
-    await dama_meta.createNewDamaView(new_dama_view);
-
-    const final_event = {
-      type: "dt-nysdot-bridges/load:FINAL",
-    };
-
-    await dama_events.dispatch(final_event);
-
-    console.log("LOAD COMPLETE");
   });
 }
 

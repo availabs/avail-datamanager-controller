@@ -51,9 +51,11 @@ export default {
                 nbi_deck_co,
                 nbi_substr,
                 nbi_supers,
-                fhwa_condi
+                fhwa_condi,
+                ROW_NUMBER() OVER ( ORDER BY wkb_geometry ) AS _row_number_within_county_
               FROM nysdot_structures.bridges
               WHERE ( county = UPPER($1) )
+            ;
           `
         );
 
