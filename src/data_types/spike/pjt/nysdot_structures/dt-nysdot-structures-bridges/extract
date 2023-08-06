@@ -29,6 +29,8 @@ const {
   persistLayerTableDescriptor,
 } = require("./subtasks");
 
+const { LayerName } = require("./domain");
+
 const table_schema = "nysdot_structures";
 const bridges_table_name = "bridges";
 
@@ -119,6 +121,12 @@ async function main() {
     await dama_events.dispatch(got_metadata_event);
 
     let layer_names = await getLayerNames(extract_id);
+
+    if (!layer_names.includes(LayerName.BRIDGES)) {
+      throw new Error(
+        `INVARIANT BROKEN: The bridges layer name is expected to be ${LayerName.BRIDGES}.`
+      );
+    }
 
     const default_table_descriptors = await Promise.all(
       layer_names.map((layer_name) =>

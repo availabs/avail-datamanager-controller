@@ -5,14 +5,12 @@
 require("ts-node").register();
 require("tsconfig-paths").register();
 
-const { join, isAbsolute } = require("path");
-
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
 
-const dedent = require("dedent");
-
 const dama_events = require("data_manager/events").default;
+const dama_meta = require("data_manager/meta").default;
+
 const logger = require("data_manager/logger").default;
 
 const dama_host_id = require("constants/damaHostId").default;
@@ -20,6 +18,10 @@ const dama_host_id = require("constants/damaHostId").default;
 const { runInDamaContext } = require("data_manager/contexts");
 
 const { loadLayer } = require("./subtasks");
+
+const bridges_dama_source_info = require("./dama/source_meta").default;
+
+const { LayerName } = require("./domain");
 
 const { pg_env, extract_etl_context_id, logging_level } = yargs(
   hideBin(process.argv)
@@ -87,37 +89,58 @@ async function main() {
       payload: { extract_id, layer_names },
     } = extract_final_event;
 
+    if (!layer_names.some((layer_name) => layer_name === LayerName.BRIDGES)) {
+      throw new Error(`INVARIANT BROKEN: no layer named ${LayerName.BRIDGES}.`);
+    }
+
+    const { name: source_name } = bridges_dama_source_info;
+
+    const { [source_name]: existing_dama_source } =
+      await dama_meta.getDamaSourceMetadataByName([source_name]);
+
+    console.log(JSON.stringify({ existing_dama_source }, null, 4));
+
+    let source_id = existing_dama_source?.source_id ?? null;
+
+    if (source_id === null) {
+      const new_dama_source = await dama_meta.createNewDamaSource(
+        bridges_dama_source_info
+      );
+
+      source_id = new_dama_source.source_id;
+    }
+
     const load_done_event_type = "dt-nysdot-bridges/load/loadLayer:DONE";
 
-    for (const layer_name of layer_names) {
-      if (
-        extract_events.includes(
-          ({ type, payload }) =>
-            type === load_done_event_type && payload.layer_name === layer_name
-        )
-      ) {
-        console.log(`Layer ${layer_name} already loaded.`);
-        continue;
-      }
+    const load_start_event = {
+      type: "dt-nysdot-bridges/load/loadLayer:START",
+      payload: {
+        layer_name: LayerName.BRIDGES,
+      },
+    };
 
-      const load_start_event = {
-        type: "dt-nysdot-bridges/load/loadLayer:START",
-        payload: {
-          layer_name,
-        },
-      };
+    await dama_events.dispatch(load_start_event);
 
-      await dama_events.dispatch(load_start_event);
+    const load_done_data = await loadLayer(extract_id, LayerName.BRIDGES);
 
-      const load_done_data = await loadLayer(extract_id, layer_name);
+    const load_done_event = {
+      type: load_done_event_type,
+      payload: load_done_data,
+    };
 
-      const load_done_event = {
-        type: load_done_event_type,
-        payload: load_done_data,
-      };
+    await dama_events.dispatch(load_done_event);
 
-      await dama_events.dispatch(load_done_event);
-    }
+    console.log(JSON.stringify({ load_done_data }, null, 4));
+
+    const { table_schema, table_name } = load_done_data;
+
+    const new_dama_view = {
+      source_id,
+      table_schema,
+      table_name,
+    };
+
+    await dama_meta.createNewDamaView(new_dama_view);
 
     const final_event = {
       type: "dt-nysdot-bridges/load:FINAL",
