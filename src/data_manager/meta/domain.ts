@@ -1,5 +1,5 @@
 export type DamaSourceName = string;
-export type DamaViewID: number
+export type DamaViewID = number;
 
 export type DataSourceInitialMetadata = {
   name: DamaSourceName;

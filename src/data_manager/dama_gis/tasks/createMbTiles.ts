@@ -14,12 +14,12 @@ import tmp from "tmp";
 
 import { Feature } from "geojson";
 
-import tippecanoePath from "../../../../../data_utils/gis/tippecanoe/constants/tippecanoePath";
-import installTippecanoe from "../../../../../data_utils/gis/tippecanoe/bin/installTippecanoe";
+import tippecanoePath from "data_utils/gis/tippecanoe/constants/tippecanoePath";
+import installTippecanoe from "data_utils/gis/tippecanoe/bin/installTippecanoe";
 
-import etlDir from "../../../../../constants/etlDir";
+import etlDir from "constants/etlDir";
 
-import asyncGeneratorToNdjsonStream from "../../../../../data_utils/streaming/asyncGeneratorToNdjsonStream";
+import asyncGeneratorToNdjsonStream from "data_utils/streaming/asyncGeneratorToNdjsonStream";
 
 const pipelineAsync = promisify(pipeline);
 
@@ -52,7 +52,11 @@ export default async function main({
     path: geojsonFilePath,
     fd: geojsonFileDescriptor,
     cleanupCallback: geojsonFileCleanup,
-  } = await new Promise((resolve, reject) =>
+  } = await new Promise<{
+    path: string;
+    fd: number;
+    cleanupCallback: () => void;
+  }>((resolve, reject) =>
     tmp.file(
       { tmpdir: etlWorkDir, postfix: ".geojson.gz" },
       (err, path, fd, cleanupCallback) => {
@@ -77,8 +81,8 @@ export default async function main({
     ws
   );
 
-  let success: Function;
-  let fail: Function;
+  let success: (value: unknown) => void;
+  let fail: (value: unknown) => void;
 
   if (!existsSync(tippecanoePath)) {
     console.log("Installing tippecanoe...");
@@ -135,7 +139,7 @@ export default async function main({
 
   await done;
 
-  await geojsonFileCleanup();
+  geojsonFileCleanup();
 
   return {
     layerName,
