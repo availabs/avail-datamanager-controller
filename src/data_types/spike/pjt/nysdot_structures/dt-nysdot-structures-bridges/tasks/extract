@@ -25,14 +25,13 @@ const {
   getGeoDatasetMetadata,
   getLayerNames,
   getTableDescriptor,
-  updateLayerNamesToIds,
   persistLayerTableDescriptor,
 } = require("./subtasks");
 
-const { LayerName } = require("./domain");
-
-const table_schema = "nysdot_structures";
-const bridges_table_name = "bridges";
+const {
+  LayerName,
+  bridges_dama_view_info: { table_schema, table_name },
+} = require("../domain");
 
 const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
   // .usage(
@@ -151,7 +150,7 @@ async function main() {
       (table_descriptor) => ({
         ...table_descriptor,
         tableSchema: table_schema,
-        tableName: bridges_table_name,
+        tableName: table_name,
       })
     );
 

@@ -19,9 +19,11 @@ const { runInDamaContext } = require("data_manager/contexts");
 
 const { loadLayer } = require("./subtasks");
 
-const bridges_dama_source_info = require("./dama/source_meta").default;
-
-const { LayerName } = require("./domain");
+const {
+  LayerName,
+  bridges_dama_source_info,
+  bridges_dama_view_info,
+} = require("../domain");
 
 const { pg_env, extract_etl_context_id, logging_level } = yargs(
   hideBin(process.argv)
@@ -98,8 +100,6 @@ async function main() {
     const { [source_name]: existing_dama_source } =
       await dama_meta.getDamaSourceMetadataByName([source_name]);
 
-    console.log(JSON.stringify({ existing_dama_source }, null, 4));
-
     let source_id = existing_dama_source?.source_id ?? null;
 
     if (source_id === null) {
@@ -130,14 +130,19 @@ async function main() {
 
     await dama_events.dispatch(load_done_event);
 
-    console.log(JSON.stringify({ load_done_data }, null, 4));
-
-    const { table_schema, table_name } = load_done_data;
+    if (
+      load_done_data.table_schema !== bridges_dama_view_info.table_schema ||
+      load_done_data.table_name !== bridges_dama_view_info.table_name
+    ) {
+      const { table_schema, table_name } = bridges_dama_view_info;
+      throw new Error(
+        `INVARIANT BROKEN: The bridges layer MUST be loaded into ${table_schema}.${table_name}.`
+      );
+    }
 
     const new_dama_view = {
+      ...bridges_dama_view_info,
       source_id,
-      table_schema,
-      table_name,
     };
 
     await dama_meta.createNewDamaView(new_dama_view);

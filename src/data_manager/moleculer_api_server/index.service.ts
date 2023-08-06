@@ -332,6 +332,9 @@ export default class ApiService extends Service {
 
               "POST /data-types/npmrds/network-analysis/getTmcFeatures":
                 "dama/data_types/npmrds/network-analysis.getTmcFeatures",
+
+              "data-types/nysdot_structures/dt-nysdot-structures-bridges/getBridgesMetadataForCounty":
+                "dama/data_types/nysdot_structures/dt-nysdot-structures-bridges.getBridgesMetadataForCounty",
             },
           },
 

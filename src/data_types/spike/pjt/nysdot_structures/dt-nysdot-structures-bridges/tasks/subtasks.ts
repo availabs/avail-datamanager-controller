@@ -3,9 +3,9 @@ import { basename } from "path";
 
 import { getPgEnv } from "data_manager/contexts";
 
-import GeospatialDatasetIntegrator from "../../../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
+import GeospatialDatasetIntegrator from "../../../../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import { TableDescriptor } from "../../../../../../tasks/gis-data-integration/src/utils/GeospatialDataUtils";
+import { TableDescriptor } from "../../../../../../../tasks/gis-data-integration/src/utils/GeospatialDataUtils";
 
 export async function extract(file_path: string) {
   const file_stream = createReadStream(file_path);

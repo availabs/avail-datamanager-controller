@@ -287,14 +287,12 @@ class DamaMeta extends DamaContextAttachedResource {
   ): Promise<NodePgQueryConfig> {
     const new_row_keys = Object.keys(row);
 
-    console.log("1");
     const table_description = await this.describeTable(
       table_schema,
       table_name,
       pg_env
     );
 
-    console.log("2");
     const table_columns = Object.keys(table_description);
 
     const insert_stmt_cols = _.intersection(new_row_keys, table_columns);
@@ -330,7 +328,6 @@ class DamaMeta extends DamaContextAttachedResource {
       }
     );
 
-    console.log("3");
     const text = dedent(
       pgFormat(
         `
@@ -835,7 +832,8 @@ class DamaMeta extends DamaContextAttachedResource {
     new_row: Record<string, any>,
     pg_env = this.pg_env
   ) {
-    console.log("generateCreateDamaSourceQuery", new_row, pg_env);
+    logger.debug("generateCreateDamaSourceQuery", new_row, pg_env);
+
     return this.generateInsertStatement(
       "data_manager",
       "sources",
