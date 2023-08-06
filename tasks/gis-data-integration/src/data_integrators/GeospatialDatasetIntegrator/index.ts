@@ -219,7 +219,7 @@ export default class GeospatialDatasetIntegrator {
 
     const datasetMetadata = await this.injestDatasetEntries(iter);
 
-    return { id: this.id, datasetMetadata };
+    return { id: this.id, datasetMetadata, workDirPath };
   }
 
   protected async injestDatasetEntries(
@@ -546,7 +546,13 @@ export default class GeospatialDatasetIntegrator {
 
     const datasetMeta = await this.getGeoDatasetMetadata();
 
-    const { layerGeomMeta } = datasetMeta.layers[layerId];
+    const layer = datasetMeta.layers.find(({ layerId: id }) => id === layerId);
+
+    if (!layer) {
+      throw new Error(`Unable to find layerGeomMeta for layerName ${layerName}.`);
+    }
+
+    const { layerGeomMeta } = layer;
 
     return layerGeomMeta;
   }
