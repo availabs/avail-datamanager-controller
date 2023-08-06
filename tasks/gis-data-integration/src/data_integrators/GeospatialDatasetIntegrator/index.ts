@@ -259,6 +259,18 @@ export default class GeospatialDatasetIntegrator {
       if (type === "Directory") {
         await mkdirAsync(join(<string>datasetDir, path));
       } else {
+        //  There was a problem where files nested in directories
+        //    were passed to injestDatasetEntries before the directory containing them.
+        //
+        //    This resulted in ENOENT errors when the code tried to create a file
+        //      in a non-existent directory.
+        //
+        //    Therefore we need to preemptively create the directories to avoid NOENT errors.
+        if (/\//.test(path)) { // path contains a "/"
+          const dir = dirname(path);
+          await mkdirAsync(join(<string>datasetDir, dir), { recursive: true });
+        }
+
         // If we havent't yet determined the datasetType, try using file extension.
         if (!datasetType) {
           switch (extname(path).toLowerCase()) {
@@ -527,6 +539,22 @@ export default class GeospatialDatasetIntegrator {
     );
 
     return <GeoDatasetMetadata>this._geoDatasetMetadata;
+  }
+
+  async getLayerGeomMeta(layerName: string) {
+    const layerId = this.layerNameToId[layerName];
+
+    const datasetMeta = await this.getGeoDatasetMetadata();
+
+    const layer = datasetMeta.layers.find(({ layerId: id }) => id === layerId);
+
+    if (!layer) {
+      throw new Error(`Unable to find layerGeomMeta for layerName ${layerName}.`);
+    }
+
+    const { layerGeomMeta } = layer;
+
+    return layerGeomMeta;
   }
 
   get layerNameToIdFilePath() {
@@ -821,19 +849,23 @@ export default class GeospatialDatasetIntegrator {
     }
 
     const tableDescriptor = await this.getLayerTableDescriptor(layerName);
+    const layerGeomMeta = await this.getLayerGeomMeta(layerName);
 
     const datetime = new Date();
 
     try {
       console.log('gdi Load Table meta start')
       console.time('gdi load 1')
+
       const loadTableMetadata = await loadTable(
         <string>this.datasetPath,
         tableDescriptor,
+        layerGeomMeta,
         pgEnv
       );
+
       console.timeEnd('gdi load 1')
-      
+
       this.setDatasetLayerUploadStatus(
         layerName,
         DatasetLayerUploadStatus.STAGED
