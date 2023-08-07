@@ -342,6 +342,39 @@ class DamaDb extends DamaContextAttachedResource {
     }
   }
 
+  // NOTE:  This is an imprecise heuristic for issuing warnings.
+  //        An absolute
+  testIfQueriesLeaveOpenTransaction<T extends DamaDbQueryParamType>(
+    queries: T
+  ) {
+    const sql_arr = Array.isArray(queries) ? queries : [queries];
+
+    let is_in_transaction = false;
+
+    for (const q of sql_arr) {
+      const txt = typeof q === "string" ? q : q.text;
+
+      const lines = txt.split(/(\r\n|\n|\r)/gm);
+
+      for (let line of lines) {
+        // Remove comments
+        line = line.replace(/\s--.*/, "");
+
+        if (!is_in_transaction) {
+          if (/\s?BEGIN\s?;?\s?$/i.test(line)) {
+            is_in_transaction = true;
+          }
+        } else {
+          if (/\s?(COMMIT|ROLLBACK)\s?;?\s?$/i.test(line)) {
+            is_in_transaction = false;
+          }
+        }
+      }
+    }
+
+    return is_in_transaction;
+  }
+
   /**
    * Execute the passed query/queries and return the result/results.
    *
@@ -361,6 +394,20 @@ class DamaDb extends DamaContextAttachedResource {
     const multi_queries = Array.isArray(queries);
 
     const sql_arr = multi_queries ? queries : [queries];
+
+    if (!this.isInTransactionContext) {
+      const leaves_open_transaction = this.testIfQueriesLeaveOpenTransaction(
+        sql_arr as DamaDbMultiQueryParam
+      );
+
+      if (leaves_open_transaction) {
+        logger.warn(
+          new Error(
+            "It appears that the queries passed to dama_db.query may leave an open TRANSACTION in the pool."
+          )
+        );
+      }
+    }
 
     const db = <NodePgPoolClient>await this.getDbConnection(pg_env);
 
