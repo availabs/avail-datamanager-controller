@@ -24,7 +24,7 @@ const {
   loadGisDatasetLayer,
   integrateIntoDama,
   createMBTiles,
-} = require("../utils/gis_etl");
+} = require("data_utils/gis/etl");
 
 const {
   LayerName,
@@ -33,7 +33,7 @@ const {
     table_schema: bridges_table_schema,
     table_name: bridges_table_name,
   },
-} = require("../domain");
+} = require("./domain");
 
 const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
   // .usage(
@@ -62,11 +62,11 @@ const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
     },
   }).argv;
 
-logger.level = logging_level;
-
 const absolute_file_path = isAbsolute(file_path)
   ? file_path
   : join(process.cwd(), file_path);
+
+logger.level = logging_level;
 
 async function main() {
   const etl_context_id = await dama_events.spawnEtlContext(null, null, pg_env);

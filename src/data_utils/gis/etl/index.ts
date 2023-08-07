@@ -19,9 +19,9 @@ import { getPgEnv, getEtlContextId } from "data_manager/contexts";
 
 import dama_host_id from "constants/damaHostId";
 
-import GeospatialDatasetIntegrator from "../../../../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
+import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/src/data_integrators/GeospatialDatasetIntegrator";
 
-import { TableDescriptor } from "../../../../../../../tasks/gis-data-integration/src/utils/GeospatialDataUtils";
+import { TableDescriptor } from "../../../../tasks/gis-data-integration/src/utils/GeospatialDataUtils";
 
 import getCurrentAuthoritativeViewsForDamaSource from "./getCurrentAuthoritativeViewsForDamaSource";
 

@@ -16,7 +16,7 @@ export default async function getCurrentAuthoritativeViewsForDamaSource(
   const source_id = existing_dama_source?.source_id ?? null;
 
   if (source_id === null) {
-    throw new Error("The DamaSource has not been created for NYSDOT Bridges.");
+    throw new Error(`The DamaSource has not been created for ${source_name}.`);
   }
 
   // Get the current authoritative
