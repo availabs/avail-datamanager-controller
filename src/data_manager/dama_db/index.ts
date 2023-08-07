@@ -407,7 +407,7 @@ class DamaDb extends DamaContextAttachedResource {
         const { message, stack } = new Error(
           "It appears that the queries passed to dama_db.query may leave an open TRANSACTION in the pool."
         );
-        logger.warn(stack);
+        logger.warn(stack?.replace(/Error/, "WARNING"));
       }
     }
 
