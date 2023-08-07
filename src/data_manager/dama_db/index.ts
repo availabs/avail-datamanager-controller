@@ -47,10 +47,12 @@ const dbInitializationScripts = [
   "create_mbtiles_tables.sql",
 ];
 
-type DamaDbSingleQueryParam = string | NodePgQueryConfig;
-type DamaDbMultiQueryParam = DamaDbSingleQueryParam[];
+export type DamaDbSingleQueryParam = string | NodePgQueryConfig;
+export type DamaDbMultiQueryParam = DamaDbSingleQueryParam[];
 
-type DamaDbQueryParamType = DamaDbSingleQueryParam | DamaDbMultiQueryParam;
+export type DamaDbQueryParamType =
+  | DamaDbSingleQueryParam
+  | DamaDbMultiQueryParam;
 
 // https://stackoverflow.com/a/54166010
 type DamaDbQueryReturnType<T> = T extends DamaDbSingleQueryParam

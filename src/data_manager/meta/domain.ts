@@ -59,3 +59,5 @@ export type DamaView = {
   _created_timestamp?: Date;
   _modified_timestamp?: Date;
 };
+
+export type DamaViewInitialMetadata = Omit<DataView, "view_id" | "source_id">;
