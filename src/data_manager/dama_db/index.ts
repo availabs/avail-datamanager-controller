@@ -345,8 +345,9 @@ class DamaDb extends DamaContextAttachedResource {
   // NOTE:  This is an imprecise heuristic for issuing warnings.
   //        An absolute test would require either
   //          * actually parsing the queries
-  //          * a property on a node-pg db connection that indicates if in open transaction
-  //            which I do not believe exists.
+  //          * a property on a node-pg db connection that indicates if in open transaction.
+  //              I do not believe exists.
+  //              See: https://github.com/brianc/node-postgres/issues/724
   testIfQueriesLeaveOpenTransaction<T extends DamaDbQueryParamType>(
     queries: T
   ) {
