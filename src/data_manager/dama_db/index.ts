@@ -343,7 +343,10 @@ class DamaDb extends DamaContextAttachedResource {
   }
 
   // NOTE:  This is an imprecise heuristic for issuing warnings.
-  //        An absolute
+  //        An absolute test would require either
+  //          * actually parsing the queries
+  //          * a property on a node-pg db connection that indicates if in open transaction
+  //            which I do not believe exists.
   testIfQueriesLeaveOpenTransaction<T extends DamaDbQueryParamType>(
     queries: T
   ) {
@@ -401,11 +404,10 @@ class DamaDb extends DamaContextAttachedResource {
       );
 
       if (leaves_open_transaction) {
-        logger.warn(
-          new Error(
-            "It appears that the queries passed to dama_db.query may leave an open TRANSACTION in the pool."
-          )
+        const { message, stack } = new Error(
+          "It appears that the queries passed to dama_db.query may leave an open TRANSACTION in the pool."
         );
+        logger.warn(stack);
       }
     }
 
