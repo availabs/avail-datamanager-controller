@@ -335,6 +335,12 @@ export default class ApiService extends Service {
 
               "data-types/nysdot_structures/dt-nysdot-structures-bridges/getBridgesMetadataForCounty":
                 "dama/data_types/nysdot_structures/dt-nysdot-structures-bridges.getBridgesMetadataForCounty",
+
+              "data-types/usgs/dt-national-hydrography-dataset-flowline/getFlowlinesByOgcFid":
+                "dama/data-types/usgs/dt-national-hydrography-dataset-flowline.getFlowlinesByOgcFid",
+
+              "data-types/usgs/dt-national-hydrography-dataset-waterbody/getWaterbodiesByOgcFid":
+                "dama/data_types/usgs/dt-national-hydrography-dataset-waterbody.getWaterbodiesByOgcFid",
             },
           },
 
