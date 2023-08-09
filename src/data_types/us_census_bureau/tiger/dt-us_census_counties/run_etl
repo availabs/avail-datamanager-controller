@@ -1,0 +1,90 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const yargs = require("yargs/yargs");
+const { hideBin } = require("yargs/helpers");
+const _ = require("lodash");
+
+const dama_events = require("data_manager/events").default;
+const logger = require("data_manager/logger").default;
+const { runInDamaContext } = require("data_manager/contexts");
+
+const {
+  default: etl,
+  pg_env_yargs_config,
+  logging_level_yargs_config,
+} = require("data_utils/gis/etl");
+
+const layer_name = "County";
+
+const source_info = {
+  name: "us_counties",
+  display_name: "US Counties",
+};
+
+const view_info = {
+  table_schema: "us_census_tiger",
+  table_name: "county",
+  geography_version: 36,
+  source_url:
+    "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-geodatabase-file.2022.html",
+  publisher: "US Census TIGER",
+};
+
+function reviseTableDescriptor(table_descriptor) {
+  const revised_table_descriptor = {
+    ..._.cloneDeep(table_descriptor),
+    tableSchema: view_info.table_schema,
+    tableName: view_info.table_name,
+  };
+
+  const geoid_column_type = revised_table_descriptor.columnTypes.find(
+    ({ col }) => col === "geoid"
+  );
+
+  geoid_column_type.db_type = "TEXT";
+
+  return revised_table_descriptor;
+}
+
+const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
+  .strict()
+  .options({
+    file_path: {
+      alias: "f",
+      describe:
+        "The location of the US Census Bureau TIGER/Line Geodatabases ZIP archive.",
+      demandOption: true,
+    },
+
+    pg_env: pg_env_yargs_config,
+
+    logging_level: logging_level_yargs_config,
+  }).argv;
+
+logger.level = logging_level;
+
+const config = {
+  file_path,
+  layer_name,
+  source_info,
+  view_info,
+  reviseTableDescriptor,
+};
+
+async function main() {
+  const etl_context_id = await dama_events.spawnEtlContext(null, null, pg_env);
+
+  logger.info(`==> etl_context_id: ${etl_context_id}`);
+
+  await runInDamaContext(
+    {
+      meta: { pgEnv: pg_env, etl_context_id },
+    },
+    () => etl(config)
+  );
+}
+
+main();

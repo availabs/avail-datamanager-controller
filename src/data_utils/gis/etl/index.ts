@@ -23,10 +23,24 @@ import GeospatialDatasetIntegrator from "../../../../tasks/gis-data-integration/
 
 import { TableDescriptor } from "../../../../tasks/gis-data-integration/src/utils/GeospatialDataUtils";
 
-import getCurrentAuthoritativeViewsForDamaSource from "./getCurrentAuthoritativeViewsForDamaSource";
+export type { TableDescriptor } from "../../../../tasks/gis-data-integration/src/utils/GeospatialDataUtils";
+
+type DamaViewInitialMetadataExtended = DamaViewInitialMetadata & {
+  table_schema: string;
+  table_name: string;
+  etl_context_id: number;
+};
 
 export type ExtractID = string;
 export type LayerName = string;
+
+export type EtlConfig = {
+  file_path: string;
+  layer_name: string;
+  source_info: DataSourceInitialMetadata;
+  view_info: DamaViewInitialMetadataExtended;
+  reviseTableDescriptor: (table_descriptor: TableDescriptor) => TableDescriptor;
+};
 
 enum ExtractDoneEventType {
   COPY_AND_INIT_DIR = "copyAndInitDir:DONE",
@@ -38,6 +52,20 @@ enum ExtractDoneEventType {
 enum LoadDoneEventType {
   LOAD = "loadGisDatasetLayer:DONE",
 }
+
+export const pg_env_yargs_config = {
+  alias: "p",
+  describe: "The PostgresSQL Database",
+  demandOption: true,
+};
+
+export const logging_level_yargs_config = {
+  alias: "l",
+  describe: "The logging level",
+  demandOption: false,
+  default: "debug",
+  choices: ["error", "warn", "info", "debug", "silly"],
+};
 
 export async function extract(file_path: string) {
   const file_stream = createReadStream(file_path);
@@ -313,7 +341,7 @@ export async function integrateIntoDama(
   layer_name: LayerName,
   data_source_initial_metadata: DataSourceInitialMetadata,
   // @ts-ignore FIXME
-  data_view_initial_metadata: DamaViewInitialMetadata = {},
+  data_view_initial_metadata: DamaViewInitialMetadataExtended = {},
   load_etl_context_id = getEtlContextId()
 ) {
   const load_events = await dama_events.getAllEtlContextEvents(
@@ -353,7 +381,7 @@ export async function integrateIntoDama(
     source_id = new_dama_source.source_id;
   }
 
-  const [old_view_id] = await getCurrentAuthoritativeViewsForDamaSource(
+  const [old_view_id] = await dama_meta.getCurrentActiveViewsForDamaSourceName(
     source_name
   );
 
@@ -434,9 +462,8 @@ export async function integrateIntoDama(
 }
 
 export async function createMBTiles(dama_source_name: DamaSourceName) {
-  const [view_id = null] = await getCurrentAuthoritativeViewsForDamaSource(
-    dama_source_name
-  );
+  const [view_id = null] =
+    await dama_meta.getCurrentActiveViewsForDamaSourceName(dama_source_name);
 
   if (view_id === null) {
     throw new Error(
@@ -483,4 +510,67 @@ export async function createMBTiles(dama_source_name: DamaSourceName) {
   await dama_events.dispatch(final_event);
 
   console.log(`MBTiles created.\n${JSON.stringify(mbtiles_meta, null, 4)}`);
+}
+
+export default async function etl(config: EtlConfig) {
+  const { file_path, layer_name, source_info, view_info } = config;
+
+  try {
+    const initial_event = {
+      type: `${view_info.table_schema}/${view_info.table_name}:INITIAL`,
+      meta: { dama_host_id },
+    };
+
+    await dama_events.dispatch(initial_event);
+
+    const { table_descriptors: default_table_descriptors } =
+      await performExtract(file_path);
+
+    const table_descriptor = default_table_descriptors.find(
+      ({ layerName }) => layerName === layer_name
+    );
+
+    if (!table_descriptor) {
+      throw new Error(
+        `INVARIANT BROKEN: The ${source_info.name} layer name is expected to be ${layer_name}.`
+      );
+    }
+
+    const revised_table_descriptor =
+      config.reviseTableDescriptor(table_descriptor);
+
+    await reviseGisLayerTableDescriptors(revised_table_descriptor);
+
+    await loadGisDatasetLayer(layer_name);
+
+    const integrate_done_data = await integrateIntoDama(
+      layer_name,
+      source_info,
+      {
+        ...view_info,
+        etl_context_id: getEtlContextId() as number,
+      }
+    );
+
+    await createMBTiles(source_info.name);
+
+    const final_event = {
+      type: `${view_info.table_schema}/${view_info.table_name}/etl:FINAL`,
+      payload: integrate_done_data,
+    };
+
+    await dama_events.dispatch(final_event);
+  } catch (err) {
+    const { message, stack } = err as Error;
+
+    const error_event = {
+      type: `${view_info.table_schema}/${view_info.table_name}/etl:ERROR`,
+      payload: { message, stack },
+      error: true,
+    };
+
+    dama_events.dispatch(error_event);
+
+    throw err;
+  }
 }

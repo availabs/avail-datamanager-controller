@@ -9,7 +9,7 @@ import dama_db from "data_manager/dama_db";
 import logger from "data_manager/logger";
 
 import { NodePgQueryConfig } from "../dama_db/postgres/PostgreSQL";
-import { DamaSource, DamaSourceName } from "./domain";
+import { DamaSource, DamaSourceName, DamaViewID } from "./domain";
 
 type TableDescription = Record<
   string,
@@ -1335,6 +1335,68 @@ class DamaMeta extends DamaContextAttachedResource {
     return dama_db.isInTransactionContext
       ? fn()
       : dama_db.runInTransactionContext(fn, pg_env);
+  }
+
+  async getMBTilesMetadataForView(view_id: DamaViewID, pg_env = this.pg_env) {
+    const sql = dedent(
+      `
+        SELECT
+            metadata->'dama'->'mbtiles' AS mbtiles_metadata
+          FROM data_manager.views
+          WHERE ( view_id = $1 )
+      `
+    );
+
+    const { rows } = await dama_db.query(
+      { text: sql, values: [view_id] },
+      pg_env
+    );
+
+    return rows.length === 0 ? null : rows[0].mbtiles_metadata;
+  }
+
+  // Assumption: active_end_timestamp is NULL for authoritative views.
+  async getCurrentActiveViewsForDamaSourceName(
+    source_name: string,
+    pg_env = this.pg_env
+  ) {
+    // Create the DamaSource if it does not exist.
+    const { [source_name]: existing_dama_source } =
+      await this.getDamaSourceMetadataByName([source_name], pg_env);
+
+    const source_id = existing_dama_source?.source_id ?? null;
+
+    if (source_id === null) {
+      throw new Error(
+        `The DamaSource has not been created for ${source_name}.`
+      );
+    }
+
+    // Get the current authoritative
+    const current_authoritative_view_id_sql = dedent(`
+      SELECT
+          view_id
+        FROM data_manager.sources AS a
+          INNER JOIN data_manager.views AS b
+            USING ( source_id )
+        WHERE (
+          ( source_id = $1 )
+          AND
+          ( active_end_timestamp IS NULL )
+        )
+    `);
+
+    const { rows: authoritative_view_res } = await dama_db.query(
+      {
+        text: current_authoritative_view_id_sql,
+        values: [source_id],
+      },
+      pg_env
+    );
+
+    const view_ids = authoritative_view_res.map(({ view_id }) => view_id);
+
+    return view_ids;
   }
 }
 

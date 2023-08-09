@@ -215,5 +215,48 @@ export default {
         toposortedDataSourcesMetadata
       );
     },
+
+    getMBTilesMetadataForView: {
+      visibility: "published",
+
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { view_id },
+        } = ctx;
+
+        const mbtiles_metadata = await dama_meta.getMBTilesMetadataForView(
+          view_id
+        );
+
+        if (mbtiles_metadata === null) {
+          throw new Error(`No MBTiles metadata for DamaViewID ${view_id}.`);
+        }
+
+        return mbtiles_metadata;
+      },
+    },
+
+    getCurrentActiveViewsForDamaSourceName: {
+      visibility: "published",
+
+      async handler(ctx: MoleculerContext) {
+        const {
+          // @ts-ignore
+          params: { source_name },
+        } = ctx;
+
+        const active_views =
+          await dama_meta.getCurrentActiveViewsForDamaSourceName(source_name);
+
+        if (active_views === null) {
+          throw new Error(
+            `No currently active DamaViews for DamaSourceName ${source_name}.`
+          );
+        }
+
+        return active_views;
+      },
+    },
   },
 };
