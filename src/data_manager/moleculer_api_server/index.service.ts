@@ -336,11 +336,23 @@ export default class ApiService extends Service {
               "data-types/nysdot_structures/dt-nysdot-structures-bridges/getBridgesMetadataForCounty":
                 "dama/data_types/nysdot_structures/dt-nysdot-structures-bridges.getBridgesMetadataForCounty",
 
-              "data-types/usgs/dt-national-hydrography-dataset-flowline/getFlowlinesByOgcFid":
-                "dama/data-types/usgs/dt-national-hydrography-dataset-flowline.getFlowlinesByOgcFid",
+              "data-types/us_geological_survey/dt-national-hydrography-dataset-flowline/getFlowlinesByOgcFid":
+                "dama/data-types/us_geological_survey/dt-national-hydrography-dataset-flowline.getFlowlinesByOgcFid",
 
-              "data-types/usgs/dt-national-hydrography-dataset-waterbody/getWaterbodiesByOgcFid":
-                "dama/data_types/usgs/dt-national-hydrography-dataset-waterbody.getWaterbodiesByOgcFid",
+              "data-types/us_geological_survey/dt-national-hydrography-dataset-flowline/getFlowlinesByCountyFipsCode":
+                "dama/data-types/us_geological_survey/dt-national-hydrography-dataset-flowline.getFlowlinesByCountyFipsCode",
+
+              "data-types/us_geological_survey/dt-national-hydrography-dataset-waterbody/getWaterbodiesByOgcFid":
+                "dama/data-types/us_geological_survey/dt-national-hydrography-dataset-waterbody.getWaterbodiesByOgcFid",
+
+              "data-types/us_geological_survey/dt-national-hydrography-dataset-waterbody/getWaterbodiesByCountyFipsCode":
+                "dama/data-types/us_geological_survey/dt-national-hydrography-dataset-waterbody.getWaterbodiesByCountyFipsCode",
+
+              "dama/metadata/getMBTilesMetadataForView":
+                "dama/metadata.getMBTilesMetadataForView",
+
+              "dama/metadata/getCurrentActiveViewsForDamaSourceName":
+                "dama/metadata.getCurrentActiveViewsForDamaSourceName",
             },
           },
 
