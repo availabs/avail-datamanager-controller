@@ -49,6 +49,16 @@ function reviseTableDescriptor(table_descriptor) {
     column_type.db_type = "TEXT";
   }
 
+  const double_precision_columns = ["section_length"];
+
+  for (const c of double_precision_columns) {
+    const column_type = table_descriptor.columnTypes.find(
+      ({ col }) => col === c
+    );
+
+    column_type.db_type = "DOUBLE PRECISION";
+  }
+
   return table_descriptor;
 }
 
