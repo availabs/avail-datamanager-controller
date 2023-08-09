@@ -47,7 +47,8 @@ SELECT
 (31 rows)
 ```
 
-[query](./miles_by_jurisdiction.sql)
+* [sql](./miles_by_jurisdiction.sql)
+* [csv](./miles_by_jurisdiction.csv)
 
 ## Total roadway miles by owning_jurisdiction
 
@@ -94,5 +95,6 @@ SELECT
 (29 rows)
 ```
 
-[query](./miles_by_owining_jurisdiction.sql)
+* [sql](./miles_by_owning_jurisdiction.sql)
+* [csv](./miles_by_owning_jurisdiction.csv)
 
