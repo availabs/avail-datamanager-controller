@@ -536,8 +536,17 @@ export default async function etl(config: EtlConfig) {
       );
     }
 
-    const revised_table_descriptor =
-      config.reviseTableDescriptor(table_descriptor);
+    let revised_table_descriptor = {
+      ..._.cloneDeep(table_descriptor),
+      tableSchema: view_info.table_schema,
+      tableName: view_info.table_name,
+    };
+
+    if (config.reviseTableDescriptor) {
+      revised_table_descriptor = config.reviseTableDescriptor(
+        revised_table_descriptor
+      );
+    }
 
     await reviseGisLayerTableDescriptors(revised_table_descriptor);
 

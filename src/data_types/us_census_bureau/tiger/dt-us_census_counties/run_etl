@@ -5,7 +5,6 @@ require("tsconfig-paths").register();
 
 const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
-const _ = require("lodash");
 
 const dama_events = require("data_manager/events").default;
 const logger = require("data_manager/logger").default;
@@ -34,19 +33,13 @@ const view_info = {
 };
 
 function reviseTableDescriptor(table_descriptor) {
-  const revised_table_descriptor = {
-    ..._.cloneDeep(table_descriptor),
-    tableSchema: view_info.table_schema,
-    tableName: view_info.table_name,
-  };
-
-  const geoid_column_type = revised_table_descriptor.columnTypes.find(
+  const geoid_column_type = table_descriptor.columnTypes.find(
     ({ col }) => col === "geoid"
   );
 
   geoid_column_type.db_type = "TEXT";
 
-  return revised_table_descriptor;
+  return table_descriptor;
 }
 
 const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
