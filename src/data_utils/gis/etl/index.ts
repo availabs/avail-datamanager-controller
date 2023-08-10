@@ -40,6 +40,7 @@ export type EtlConfig = {
   source_info: DataSourceInitialMetadata;
   view_info: DamaViewInitialMetadataExtended;
   reviseTableDescriptor: (table_descriptor: TableDescriptor) => TableDescriptor;
+  preserve_text_fields?: boolean;
 };
 
 enum ExtractDoneEventType {
@@ -56,6 +57,12 @@ enum LoadDoneEventType {
 export const pg_env_yargs_config = {
   alias: "p",
   describe: "The PostgresSQL Database",
+  demandOption: true,
+};
+
+export const file_path_yargs_config = {
+  alias: "f",
+  describe: "The location of the GIS dataset.",
   demandOption: true,
 };
 
@@ -121,6 +128,19 @@ export async function getTableDescriptor(
   const gdi = new GeospatialDatasetIntegrator(extract_id);
 
   const tableDescriptor = await gdi.getLayerTableDescriptor(layer_name);
+
+  return tableDescriptor;
+}
+
+export async function restoreAllTextFieldsInLayerTableDescriptor(
+  extract_id: ExtractID,
+  layer_name: string
+) {
+  const gdi = new GeospatialDatasetIntegrator(extract_id);
+
+  const tableDescriptor = await gdi.restoreAllTextFieldsInLayerTableDescriptor(
+    layer_name
+  );
 
   return tableDescriptor;
 }
@@ -513,7 +533,13 @@ export async function createMBTiles(dama_source_name: DamaSourceName) {
 }
 
 export default async function etl(config: EtlConfig) {
-  const { file_path, layer_name, source_info, view_info } = config;
+  const {
+    file_path,
+    layer_name,
+    source_info,
+    view_info,
+    preserve_text_fields = false,
+  } = config;
 
   try {
     const initial_event = {
@@ -523,7 +549,7 @@ export default async function etl(config: EtlConfig) {
 
     await dama_events.dispatch(initial_event);
 
-    const { table_descriptors: default_table_descriptors } =
+    const { extract_id, table_descriptors: default_table_descriptors } =
       await performExtract(file_path);
 
     const table_descriptor = default_table_descriptors.find(
@@ -534,6 +560,10 @@ export default async function etl(config: EtlConfig) {
       throw new Error(
         `INVARIANT BROKEN: The ${source_info.name} layer name is expected to be ${layer_name}.`
       );
+    }
+
+    if (preserve_text_fields) {
+      restoreAllTextFieldsInLayerTableDescriptor(extract_id, layer_name);
     }
 
     let revised_table_descriptor = {

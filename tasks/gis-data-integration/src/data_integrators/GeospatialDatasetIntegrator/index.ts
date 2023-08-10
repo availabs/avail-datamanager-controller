@@ -662,6 +662,43 @@ export default class GeospatialDatasetIntegrator {
     return tableDescriptor;
   }
 
+  async restoreAllTextFieldsInLayerTableDescriptor(layerName: string) {
+    const metadata = await this.getGeoDatasetMetadata();
+
+    const layerMetadata = metadata.layers.find(
+      ({ layerName: name }) => name === layerName
+    );
+
+    if (!layerMetadata) {
+      throw new Error(`Layer ${layerName} not found in Geo Dataset`);
+    }
+
+
+    const stringFields = layerMetadata.fieldsMetadata.reduce((acc, fieldMeta) => {
+      if (fieldMeta.type === "string") {
+        acc.push(fieldMeta.name);
+      }
+
+      return acc;
+    }, [] as string[]);
+
+    const stringFieldsSet = new Set(stringFields);
+
+    const tableDescriptor = await this.getLayerTableDescriptor(layerName);
+
+    const revisedTableDescriptor = _.cloneDeep(tableDescriptor);
+
+    for (const columnType of revisedTableDescriptor.columnTypes) {
+      if (stringFieldsSet.has(columnType.key)) {
+        columnType.db_type = "TEXT";
+      }
+    }
+
+    await this.persistLayerTableDescriptor(revisedTableDescriptor);
+
+    return revisedTableDescriptor;
+  }
+
   protected getLayerLoadTableSqlPath(layerName: string) {
     const layerDir = this.getDatasetLayerWorkDir(layerName);
     const fpath = join(layerDir, "load_table.sql");
@@ -747,6 +784,8 @@ export default class GeospatialDatasetIntegrator {
         JSON.stringify(tableDescriptor, null, 4)
       );
     }
+
+    return tableDescriptor;
   }
 
   protected async persistDatasetLayerCreateTableError(
