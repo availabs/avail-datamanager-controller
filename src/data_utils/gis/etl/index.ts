@@ -132,13 +132,13 @@ export async function getTableDescriptor(
   return tableDescriptor;
 }
 
-export async function restoreAllTextFieldsInLayerTableDescriptor(
+export async function revertAllTextFieldsInLayerTableDescriptor(
   extract_id: ExtractID,
   layer_name: string
 ) {
   const gdi = new GeospatialDatasetIntegrator(extract_id);
 
-  const tableDescriptor = await gdi.restoreAllTextFieldsInLayerTableDescriptor(
+  const tableDescriptor = await gdi.revertAllTextFieldsInLayerTableDescriptor(
     layer_name
   );
 
@@ -562,12 +562,15 @@ export default async function etl(config: EtlConfig) {
       );
     }
 
+    let revised_table_descriptor = table_descriptor;
+
     if (preserve_text_fields) {
-      restoreAllTextFieldsInLayerTableDescriptor(extract_id, layer_name);
+      revised_table_descriptor =
+        await revertAllTextFieldsInLayerTableDescriptor(extract_id, layer_name);
     }
 
-    let revised_table_descriptor = {
-      ..._.cloneDeep(table_descriptor),
+    revised_table_descriptor = {
+      ..._.cloneDeep(revised_table_descriptor),
       tableSchema: view_info.table_schema,
       tableName: view_info.table_name,
     };

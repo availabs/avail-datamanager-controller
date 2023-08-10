@@ -662,7 +662,7 @@ export default class GeospatialDatasetIntegrator {
     return tableDescriptor;
   }
 
-  async restoreAllTextFieldsInLayerTableDescriptor(layerName: string) {
+  async revertAllTextFieldsInLayerTableDescriptor(layerName: string) {
     const metadata = await this.getGeoDatasetMetadata();
 
     const layerMetadata = metadata.layers.find(
@@ -672,7 +672,6 @@ export default class GeospatialDatasetIntegrator {
     if (!layerMetadata) {
       throw new Error(`Layer ${layerName} not found in Geo Dataset`);
     }
-
 
     const stringFields = layerMetadata.fieldsMetadata.reduce((acc, fieldMeta) => {
       if (fieldMeta.type === "string") {
@@ -688,13 +687,22 @@ export default class GeospatialDatasetIntegrator {
 
     const revisedTableDescriptor = _.cloneDeep(tableDescriptor);
 
+
     for (const columnType of revisedTableDescriptor.columnTypes) {
       if (stringFieldsSet.has(columnType.key)) {
+        if (columnType.db_type !== "TEXT") {
+          console.log(`--> reverting ${columnType.key} to TEXT`);
+        }
+        // WARNING: MUTATION
         columnType.db_type = "TEXT";
       }
     }
 
     await this.persistLayerTableDescriptor(revisedTableDescriptor);
+
+    // console.log(
+    //   JSON.stringify({ stringFields, layerMetadata, tableDescriptor, revisedTableDescriptor }, null, 4)
+    // );
 
     return revisedTableDescriptor;
   }

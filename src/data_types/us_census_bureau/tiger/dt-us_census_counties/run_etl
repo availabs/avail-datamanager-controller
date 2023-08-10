@@ -32,16 +32,6 @@ const view_info = {
   publisher: "US Census TIGER",
 };
 
-function reviseTableDescriptor(table_descriptor) {
-  const geoid_column_type = table_descriptor.columnTypes.find(
-    ({ col }) => col === "geoid"
-  );
-
-  geoid_column_type.db_type = "TEXT";
-
-  return table_descriptor;
-}
-
 const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
   .strict()
   .options({
@@ -64,7 +54,7 @@ const config = {
   layer_name,
   source_info,
   view_info,
-  reviseTableDescriptor,
+  preserve_text_fields: true,
 };
 
 async function main() {
