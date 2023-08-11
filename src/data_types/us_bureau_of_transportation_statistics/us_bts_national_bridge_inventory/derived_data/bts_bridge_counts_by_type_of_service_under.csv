@@ -1,0 +1,364 @@
+county,type_of_service_under_bridge,type_of_service_under_bridge_code,total_bridges
+Albany County,Other,0,10
+Albany County,"Highway, with or without pedestrian",1,135
+Albany County,Railroad,2,21
+Albany County,Pedestrian-bicycle,3,1
+Albany County,Highway-railroad,4,13
+Albany County,Waterway,5,142
+Albany County,Highway-waterway,6,8
+Albany County,Railroad-waterway,7,7
+Albany County,Highway-waterway-railroad,8,6
+Allegany County,"Highway, with or without pedestrian",1,22
+Allegany County,Railroad,2,3
+Allegany County,Waterway,5,376
+Allegany County,Railroad-waterway,7,2
+Bronx County,Other,0,31
+Bronx County,"Highway, with or without pedestrian",1,160
+Bronx County,Railroad,2,64
+Bronx County,Pedestrian-bicycle,3,4
+Bronx County,Highway-railroad,4,8
+Bronx County,Waterway,5,24
+Bronx County,Highway-waterway,6,6
+Bronx County,Railroad-waterway,7,1
+Bronx County,Highway-waterway-railroad,8,8
+Broome County,"Highway, with or without pedestrian",1,126
+Broome County,Railroad,2,13
+Broome County,Highway-railroad,4,7
+Broome County,Waterway,5,285
+Broome County,Highway-waterway,6,27
+Broome County,Railroad-waterway,7,6
+Broome County,Highway-waterway-railroad,8,2
+Cattaraugus County,Other,0,3
+Cattaraugus County,"Highway, with or without pedestrian",1,43
+Cattaraugus County,Railroad,2,8
+Cattaraugus County,Pedestrian-bicycle,3,1
+Cattaraugus County,Highway-railroad,4,2
+Cattaraugus County,Waterway,5,418
+Cattaraugus County,Highway-waterway,6,6
+Cattaraugus County,Highway-waterway-railroad,8,2
+Cayuga County,"Highway, with or without pedestrian",1,9
+Cayuga County,Railroad,2,5
+Cayuga County,Waterway,5,131
+Cayuga County,Highway-waterway-railroad,8,1
+Chautauqua County,Other,0,2
+Chautauqua County,"Highway, with or without pedestrian",1,98
+Chautauqua County,Railroad,2,13
+Chautauqua County,Highway-railroad,4,2
+Chautauqua County,Waterway,5,433
+Chautauqua County,Highway-waterway,6,6
+Chautauqua County,Railroad-waterway,7,1
+Chautauqua County,Highway-waterway-railroad,8,3
+Chemung County,"Highway, with or without pedestrian",1,26
+Chemung County,Railroad,2,9
+Chemung County,Waterway,5,218
+Chemung County,Railroad-waterway,7,2
+Chenango County,"Highway, with or without pedestrian",1,11
+Chenango County,Railroad,2,2
+Chenango County,Waterway,5,239
+Chenango County,Railroad-waterway,7,1
+Chenango County,Relief for waterway,9,3
+Clinton County,"Highway, with or without pedestrian",1,31
+Clinton County,Railroad,2,7
+Clinton County,Waterway,5,160
+Clinton County,Highway-waterway,6,3
+Columbia County,"Highway, with or without pedestrian",1,30
+Columbia County,Railroad,2,7
+Columbia County,Waterway,5,199
+Columbia County,Highway-waterway,6,4
+Columbia County,Railroad-waterway,7,3
+Cortland County,"Highway, with or without pedestrian",1,20
+Cortland County,Railroad,2,4
+Cortland County,Waterway,5,158
+Cortland County,Highway-waterway,6,6
+Delaware County,"Highway, with or without pedestrian",1,20
+Delaware County,Railroad,2,4
+Delaware County,Waterway,5,404
+Delaware County,Highway-waterway,6,22
+Dutchess County,Other,0,2
+Dutchess County,"Highway, with or without pedestrian",1,50
+Dutchess County,Railroad,2,21
+Dutchess County,Pedestrian-bicycle,3,4
+Dutchess County,Waterway,5,257
+Erie County,Other,0,12
+Erie County,"Highway, with or without pedestrian",1,251
+Erie County,Railroad,2,54
+Erie County,Pedestrian-bicycle,3,2
+Erie County,Highway-railroad,4,27
+Erie County,Waterway,5,510
+Erie County,Highway-waterway,6,27
+Erie County,Highway-waterway-railroad,8,5
+Essex County,Other,0,1
+Essex County,"Highway, with or without pedestrian",1,24
+Essex County,Railroad,2,3
+Essex County,Waterway,5,219
+Essex County,Highway-waterway,6,6
+Franklin County,Waterway,5,189
+Fulton County,"Highway, with or without pedestrian",1,1
+Fulton County,Waterway,5,97
+Genesee County,"Highway, with or without pedestrian",1,25
+Genesee County,Railroad,2,3
+Genesee County,Waterway,5,133
+Genesee County,Highway-waterway,6,1
+Greene County,"Highway, with or without pedestrian",1,20
+Greene County,Railroad,2,5
+Greene County,Waterway,5,198
+Greene County,Highway-waterway,6,4
+Greene County,Railroad-waterway,7,1
+Hamilton County,Waterway,5,88
+Herkimer County,"Highway, with or without pedestrian",1,29
+Herkimer County,Railroad,2,4
+Herkimer County,Highway-railroad,4,2
+Herkimer County,Waterway,5,200
+Herkimer County,Highway-waterway,6,5
+Herkimer County,Railroad-waterway,7,1
+Herkimer County,Highway-waterway-railroad,8,2
+Jefferson County,Other,0,1
+Jefferson County,"Highway, with or without pedestrian",1,46
+Jefferson County,Railroad,2,7
+Jefferson County,Highway-railroad,4,1
+Jefferson County,Waterway,5,256
+Jefferson County,Highway-waterway,6,4
+Jefferson County,Railroad-waterway,7,1
+Kings County,Other,0,10
+Kings County,"Highway, with or without pedestrian",1,120
+Kings County,Railroad,2,81
+Kings County,Pedestrian-bicycle,3,2
+Kings County,Highway-railroad,4,3
+Kings County,Waterway,5,21
+Kings County,Highway-waterway,6,2
+Kings County,Railroad-waterway,7,1
+Kings County,Highway-waterway-railroad,8,2
+Kings County,Relief for waterway,9,1
+Lewis County,"Highway, with or without pedestrian",1,1
+Lewis County,Railroad,2,3
+Lewis County,Waterway,5,164
+Livingston County,"Highway, with or without pedestrian",1,27
+Livingston County,Railroad,2,3
+Livingston County,Highway-railroad,4,4
+Livingston County,Waterway,5,129
+Livingston County,Railroad-waterway,7,2
+Madison County,"Highway, with or without pedestrian",1,12
+Madison County,Railroad,2,4
+Madison County,Waterway,5,158
+Monroe County,Other,0,5
+Monroe County,"Highway, with or without pedestrian",1,258
+Monroe County,Railroad,2,19
+Monroe County,Pedestrian-bicycle,3,5
+Monroe County,Highway-railroad,4,8
+Monroe County,Waterway,5,297
+Monroe County,Highway-waterway,6,13
+Monroe County,Railroad-waterway,7,4
+Montgomery County,"Highway, with or without pedestrian",1,24
+Montgomery County,Railroad,2,3
+Montgomery County,Pedestrian-bicycle,3,2
+Montgomery County,Highway-railroad,4,1
+Montgomery County,Waterway,5,164
+Montgomery County,Highway-waterway,6,8
+Montgomery County,Railroad-waterway,7,1
+Montgomery County,Highway-waterway-railroad,8,1
+Nassau County,Other,0,2
+Nassau County,"Highway, with or without pedestrian",1,218
+Nassau County,Railroad,2,22
+Nassau County,Pedestrian-bicycle,3,1
+Nassau County,Highway-railroad,4,1
+Nassau County,Waterway,5,75
+Nassau County,Highway-waterway,6,3
+Nassau County,Relief for waterway,9,1
+New York County,Other,0,20
+New York County,"Highway, with or without pedestrian",1,129
+New York County,Railroad,2,38
+New York County,Pedestrian-bicycle,3,22
+New York County,Highway-railroad,4,8
+New York County,Waterway,5,7
+New York County,Highway-waterway,6,11
+New York County,Railroad-waterway,7,3
+New York County,Highway-waterway-railroad,8,6
+Niagara County,Other,0,7
+Niagara County,"Highway, with or without pedestrian",1,56
+Niagara County,Railroad,2,12
+Niagara County,Waterway,5,188
+Niagara County,Highway-waterway,6,4
+Oneida County,Other,0,2
+Oneida County,"Highway, with or without pedestrian",1,90
+Oneida County,Railroad,2,18
+Oneida County,Highway-railroad,4,6
+Oneida County,Waterway,5,367
+Oneida County,Highway-waterway,6,5
+Oneida County,Railroad-waterway,7,4
+Oneida County,Highway-waterway-railroad,8,2
+Onondaga County,Other,0,2
+Onondaga County,"Highway, with or without pedestrian",1,198
+Onondaga County,Railroad,2,29
+Onondaga County,Pedestrian-bicycle,3,1
+Onondaga County,Highway-railroad,4,8
+Onondaga County,Waterway,5,221
+Onondaga County,Highway-waterway,6,8
+Onondaga County,Railroad-waterway,7,1
+Onondaga County,Highway-waterway-railroad,8,5
+Ontario County,"Highway, with or without pedestrian",1,30
+Ontario County,Railroad,2,2
+Ontario County,Pedestrian-bicycle,3,1
+Ontario County,Highway-railroad,4,2
+Ontario County,Waterway,5,142
+Ontario County,Railroad-waterway,7,1
+Orange County,Other,0,11
+Orange County,"Highway, with or without pedestrian",1,118
+Orange County,Railroad,2,36
+Orange County,Pedestrian-bicycle,3,4
+Orange County,Highway-railroad,4,4
+Orange County,Waterway,5,288
+Orange County,Highway-waterway,6,6
+Orange County,Railroad-waterway,7,1
+Orange County,Highway-waterway-railroad,8,4
+Orleans County,"Highway, with or without pedestrian",1,11
+Orleans County,Railroad,2,2
+Orleans County,Waterway,5,118
+Orleans County,Highway-waterway,6,4
+Oswego County,Other,0,3
+Oswego County,"Highway, with or without pedestrian",1,29
+Oswego County,Railroad,2,9
+Oswego County,Pedestrian-bicycle,3,1
+Oswego County,Waterway,5,188
+Oswego County,Highway-waterway,6,3
+Otsego County,Other,0,2
+Otsego County,"Highway, with or without pedestrian",1,24
+Otsego County,Railroad,2,13
+Otsego County,Highway-railroad,4,1
+Otsego County,Waterway,5,224
+Otsego County,Highway-waterway,6,1
+Otsego County,Railroad-waterway,7,2
+Otsego County,Highway-waterway-railroad,8,1
+Putnam County,"Highway, with or without pedestrian",1,29
+Putnam County,Railroad,2,11
+Putnam County,Pedestrian-bicycle,3,1
+Putnam County,Highway-railroad,4,2
+Putnam County,Waterway,5,55
+Putnam County,Highway-waterway,6,3
+Putnam County,Railroad-waterway,7,1
+Putnam County,Highway-waterway-railroad,8,2
+Queens County,Other,0,25
+Queens County,"Highway, with or without pedestrian",1,368
+Queens County,Railroad,2,52
+Queens County,Pedestrian-bicycle,3,6
+Queens County,Highway-railroad,4,7
+Queens County,Waterway,5,24
+Queens County,Highway-waterway,6,24
+Queens County,Highway-waterway-railroad,8,3
+Queens County,Relief for waterway,9,1
+Rensselaer County,Other,0,4
+Rensselaer County,"Highway, with or without pedestrian",1,42
+Rensselaer County,Railroad,2,15
+Rensselaer County,Pedestrian-bicycle,3,1
+Rensselaer County,Highway-railroad,4,5
+Rensselaer County,Waterway,5,195
+Rensselaer County,Highway-waterway,6,3
+Rensselaer County,Highway-waterway-railroad,8,2
+Richmond County,Other,0,15
+Richmond County,"Highway, with or without pedestrian",1,89
+Richmond County,Railroad,2,29
+Richmond County,Highway-railroad,4,5
+Richmond County,Waterway,5,18
+Richmond County,Highway-waterway,6,6
+Richmond County,Railroad-waterway,7,1
+Rockland County,Other,0,5
+Rockland County,"Highway, with or without pedestrian",1,90
+Rockland County,Railroad,2,15
+Rockland County,Pedestrian-bicycle,3,2
+Rockland County,Highway-railroad,4,6
+Rockland County,Waterway,5,117
+Rockland County,Highway-waterway,6,6
+Rockland County,Railroad-waterway,7,1
+Rockland County,Highway-waterway-railroad,8,5
+Saratoga County,"Highway, with or without pedestrian",1,32
+Saratoga County,Railroad,2,16
+Saratoga County,Pedestrian-bicycle,3,4
+Saratoga County,Waterway,5,174
+Saratoga County,Highway-waterway,6,2
+Schenectady County,Other,0,2
+Schenectady County,"Highway, with or without pedestrian",1,45
+Schenectady County,Railroad,2,18
+Schenectady County,Highway-railroad,4,4
+Schenectady County,Waterway,5,42
+Schenectady County,Highway-waterway,6,2
+Schenectady County,Railroad-waterway,7,2
+Schoharie County,"Highway, with or without pedestrian",1,21
+Schoharie County,Railroad,2,1
+Schoharie County,Waterway,5,147
+Schoharie County,Highway-waterway,6,5
+Schuyler County,"Highway, with or without pedestrian",1,1
+Schuyler County,Waterway,5,99
+Seneca County,"Highway, with or without pedestrian",1,11
+Seneca County,Waterway,5,48
+Steuben County,"Highway, with or without pedestrian",1,84
+Steuben County,Railroad,2,22
+Steuben County,Pedestrian-bicycle,3,1
+Steuben County,Highway-railroad,4,3
+Steuben County,Waterway,5,501
+Steuben County,Highway-waterway,6,9
+Steuben County,Railroad-waterway,7,6
+Steuben County,Highway-waterway-railroad,8,1
+St. Lawrence County,"Highway, with or without pedestrian",1,1
+St. Lawrence County,Railroad,2,4
+St. Lawrence County,Highway-railroad,4,1
+St. Lawrence County,Waterway,5,302
+St. Lawrence County,Highway-waterway,6,2
+St. Lawrence County,Railroad-waterway,7,1
+Suffolk County,Other,0,1
+Suffolk County,"Highway, with or without pedestrian",1,251
+Suffolk County,Railroad,2,25
+Suffolk County,Pedestrian-bicycle,3,2
+Suffolk County,Highway-railroad,4,10
+Suffolk County,Waterway,5,74
+Suffolk County,Highway-waterway,6,3
+Suffolk County,Highway-waterway-railroad,8,2
+Suffolk County,Relief for waterway,9,1
+Sullivan County,Other,0,1
+Sullivan County,"Highway, with or without pedestrian",1,37
+Sullivan County,Railroad,2,1
+Sullivan County,Waterway,5,316
+Sullivan County,Highway-waterway,6,10
+Tioga County,"Highway, with or without pedestrian",1,25
+Tioga County,Railroad,2,7
+Tioga County,Highway-railroad,4,2
+Tioga County,Waterway,5,180
+Tioga County,Highway-waterway,6,2
+Tioga County,Railroad-waterway,7,3
+Tompkins County,"Highway, with or without pedestrian",1,5
+Tompkins County,Railroad,2,1
+Tompkins County,Waterway,5,183
+Tompkins County,Highway-waterway,6,1
+Tompkins County,Railroad-waterway,7,2
+Ulster County,Other,0,3
+Ulster County,"Highway, with or without pedestrian",1,42
+Ulster County,Railroad,2,6
+Ulster County,Pedestrian-bicycle,3,7
+Ulster County,Waterway,5,324
+Ulster County,Highway-waterway,6,7
+Ulster County,Highway-waterway-railroad,8,2
+Warren County,"Highway, with or without pedestrian",1,26
+Warren County,Waterway,5,107
+Warren County,Highway-waterway,6,6
+Warren County,Railroad-waterway,7,1
+Washington County,Railroad,2,8
+Washington County,Waterway,5,175
+Washington County,Highway-waterway,6,1
+Washington County,Railroad-waterway,7,1
+Wayne County,"Highway, with or without pedestrian",1,1
+Wayne County,Railroad,2,6
+Wayne County,Highway-railroad,4,1
+Wayne County,Waterway,5,87
+Wayne County,Railroad-waterway,7,1
+Wayne County,Highway-waterway-railroad,8,1
+Westchester County,Other,0,21
+Westchester County,"Highway, with or without pedestrian",1,309
+Westchester County,Railroad,2,55
+Westchester County,Pedestrian-bicycle,3,4
+Westchester County,Highway-railroad,4,17
+Westchester County,Waterway,5,320
+Westchester County,Highway-waterway,6,39
+Westchester County,Railroad-waterway,7,1
+Westchester County,Highway-waterway-railroad,8,6
+Wyoming County,"Highway, with or without pedestrian",1,1
+Wyoming County,Highway-railroad,4,1
+Wyoming County,Waterway,5,134
+Yates County,Waterway,5,55

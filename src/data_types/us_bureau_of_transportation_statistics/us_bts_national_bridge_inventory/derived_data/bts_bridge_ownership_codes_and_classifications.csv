@@ -1,0 +1,31 @@
+code,description,classification
+01,State Highway Agency,State
+02,County Highway Agency,County
+03,Town or Township Highway Agency,Municipal
+04,City or Municipal Highway Agency,Municipal
+11,"State Park, Forest, or Reservation Agency",State
+12,"Local Park, Forest, or Reservation Agency",Municipal
+21,Other State Agencies,State
+25,Other Local Agencies,Municipal
+26,Private (other than railroad),Other
+27,Railroad,Railroad
+31,State Toll Authority,State
+32,Local Toll Authority,Municipal
+56,Veteran Affairs,Federal
+60,Other Federal Agencies (not listed below),Federal
+61,Indian Tribal Government,Native
+62,Bureau of Indian Affairs,Native
+63,Bureau of Fish and Wildlife,Federal
+64,U.S. Forest Service,Federal
+66,National Park Service,Federal
+67,Tennessee Valley Authority,Other
+68,Bureau of Land Management,Federal
+69,Bureau of Reclamation,Federal
+70,Corps of Engineers (Civil),Federal
+71,Corps of Engineers (Military),Federal
+72,Air Force,Federal
+73,Navy/Marines,Federal
+74,Army,Federal
+75,NASA,Federal
+76,Metropolitan Washington Airports Service,Other
+80,Unknown ,Other
