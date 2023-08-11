@@ -1,0 +1,162 @@
+#!/usr/bin/env node
+
+/* eslint-disable @typescript-eslint/no-var-requires */
+
+const { pipeline } = require("stream");
+const through = require("through2");
+const split2 = require("split2");
+const _ = require("lodash");
+
+const roadway_highway_values = new Set([
+  "motorway",
+  "trunk",
+  "primary",
+  "secondary",
+  "tertiary",
+
+  "unclassified",
+  "residential",
+  "living_street",
+]);
+
+const service_not_highway_values = new Set([
+  "parking",
+  "driveway",
+  "drive-through",
+]);
+
+function isRoadway(feature) {
+  let {
+    properties: { highway },
+  } = feature;
+
+  if (!highway) {
+    return false;
+  }
+
+  highway = highway
+    .trim()
+    .replace(/_link$/, "")
+    .toLowerCase();
+
+  if (roadway_highway_values.has(highway)) {
+    return true;
+  }
+
+  if (highway === "service") {
+    return !service_not_highway_values.has(highway);
+  }
+
+  return false;
+}
+
+const top_level_props = [
+  "name",
+  "highway",
+  "service",
+  "access",
+  "oneway",
+  "maxspeed",
+  "bicycle",
+  "sidewalk",
+  "foot",
+  "footway",
+  "bridge",
+  "surface",
+  "lanes",
+  "ref",
+  "NHS",
+  "turn:lanes",
+  "lanes:bus",
+  "bridge:name",
+  "oneway",
+];
+
+function parse(feature) {
+  const {
+    properties: { other_tags },
+  } = feature;
+
+  if (!other_tags) {
+    return feature;
+  }
+
+  const states = ["in_key", "key_done", "in_value", "value_done"];
+
+  let state = -1;
+  let escape_state = false;
+
+  const tags = {};
+
+  let k = "";
+  let v = "";
+
+  for (const c of other_tags) {
+    if (escape_state) {
+      escape_state = false;
+      continue;
+    }
+
+    if (c === "\\") {
+      escape_state = true;
+      continue;
+    }
+
+    if (c === '"') {
+      state = (state + 1) % states.length;
+
+      if (states[state] === "value_done") {
+        k = k.replace(/:/g, "_");
+
+        if (Number.isFinite(+v)) {
+          v = +v;
+        }
+
+        tags[k] = v;
+
+        k = "";
+        v = "";
+      }
+
+      continue;
+    }
+
+    if (states[state] === "in_key") {
+      k += c;
+    }
+
+    if (states[state] === "in_value") {
+      v += c;
+    }
+  }
+
+  const top_level = _.pick(tags, top_level_props);
+  const low_level = _.omit(tags, top_level_props);
+
+  feature.properties = {
+    ...feature.properties,
+    ...top_level,
+    other_tags: low_level,
+  };
+
+  return feature;
+}
+
+pipeline(
+  process.stdin,
+  split2(JSON.parse),
+  through.obj(function a(feature, _enc, next) {
+    if (isRoadway(feature)) {
+      const parsed = parse(feature);
+
+      console.log(JSON.stringify(parsed));
+    }
+
+    next();
+  }),
+  (err) => {
+    if (err) {
+      throw err;
+    }
+  }
+);
