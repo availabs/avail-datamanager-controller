@@ -1,0 +1,37 @@
+owning_jurisdiction,classification
+01 NYSDOT,State
+02 County,County
+03 Town,Municipal
+04 City or village,Municipal
+11 State Parks,State
+12 Local Parks,Municipal
+21 Other State agencies,State
+25 Other local agencies,Municipal
+26 Private or Restricted Access,Other
+27 Railroad,Railroad
+31 NYS Thruway,State
+32 Other Toll Authority,Other
+40 Other Public Instrumentality,Other
+41 Local Service,Municipal
+50 Indian Tribal Government,Native
+60 Other Federal agencies,Federal
+61 Indian Tribal Government,Native
+62 Bureau of Indian Affairs,Native
+63 Bureau of Fish and Wildlife,Federal
+64 U.S. Forest Service,Federal
+66 National Park Service,Federal
+68 Bureau of Land Management,Federal
+69 Bureau of Reclamation,Federal
+70 Corps of Engineers (Civil),Federal
+71 Corps of Engineers (Military),Federal
+72 Air Force,Federal
+73 Navy/Marines,Federal
+74 Army,Federal
+75 NASA,Federal
+80 Other,Other
+90 Public - Unclaimed,Other
+91 Public Restricted,Other
+92 Slip Lane,Other
+93 Roundabout,Other
+94 Non-Mainline - Other,Other
+95 Non-Mainline - Connector,Other

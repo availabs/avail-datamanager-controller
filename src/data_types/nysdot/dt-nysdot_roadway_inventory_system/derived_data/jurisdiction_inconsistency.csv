@@ -1,0 +1,65 @@
+jurisdiction,owning_jurisdiction,count
+01 NYSDOT,02 County,68
+01 NYSDOT,11 State Parks,606
+01 NYSDOT,21 Other State agencies,14
+01 NYSDOT,32 Other Toll Authority,1
+01 NYSDOT,62 Bureau of Indian Affairs,9
+02 County,01 NYSDOT,32
+03 Town,01 NYSDOT,29
+03 Town,04 City or village,2
+03 Town,21 Other State agencies,2
+03 Town,26 Private or Restricted Access,3
+04 City or village,01 NYSDOT,142
+04 City or village,02 County,1
+12 Local Parks,02 County,7
+12 Local Parks,04 City or village,4
+21 Other State agencies,03 Town,1
+25 Other local agencies,02 County,9
+25 Other local agencies,03 Town,1
+26 Private or Restricted Access,21 Other State agencies,2
+31 NYS Thruway,01 NYSDOT,121
+40 Other Public Instrumentality,02 County,1
+40 Other Public Instrumentality,03 Town,1
+40 Other Public Instrumentality,04 City or village,1
+41 Local Service,01 NYSDOT,2
+41 Local Service,02 County,74
+41 Local Service,03 Town,169
+41 Local Service,04 City or village,134
+90 Public - Unclaimed,02 County,1
+90 Public - Unclaimed,04 City or village,1
+91 Public Restricted,01 NYSDOT,1
+91 Public Restricted,02 County,8
+91 Public Restricted,03 Town,47
+91 Public Restricted,04 City or village,39
+91 Public Restricted,11 State Parks,12
+91 Public Restricted,12 Local Parks,31
+91 Public Restricted,21 Other State agencies,12
+91 Public Restricted,25 Other local agencies,10
+91 Public Restricted,40 Other Public Instrumentality,7
+91 Public Restricted,60 Other Federal agencies,1
+91 Public Restricted,66 National Park Service,4
+92 Slip Lane,01 NYSDOT,568
+92 Slip Lane,02 County,309
+92 Slip Lane,03 Town,118
+92 Slip Lane,04 City or village,279
+92 Slip Lane,11 State Parks,16
+92 Slip Lane,12 Local Parks,1
+92 Slip Lane,21 Other State agencies,10
+92 Slip Lane,25 Other local agencies,2
+92 Slip Lane,31 NYS Thruway,16
+92 Slip Lane,32 Other Toll Authority,2
+92 Slip Lane,40 Other Public Instrumentality,2
+93 Roundabout,01 NYSDOT,18
+93 Roundabout,02 County,5
+93 Roundabout,03 Town,58
+93 Roundabout,04 City or village,111
+93 Roundabout,11 State Parks,1
+93 Roundabout,40 Other Public Instrumentality,1
+94 Non-Mainline - Other,01 NYSDOT,1
+95 Non-Mainline - Connector,01 NYSDOT,59
+95 Non-Mainline - Connector,02 County,25
+95 Non-Mainline - Connector,03 Town,231
+95 Non-Mainline - Connector,04 City or village,283
+95 Non-Mainline - Connector,11 State Parks,22
+95 Non-Mainline - Connector,12 Local Parks,8
+95 Non-Mainline - Connector,21 Other State agencies,21
