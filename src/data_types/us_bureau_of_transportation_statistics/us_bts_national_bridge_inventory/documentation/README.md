@@ -1,7 +1,7 @@
 
 🔑🔑🔑 [Detailed Code Mapping for Individual Data Items](https://www.fhwa.dot.gov/bridge/snbi/codemapping.cfm)
 
-[Data Crosswalk for “Over” Records and “Under” Records](https://www.fhwa.dot.gov/bridge/snbi/datacrosswalk.xlsx)
+[Data Crosswalk for “Over” Records and “Under” Records](https://www.fhwa.dot.gov/bridge/snbi/datacrosswalk.cfm)
 
 [National Bridge Inventory [NBI] - Data Dictionary](https://nationalbridges.com/nbiDesc.html)
 
