@@ -5,7 +5,7 @@ set -e
 ogr2ogr \
   -F GeoJSONSeq \
   /vsistdout/ \
-  ./initial_data/new-york-220101.osm.pbf lines \
-| ./other_tags_parser \
+  ../initial_data/new-york-220101.osm.pbf lines \
+| ../other_tags_parser \
 | ../../../data_utils/streaming/ndjson_to_geojson \
 > ny_roadways.osm.geojson

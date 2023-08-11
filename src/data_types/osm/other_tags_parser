@@ -2,6 +2,19 @@
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 
+//  The following query can be used to find how common tags are:
+//  select
+//      key,
+//      count(1)
+//    from (
+//      select
+//          jsonb_object_keys(other_tags) as key
+//            from roadways) as t
+//            group by 1
+//            order by 2 desc
+//    ) as t
+//  ;
+
 const { pipeline } = require("stream");
 const through = require("through2");
 const split2 = require("split2");
