@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -e
+
+ogr2ogr \
+  -F 'ESRI Shapefile' \
+  albany_county_bridges_and_culverts \
+  PG:"host='127.0.0.1' user='dama_dev_user' dbname='dama_dev_1' password='3eee6405-48e5-4a1e-a6b8-82bfc80b5f17' port='5466'" \
+  -sql "
+    SELECT
+        structure AS structure_number_008,
+        wkb_geometry
+      FROM us_bureau_of_transportation_statistics.national_bridge_inventory
+      WHERE (
+        ( state_code = '36' )
+        AND
+        ( county_cod = '001' )
+      )
+  " \
+  -nln 'us_bts_national_bridge_inventory'
+

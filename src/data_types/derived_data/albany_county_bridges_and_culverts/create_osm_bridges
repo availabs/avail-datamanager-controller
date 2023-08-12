@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -e
+
+ogr2ogr \
+  -F 'ESRI Shapefile' \
+  albany_county_bridges_and_culverts \
+  PG:"host='127.0.0.1' user='dama_dev_user' dbname='dama_dev_1' password='3eee6405-48e5-4a1e-a6b8-82bfc80b5f17' port='5466'" \
+  -sql "
+    SELECT
+        a.osm_id,
+        a.wkb_geometry
+      FROM osm.roadway_bridges AS a
+        INNER JOIN us_census_tiger.county AS b
+          ON (
+            ST_Intersects(
+              a.wkb_geometry,
+              b.wkb_geometry
+            )
+          )
+        WHERE ( b.geoid = '36001' )
+  " \
+  -nln 'osm_roadway_bridges'
+

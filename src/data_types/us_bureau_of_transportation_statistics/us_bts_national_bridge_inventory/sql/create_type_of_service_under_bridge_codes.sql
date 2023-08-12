@@ -1,6 +1,6 @@
 -- https://www.fhwa.dot.gov/bridge/mtguide.pdf
 -- https://fgdl.org/zips/metadata/htm/bts_bridge_jun17.htm
--- Item 52 - Type of Service (under bridge)
+-- Item 42 - Type of Service (under bridge)
 
 BEGIN ;
 
