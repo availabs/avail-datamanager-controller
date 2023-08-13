@@ -20,5 +20,5 @@ ogr2ogr \
           )
         WHERE ( b.geoid = '36001' )
   " \
-  -nln 'usgs_nhd_flowlines'
-
+  -nln 'usgs_nhd_flowlines' \
+  -a_srs EPSG:4326

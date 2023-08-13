@@ -17,5 +17,5 @@ ogr2ogr \
         ( county_cod = '001' )
       )
   " \
-  -nln 'us_bts_national_bridge_inventory'
-
+  -nln 'us_bts_national_bridge_inventory' \
+  -a_srs EPSG:4326

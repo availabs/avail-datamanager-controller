@@ -13,5 +13,5 @@ ogr2ogr \
       FROM nysdot_structures.bridges
       WHERE ( county = 'ALBANY' )
   " \
-  -nln 'nysdot_structures_bridges'
-
+  -nln 'nysdot_structures_bridges' \
+  -a_srs EPSG:4326

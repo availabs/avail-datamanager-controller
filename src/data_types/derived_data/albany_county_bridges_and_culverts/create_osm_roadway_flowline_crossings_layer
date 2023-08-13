@@ -20,5 +20,5 @@ ogr2ogr \
           )
         WHERE ( b.geoid = '36001' )
   " \
-  -nln 'osm_roadway_flowline_crossing'
-
+  -nln 'osm_roadway_flowline_crossing' \
+  -a_srs EPSG:4326
