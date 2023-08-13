@@ -5,18 +5,18 @@ require("tsconfig-paths").register();
 
 const { runETLFromCLI } = require("data_utils/gis/etl");
 
-const layer_name = "County";
+const layer_name = "Block_Group";
 
 const source_info = {
-  name: "us_county",
-  display_name: "US County",
+  name: "us_census_block_group",
+  display_name: "US Census Block Group",
   description:
-    "Counties are the primary political and administrative divisions of states. In the state of Louisiana, however, these divisions are known as parishes. The state of Alaska is another exception, organized into boroughs and census areas. The District of Columbia, which also does not have any county divisions, is considered equivalent to a county for statistical purposes.",
+    "Census Block Groups are statistical divisions of census tracts and composed of clusters of census blocks. A census block group consists of all census blocks whose numbers begin with the same digit in a given census tract. Block groups typically contain between 600 and 3,000 people, with an optimum size of 1,500.",
 };
 
 const view_info = {
   table_schema: "us_census_tiger",
-  table_name: "county",
+  table_name: "block_group",
   geography_version: 36,
   source_url:
     "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-geodatabase-file.2022.html",

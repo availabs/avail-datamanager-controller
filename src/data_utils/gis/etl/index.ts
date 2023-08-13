@@ -1,13 +1,17 @@
 import { createReadStream, writeFileSync } from "fs";
 import { join, isAbsolute, basename } from "path";
+
 import dedent from "dedent";
 import _ from "lodash";
+import yargs from "yargs/yargs";
+import { hideBin } from "yargs/helpers";
 
 import dama_db, { DamaDbQueryParamType } from "data_manager/dama_db";
 import dama_events from "data_manager/events";
 import dama_meta from "data_manager/meta";
 import dama_gis from "data_manager/dama_gis";
 import logger from "data_manager/logger";
+import { runInDamaContext } from "data_manager/contexts";
 
 import {
   DataSourceInitialMetadata,
@@ -615,4 +619,32 @@ export default async function etl(config: EtlConfig) {
 
     throw err;
   }
+}
+
+export async function runETLFromCLI(
+  layer_config: Omit<EtlConfig, "file_path">
+) {
+  // @ts-ignore
+  const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
+    .strict()
+    .options({
+      file_path: file_path_yargs_config,
+      pg_env: pg_env_yargs_config,
+      logging_level: logging_level_yargs_config,
+    }).argv;
+
+  logger.level = logging_level;
+
+  const etl_config = { ...layer_config, file_path };
+
+  const etl_context_id = await dama_events.spawnEtlContext(null, null, pg_env);
+
+  logger.info(`==> etl_context_id: ${etl_context_id}`);
+
+  await runInDamaContext(
+    {
+      meta: { pgEnv: pg_env, etl_context_id },
+    },
+    () => etl(etl_config)
+  );
 }

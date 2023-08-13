@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { runETLFromCLI } = require("data_utils/gis/etl");
+
+const layer_name = "Census_Designated_Place";
+
+const source_info = {
+  name: "us_census_designated_place",
+  display_name: "US Census Designated Place",
+  description:
+    "US Census Designated Places are statistical equivalents of incorporated places and represent unincorporated communities that do not have a legally defined boundary or an active, functioning governmental structure. Examples of CDPs include unincorporated communities, planned communities, military installments, university towns, resort towns, etc.",
+};
+
+const view_info = {
+  table_schema: "us_census_tiger",
+  table_name: "designated_place",
+  geography_version: 36,
+  source_url:
+    "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-geodatabase-file.2022.html",
+  publisher: "US Census TIGER",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: true,
+});

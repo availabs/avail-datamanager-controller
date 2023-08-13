@@ -5,18 +5,16 @@ require("tsconfig-paths").register();
 
 const { runETLFromCLI } = require("data_utils/gis/etl");
 
-const layer_name = "County";
+const layer_name = "Census_Tract";
 
 const source_info = {
-  name: "us_county",
-  display_name: "US County",
-  description:
-    "Counties are the primary political and administrative divisions of states. In the state of Louisiana, however, these divisions are known as parishes. The state of Alaska is another exception, organized into boroughs and census areas. The District of Columbia, which also does not have any county divisions, is considered equivalent to a county for statistical purposes.",
+  name: "us_census_tract",
+  display_name: "US Census Track",
 };
 
 const view_info = {
   table_schema: "us_census_tiger",
-  table_name: "county",
+  table_name: "tract",
   geography_version: 36,
   source_url:
     "https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-geodatabase-file.2022.html",
