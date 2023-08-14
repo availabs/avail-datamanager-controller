@@ -219,7 +219,7 @@ export default class GeospatialDatasetIntegrator {
 
     const datasetMetadata = await this.injestDatasetEntries(iter);
 
-    return { id: this.id, datasetMetadata };
+    return { id: this.id, datasetMetadata, workDirPath };
   }
 
   protected async injestDatasetEntries(
@@ -541,6 +541,22 @@ export default class GeospatialDatasetIntegrator {
     return <GeoDatasetMetadata>this._geoDatasetMetadata;
   }
 
+  async getLayerGeomMeta(layerName: string) {
+    const layerId = this.layerNameToId[layerName];
+
+    const datasetMeta = await this.getGeoDatasetMetadata();
+
+    const layer = datasetMeta.layers.find(({ layerId: id }) => id === layerId);
+
+    if (!layer) {
+      throw new Error(`Unable to find layerGeomMeta for layerName ${layerName}.`);
+    }
+
+    const { layerGeomMeta } = layer;
+
+    return layerGeomMeta;
+  }
+
   get layerNameToIdFilePath() {
     if (!this.workDirPath) {
       throw new Error("Have not yet received dataset");
@@ -833,19 +849,23 @@ export default class GeospatialDatasetIntegrator {
     }
 
     const tableDescriptor = await this.getLayerTableDescriptor(layerName);
+    const layerGeomMeta = await this.getLayerGeomMeta(layerName);
 
     const datetime = new Date();
 
     try {
       console.log('gdi Load Table meta start')
       console.time('gdi load 1')
+
       const loadTableMetadata = await loadTable(
         <string>this.datasetPath,
         tableDescriptor,
+        layerGeomMeta,
         pgEnv
       );
+
       console.timeEnd('gdi load 1')
-      
+
       this.setDatasetLayerUploadStatus(
         layerName,
         DatasetLayerUploadStatus.STAGED

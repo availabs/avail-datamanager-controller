@@ -87,9 +87,15 @@ export type GeoDatasetLayerFieldMetadata = {
   name: string;
 };
 
+export type GeoDatasetLayerGeomMeta = {
+  "geomColumn": string;
+  "geomType": OGRwkbGeometryType;
+};
+
 export type GeoDatasetLayerMetadata = {
-  layerName: string;
   layerId: number;
+  layerGeomMeta: GeoDatasetLayerGeomMeta;
+  layerName: string;
   featuresCount: number;
   srsAuthorityName: string | null;
   srsAuthorityCode: string | null;
@@ -109,12 +115,13 @@ export function getLayersMetadata(
   const dataset = gdal.open(datasetPath);
 
   const layersMetadata = dataset.layers.map((layer, layerId) => {
-    const { name: layerName, features, fields, srs, geomColumn } = layer;
+    const { name: layerName, features, fields, srs, geomType, geomColumn } = layer;
 
-    if (!geomColumn) {
+    const sType = simplifyOGRwkbGeometryType(geomType);
+
+    if (sType === OGRwkbGeometryType.wkbNone) {
       return null;
     }
-
     const featuresCount = features.count();
 
     const fieldsMetadata: GeoDatasetLayerFieldMetadata[] = fields.map(
@@ -136,8 +143,12 @@ export function getLayersMetadata(
 
     // NOTE: We don't get the geometry type via metadata because it is unreliable.
     return {
-      layerName,
       layerId,
+      layerGeomMeta: {
+        geomColumn,
+        geomType,
+      },
+      layerName,
       featuresCount,
       srsAuthorityName,
       srsAuthorityCode,
@@ -538,14 +549,23 @@ export function generateTempTableStatement({
   return sql;
 }
 
-export function generateLoadTableStatement({
-  layerName,
-  columnTypes,
-}: TableDescriptor) {
+export function generateLoadTableStatement(
+  tableDescriptor: TableDescriptor,
+  isGPKG = false,
+  layerGeomMeta: GeoDatasetLayerGeomMeta | null = null
+) {
+  const { layerName, columnTypes } = tableDescriptor;
+
   const selectClauses: string[] = [];
   const placeValues: string[] = [];
 
   const includedColumnTypes = getIncludedColumnTypes(columnTypes);
+
+  const geomColumn = layerGeomMeta?.geomColumn ?? null;
+
+  if (isGPKG && !geomColumn) {
+    throw new Error("GeoPackages must have a defined geomColumn.");
+  }
 
   for (const { key, col, db_type } of includedColumnTypes) {
     // We cast ALL fields to TEXT so we can use PostgreSQL to convert them to the
@@ -560,6 +580,11 @@ export function generateLoadTableStatement({
       selectClauses.push("CAST(%I AS CHARACTER(0)) AS %I");
     }
     placeValues.push(key, col);
+  }
+
+  if (isGPKG) {
+    selectClauses.push("%I AS %I");
+    placeValues.push(geomColumn!, geomColumn!);
   }
 
   const colsDefPlaceholders = selectClauses.join(",\n            ");
@@ -582,6 +607,7 @@ export function generateLoadTableStatement({
 export async function loadTable(
   datasetPath: string,
   tableDescriptor: TableDescriptor,
+  layerGeomMeta: GeoDatasetLayerGeomMeta,
   pgEnv: string,
   // tableDescriptor MUST be sufficient to geneate the CREATE and load SQL,
   // but we MUST also support manual edits to the createTableSql and loadTableSql
@@ -603,12 +629,14 @@ export async function loadTable(
   const createTableSql = createTableSqlPath
     ? await readFileAsync(createTableSqlPath)
     : generateCreateTableStatement(tableDescriptor);
-  
-
 
   const loadTableSql = loadTableSqlPath
     ? await readFileAsync(loadTableSqlPath)
-    : generateLoadTableStatement(tableDescriptor);
+    : generateLoadTableStatement(
+        tableDescriptor,
+        /\.gpkg$/i.test(datasetPath),
+        layerGeomMeta
+    );
 
   const connStr = getPostgresConnectionString(pgEnv);
   console.timeEnd('load table create table sql')
@@ -629,7 +657,12 @@ export async function loadTable(
   tempTableDescriptor.tableName = `staging_${tstamp}`;
   const createTempTableSql = generateTempTableStatement(tempTableDescriptor);
 
-  const loadTempTableSql = generateLoadTableStatement(tableDescriptor);
+  const loadTempTableSql = generateLoadTableStatement(
+    tableDescriptor,
+    /\.gpkg$/i.test(datasetPath),
+    layerGeomMeta
+  );
+
   console.timeEnd('loadTable generate tmp sql')
   
   console.time('loadTable temptable')

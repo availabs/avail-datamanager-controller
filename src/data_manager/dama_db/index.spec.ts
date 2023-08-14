@@ -505,3 +505,63 @@ test.skip("demonstrate transaction contexts permits PHANTOM READs", async () => 
 
   expect(all_tasks_results.some((res) => res === false)).toBe(true);
 });
+
+test("Detects queries that will return an open transaction to the connection pool.", () => {
+  const should_pass = [
+    " SELECT * FROM foo; ",
+    `
+      BEGIN ;
+      SELECT
+          *
+        FROM foo
+      ;
+      COMMIT;
+    `,
+    [
+      "BEGIN ;",
+      `
+        SELECT
+            *
+          FROM foo
+        ;
+      `,
+      "COMMIT;",
+    ],
+    `
+      BEGIN ;
+      SELECT
+          *
+        FROM foo
+      ;
+      ROLLBACK ;
+    `,
+  ];
+
+  for (const q of should_pass) {
+    expect(dama_db.testIfQueriesLeaveOpenTransaction(q)).toBeFalsy();
+  }
+
+  const should_fail = [
+    "BEGIN ;",
+    `
+      BEGIN ;
+      SELECT
+          *
+        FROM foo
+      ;
+    `,
+    [
+      "BEGIN ;",
+      `
+        SELECT
+            *
+          FROM foo
+        ;
+      `,
+    ],
+  ];
+
+  for (const q of should_fail) {
+    expect(dama_db.testIfQueriesLeaveOpenTransaction(q)).toBeTruthy();
+  }
+});
