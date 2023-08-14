@@ -191,7 +191,7 @@ export const mergeTables = async (
   let sql = fileNames
     ?.map(
       (file) =>
-        `SELECT wkb_geometry, statefp, countyfp, geoid2 as geoid, name2 as name, namelsad FROM temp.${file} `
+        `SELECT wkb_geometry, statefp, countyfp, geoid, name, namelsad FROM temp.${file} `
     )
     .join(` UNION ALL `);
 
