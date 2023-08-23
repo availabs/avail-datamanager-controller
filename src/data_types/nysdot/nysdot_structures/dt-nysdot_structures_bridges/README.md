@@ -12,5 +12,4 @@ The NYSDOT Structures dataset includes the following three layers:
 
 ## Documentation
 
-I was unable to find documentation for the NYSDOT Bridges dataset.
-
+[NYSDOT BRIDGE AND LARGE CULVERT INVENTORY MANUAL July 2020](https://www.dot.ny.gov/divisions/engineering/structures/repository/manuals/inventory/NYSDOT_inventory_manual_2020.pdf)

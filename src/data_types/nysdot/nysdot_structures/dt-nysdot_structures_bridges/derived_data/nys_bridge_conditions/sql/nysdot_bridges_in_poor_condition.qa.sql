@@ -1,0 +1,9 @@
+-- dama_dev_1=# select count(1) from nysdot_structures.nysdot_usdot_bridges_condition where coalesce(nysdot_is_in_poor_condition, false) or coalesce(usdot_is_in_poor_condition, false);
+--  count 
+-- -------
+--   7510
+-- (1 row)
+-- 
+-- -- NOTE: Extra row for header
+-- $ wc -l nysdot_bridges_in_poor_condition.csv
+-- 7511 nysdot_bridges_in_poor_condition.csv
