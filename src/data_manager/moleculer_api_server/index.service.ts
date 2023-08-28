@@ -280,6 +280,9 @@ export default class ApiService extends Service {
               "/hazard_mitigation/versionSelectorUtils":
                 "hazard_mitigation.versionSelectorUtils.load",
 
+              "/hazard_mitigation/cacheAcs":
+                "hazard_mitigation.cacheAcs.load",
+
               "/hazard_mitigation/disaster_declarations_summary_v2":
                 "hazard_mitigation.disaster_declarations_summary_v2.load",
 

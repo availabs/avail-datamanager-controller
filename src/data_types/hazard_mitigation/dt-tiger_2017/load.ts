@@ -20,11 +20,6 @@ import {
 } from "./actions";
 import getEtlWorkDir from "var/getEtlWorkDir";
 
-// import {
-//   existsSync,
-//   mkdirSync,
-// } from "fs";
-
 export default async function publish({
   pgEnv,
   user_id,
@@ -38,7 +33,7 @@ export default async function publish({
   customViewAttributes = {},
 }) {
   logger.info(
-    `inside publish first,
+   `inside publish first,
     etlContextId: ${etlContextId},
     userId: ${user_id},
     source_id: ${source_id},
@@ -190,9 +185,6 @@ export default async function publish({
       );
     }
 
-    // await dbConnection.query(
-    //   `ALTER TABLE geo.tl_2017_${table_name}_${view_id} ADD COLUMN ogc_fid SERIAL PRIMARY KEY;`
-    // );
     logger.info("\nreached here ----- 5 -----");
 
     const createIndiceEvent = {
@@ -265,7 +257,9 @@ export default async function publish({
     }
 
     // Create Mbtile
-    await createViewMbtiles(view_id, source_id, etlContextId, { preserveColumns: ["geoid"]});
+    await createViewMbtiles(view_id, source_id, etlContextId, {
+      preserveColumns: ["geoid"],
+    });
 
     const finalEvent = {
       type: "Tiger_dataset.FINAL",
