@@ -7,7 +7,6 @@ import dama_db from "data_manager/dama_db";
 
 export default async function publish({
   years,
-  view_id,
   counties,
   serverUrl,
   source_id,
@@ -25,7 +24,7 @@ export default async function publish({
   logger.info(`New Data table fetched: ${data_table}`);
 
   const { rows } = await dama_db.query({
-    text: ` SELECT DISTINCT geoid, year
+    text: `SELECT DISTINCT geoid, year
     FROM ${data_table}
     WHERE year = ANY($1::INT[])
     AND tiger_type = ANY($2::TEXT[])
@@ -67,14 +66,17 @@ export default async function publish({
   );
 
   logger.info("Ready for the Execution");
-  const size = 300;
+  const size = 50;
   for (const [, year] of years.entries()) {
     logger.info(`Execution started for the year: ${year}`);
     const geoYear = year - (year % 10);
     const tempGeos = groupByCounties[`${geoYear}`];
     const newEvent = {
       type: `CACHE_ACS: EXECUTION_STARTED_FOR_${year}`,
-      payload: {},
+      payload: {
+        year,
+        geoYear,
+      },
       meta: {
         timestamp: new Date().toISOString(),
       },
