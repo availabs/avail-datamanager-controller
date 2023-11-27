@@ -203,7 +203,11 @@ AVAIL added field: classification of the agency listed in the nysdot\_primary\_o
 
 ### nysdot\_crossed
 
-Description of the feature that the bridge crosses.
+> ITEM: Description – or – Route Number and Reference Marker
+>
+> This item is used as the general description of the Feature Crossed. It is
+> used to populate the Inspection Report and all other locations that refer to
+> the “Feature Crossed” name as well as the SUBSETS table “Crossed” field.
 
 ### nysdot\_longitude
 
