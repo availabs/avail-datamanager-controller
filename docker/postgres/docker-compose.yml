@@ -11,3 +11,4 @@ services:
       env_file: "./config/postgres.${PGDATABASE}.env"
       environment:
         - PGDATA=/pg_data
+      shm_size: 2g

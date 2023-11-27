@@ -155,7 +155,7 @@ export const getPsqlCredentials = (
   }
   const configPath = getPostgresConfigurationFilePath(pgEnv);
 
-  console.log("configPath", configPath, pgEnv);
+  // console.log("configPath", configPath, pgEnv);
   const configContents = readFileSync(configPath);
 
   const envVars = dotenv.parse(configContents);

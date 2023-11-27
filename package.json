@@ -84,6 +84,7 @@
     "gunzip-maybe": "^1.4.2",
     "json-stable-stringify": "^1.0.2",
     "luxon": "^3.2.1",
+    "md-to-pdf": "^5.2.4",
     "memoize-one": "^6.0.0",
     "moleculer": "^0.14.23",
     "moleculer-db": "^0.8.19",
@@ -116,6 +117,7 @@
     "uuid": "^9.0.0",
     "wellknown": "^0.5.0",
     "winston": "^3.8.2",
+    "yaml": "^2.3.1",
     "yargs": "^17.7.1"
   }
 }
