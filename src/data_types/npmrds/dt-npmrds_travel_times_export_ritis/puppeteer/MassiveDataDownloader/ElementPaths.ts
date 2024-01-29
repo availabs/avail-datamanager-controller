@@ -19,34 +19,34 @@ export const getNpmrdsInrixMapYearDropDownOptionByIndex = (i: number) =>
   `#react-select-2--list > div > div:nth-child(${i})`;
 
 export const lowerDateOpenCalendarTarget =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div > div.react-datepicker-wrapper > div > input";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div.react-datepicker-wrapper > div > input";
 
 export const lowerDateDatePicker =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div";
 
 export const lowerDateYearSelector =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__year-dropdown-container.react-datepicker__year-dropdown-container--select > select";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div.react-datepicker__tab-loop > div.react-datepicker-popper > div > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__year-dropdown-container.react-datepicker__year-dropdown-container--select > select";
 
 export const lowerDateMonthSelector =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__month-dropdown-container.react-datepicker__month-dropdown-container--select > select";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div.react-datepicker__tab-loop > div.react-datepicker-popper > div > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__month-dropdown-container.react-datepicker__month-dropdown-container--select > select";
 
 export const lowerDateDaysMultiSelector =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div > div.react-datepicker__month-container * div.react-datepicker__day";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.lower-date > div.datepicker-input-wrapper > div.react-datepicker__tab-loop > div.react-datepicker-popper > div > div > div.react-datepicker__month-container > div.react-datepicker__month > * > div.react-datepicker__day"
 
 export const upperDateOpenCalendarTarget =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div > div.react-datepicker-wrapper > div > input";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div.react-datepicker-wrapper > div > input";
 
 export const upperDateDatePicker =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div";
 
 export const upperDateYearSelector =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__year-dropdown-container.react-datepicker__year-dropdown-container--select > select";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div.react-datepicker__tab-loop > div.react-datepicker-popper > div > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__year-dropdown-container.react-datepicker__year-dropdown-container--select > select";
 
 export const upperDateMonthSelector =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__month-dropdown-container.react-datepicker__month-dropdown-container--select > select";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div.react-datepicker__tab-loop > div.react-datepicker-popper > div > div > div.react-datepicker__month-container > div.react-datepicker__header > div.react-datepicker__header__dropdown.react-datepicker__header__dropdown--select > div.react-datepicker__month-dropdown-container.react-datepicker__month-dropdown-container--select > select";
 
 export const upperDateDaysMultiSelector =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div > div.react-datepicker-popper > div > div.react-datepicker__month-container * div.react-datepicker__day";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div.DateRangeSelector > div > div.range-list-wrapper > div > div.DateRange > div.date-range-wrapper.upper-date > div.datepicker-input-wrapper > div.react-datepicker__tab-loop > div.react-datepicker-popper > div > div > div.react-datepicker__month-container > div.react-datepicker__month > * > div.react-datepicker__day"
 
 export const downloadNameField =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(9) > div.TitleInput > input[type=text]";
@@ -219,8 +219,6 @@ export const sendNotificationsClickTarget =
 
 export const formSubmittedModalOkButton =
   "body > main > div > div.global-notifications > div > div.popup-container > div.footer > div > div > div > button";
-
-// body > main > div > div.global-notifications > div > div.popup-container > div.footer > div > div > div > button
 
 export const pleaseChooseAtLeastOneStateWarningText =
   "body > main > div > div.global-notifications > div > div.popup-container > div.body";
