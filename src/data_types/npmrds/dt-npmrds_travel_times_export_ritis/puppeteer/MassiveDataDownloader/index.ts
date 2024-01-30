@@ -621,7 +621,7 @@ export default class MassiveDataDownloader {
 
     await page.click(ElementPaths.showSegementIdsButton);
 
-    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea);
+    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea, { timeout: SEVEN_MINUTES });
   }
 
   private async closeSelectedSegmentsPopup() {
@@ -673,7 +673,7 @@ export default class MassiveDataDownloader {
 
     const page = await this._getPage();
 
-    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea);
+    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea, { timeout: SEVEN_MINUTES });
 
     const el = await this.$(ElementPaths.showSegmentIdsPopupTextArea, true);
 
@@ -1284,12 +1284,14 @@ export default class MassiveDataDownloader {
 
     const dayEls = await this.$$(ElementPaths.lowerDateDaysMultiSelector);
 
+    let found = false;
     for (const dayOfMonthEl of dayEls) {
-      const found = await dayOfMonthEl.evaluate(
+      found = await dayOfMonthEl.evaluate(
         <EvaluateFuncWith<Element, [number]>>(
           ((node: HTMLOptionElement, date: number) =>
             ![...node.classList].some((c) => /--outside-month$/.test(c)) &&
-            node.getAttribute("role") === "option" &&
+            ![...node.classList].some((c) => /--disabled$/.test(c)) &&
+            node.getAttribute("role") === "button" &&
             +node.innerText.trim() === date)
         ),
         startDate.day
@@ -1299,6 +1301,10 @@ export default class MassiveDataDownloader {
         await dayOfMonthEl.click();
         break;
       }
+    }
+
+    if (!found) {
+      throw new Error(`Unable to find date: ${JSON.stringify(startDate)}`);
     }
 
     dayEls.forEach((el) => el.dispose);
@@ -1357,7 +1363,8 @@ export default class MassiveDataDownloader {
           <EvaluateFuncWith<Element, [number]>>(
             ((node: HTMLOptionElement, date: number) =>
               ![...node.classList].some((c) => /--outside-month$/.test(c)) &&
-              node.getAttribute("role") === "option" &&
+            ![...node.classList].some((c) => /--disabled$/.test(c)) &&
+              node.getAttribute("role") === "button" &&
               +node.innerText.trim() === date)
           ),
           endDate.day
