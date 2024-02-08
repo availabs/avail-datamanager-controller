@@ -1,5 +1,3 @@
-# TIGER/Line Geodatabases
-
 * [Census Geographies](https://www.socialexplorer.com/help/faq/knowledge-base/geographies)
 
   * States are the primary political (administrative) divisions of the United
@@ -24,7 +22,7 @@
     tracts in those areas. The primary purpose of census tracts is to provide a
     stable set of geographic units for the presentation of decennial census data.
     Census tracts generally have between 1,500 and 8,000 people, with an optimum
-    size of 4,000 people.
+    size of 4,000 people. 
 
   * Census Block Groups are statistical divisions of census tracts and composed
     of clusters of census blocks. A census block group consists of all census
