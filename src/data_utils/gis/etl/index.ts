@@ -1,3 +1,9 @@
+/*
+  FIXME:  Need to be able to resume failed ETL.
+          First step would probably be handing off to a worker.ts file.
+          Then checking subtask :DONE events.
+*/
+
 import { createReadStream, writeFileSync } from "fs";
 import { join, isAbsolute, basename } from "path";
 
@@ -621,17 +627,20 @@ export default async function etl(config: EtlConfig) {
   }
 }
 
+export function getCliArgs() {
+  // @ts-ignore
+  return yargs(hideBin(process.argv)).strict().options({
+    file_path: file_path_yargs_config,
+    pg_env: pg_env_yargs_config,
+    logging_level: logging_level_yargs_config,
+  }).argv;
+}
+
 export async function runETLFromCLI(
   layer_config: Omit<EtlConfig, "file_path">
 ) {
   // @ts-ignore
-  const { pg_env, file_path, logging_level } = yargs(hideBin(process.argv))
-    .strict()
-    .options({
-      file_path: file_path_yargs_config,
-      pg_env: pg_env_yargs_config,
-      logging_level: logging_level_yargs_config,
-    }).argv;
+  const { pg_env, file_path, logging_level } = getCliArgs();
 
   logger.level = logging_level;
 
