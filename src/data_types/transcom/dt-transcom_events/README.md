@@ -1,5 +1,19 @@
 # dt-transcom_events
 
+## FIXME
+
+* Hard-coded date in ./constants/conflation_map_meta.ts filters which events
+  get snapped to the conflation map.
+* Only the currently downloaded events are snapped if the events pass through
+  the above mentioned filter.
+* Therefore, after the hard-coded years filter is changed, any downloaded
+  events that did not initially pass the filter do not get snapped to the map.
+* Easiest thing to do is re-download them.
+
+Case in point, the max year was not updated to 2024 until Feb 6th.
+The January events were not snapped to the map after the change.
+Needed to re-download the January events.
+
 ## TODO
 
 - [ ] Document the TRANSCOM ETL process
