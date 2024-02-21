@@ -1,0 +1,50 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { basename } = require("path");
+
+const dedent = require("dedent");
+
+const { getCliArgs, runETLFromCLI } = require("data_utils/gis/etl");
+
+const args = getCliArgs();
+
+console.log(JSON.stringify(args, null, 4));
+
+const { file_path } = args;
+
+const layer_name = "NYS_Building_Footprints";
+
+const source_info = {
+  name: "nys_its_gis_building_footprints",
+  display_name: "NYS ITS Geospatial Services Building Footprints",
+  description: dedent(
+    `
+      The New York State building footprints service contains building
+      footprints with address information.
+
+      Building footprints in New York State are from three different sources:
+      Microsoft, Open Data, and New York State Energy Research and
+      Development Authority (NYSERDA). The majority of the footprints are
+      from NYSERDA, except in NYC where the primary source was Open Data.
+      Microsoft footprints were added where the other 2 sources were missing
+      polygons.
+    `
+  ),
+};
+
+const view_info = {
+  table_schema: "nysgis_building_footprints",
+  table_name: "buildings",
+  geography_version: 36,
+  publisher: "NYS ITS Geospatial Services (nysgis@its.ny.gov)",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: true,
+});
