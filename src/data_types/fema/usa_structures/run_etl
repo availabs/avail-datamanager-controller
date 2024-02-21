@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { runETLFromCLI } = require("data_utils/gis/etl");
+
+const layer_name = "NY_Structures";
+
+const source_info = {
+  name: "fema_usa_structures",
+  display_name: "FEMA USA Structures",
+  description:
+    "DHS, FIMA, FEMA’s Response Geospatial Office, Oak Ridge National Laboratory, and the U.S. Geological Survey collaborated to build and maintain the nation’s first comprehensive inventory of all structures larger than 450 square feet for use in Flood Insurance Mitigation, Emergency Preparedness and Response.",
+};
+
+const view_info = {
+  table_schema: "fema_usa_structures",
+  table_name: "ny_structures_20230606",
+  geography_version: 36,
+  source_url:
+    "https://disasters.geoplatform.gov/publicdata/Partners/ORNL/USA_Structures/New%20York/",
+  publisher: "FEMA",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: true,
+});
