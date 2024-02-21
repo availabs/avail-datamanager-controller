@@ -1,0 +1,143 @@
+#!/usr/bin/env node
+
+/* eslint-disable @typescript-eslint/no-var-requires */
+
+//  The following query can be used to find how common tags are:
+//  select
+//      key,
+//      count(1)
+//    from (
+//      select
+//          jsonb_object_keys(other_tags) as key
+//        from administrative_boundaries
+//     ) as t
+//     group by 1
+//     order by 2 desc
+//    ) as t
+//  ;
+
+/*
+select name, other_tags->>'nist_fips_code' from osm.administrative_boundaries where admin_level = 6 and other_tags->>'nist_fips_code' like '36%';
+*/
+
+const { pipeline } = require("stream");
+const through = require("through2");
+const split2 = require("split2");
+const _ = require("lodash");
+
+function isBuilding(feature) {
+  let {
+    properties: { building },
+  } = feature;
+
+  return !!building;
+}
+
+const top_level_props = [
+  "osm_id",
+  "name",
+  "flats",
+  "levels",
+  "construction_date",
+  "height",
+  "max_level",
+  "min_level",
+  "non_existent_levels",
+  "start_date",
+  "est_height",
+  "est_height_source"
+];
+
+function parse(feature) {
+  const {
+    properties: { other_tags },
+  } = feature;
+
+  if (!other_tags) {
+    return feature;
+  }
+
+  const states = ["in_key", "key_done", "in_value", "value_done"];
+
+  let state = -1;
+  let escape_state = false;
+
+  const tags = {};
+
+  let k = "";
+  let v = "";
+
+  for (const c of other_tags) {
+    if (escape_state) {
+      escape_state = false;
+      continue;
+    }
+
+    if (c === "\\") {
+      escape_state = true;
+      continue;
+    }
+
+    if (c === '"') {
+      state = (state + 1) % states.length;
+
+      if (states[state] === "value_done") {
+        k = k.replace(/:/g, "_");
+
+        // If other_tag key does not start with "tiger_", try to cast the value v as a number.
+        if (!/^tiger_/i.test(k) && Number.isFinite(+v)) {
+          v = +v;
+        }
+
+        tags[k] = v;
+
+        k = "";
+        v = "";
+      }
+
+      continue;
+    }
+
+    if (states[state] === "in_key") {
+      k += c;
+    }
+
+    if (states[state] === "in_value") {
+      v += c;
+    }
+  }
+
+  const combined_tags = _.omit(
+    { ...feature.properties, ...tags },
+    "other_tags"
+  );
+
+  const top_level = _.pick(combined_tags, top_level_props);
+  const low_level = _.omit(combined_tags, top_level_props);
+
+  feature.properties = {
+    ...top_level,
+    other_tags: low_level,
+  };
+
+  return feature;
+}
+
+pipeline(
+  process.stdin,
+  split2(JSON.parse),
+  through.obj(function a(feature, _enc, next) {
+    if (isBuilding(feature)) {
+      const parsed = parse(feature);
+
+      console.log(JSON.stringify(parsed));
+    }
+
+    next();
+  }),
+  (err) => {
+    if (err) {
+      throw err;
+    }
+  }
+);

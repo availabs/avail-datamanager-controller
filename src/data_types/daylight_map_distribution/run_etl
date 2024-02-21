@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+
+// https://wiki.openstreetmap.org/wiki/Key:boundary
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { basename } = require("path");
+
+const { getCliArgs, runETLFromCLI } = require("data_utils/gis/etl");
+
+const args = getCliArgs();
+
+console.log(JSON.stringify(args, null, 4));
+
+const { file_path } = args;
+
+const layer_name = basename(file_path).replace(/\.geojson\..*$/, "");
+
+const source_info = {
+  name: "daylight_map_distribution_buildings",
+  display_name: "Daylight Map Dist Buildings",
+  description:
+    "Daylight is a complete distribution of global, open map data that’s freely available with support from community and professional mapmakers. We combine the work of global contributors to projects like OpenStreetMap with quality and consistency checks from Daylight mapping partners to create a free, stable, and easy-to-use street-scale global map.",
+};
+
+const view_info = {
+  table_schema: "daylight_map_distribution",
+  table_name: "buildings",
+  geography_version: 36,
+  publisher: "Facebook",
+  download_url: 'https://daylightmap.org/'
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: false,
+  reviseTableDescriptor(table_descriptor) {
+    const osm_id_column_type = table_descriptor.columnTypes.find(
+      ({ col }) => col === "osm_id"
+    );
+
+    osm_id_column_type.db_type = "BIGINT";
+
+    const other_tags_column_type = table_descriptor.columnTypes.find(
+      ({ col }) => col === "other_tags"
+    );
+
+    other_tags_column_type.db_type = "JSONB";
+
+    return table_descriptor;
+  },
+});

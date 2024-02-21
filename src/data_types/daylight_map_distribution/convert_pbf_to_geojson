@@ -1,0 +1,16 @@
+#! /bin/bash
+
+# NOTE: Must specify the OSM layer when dumping PBF to GeoJSON.
+# https://trac.osgeo.org/gdal/ticket/6474
+#
+# https://gdal.org/drivers/vector/geojsonseq.html
+
+set -e
+
+ogr2ogr \
+  -F GeoJSONSeq \
+  /vsistdout/ \
+  ./initial_data/nys-daylight-merged-with-buildings.osm.pbf multipolygons \
+| ./parser \
+| ../../data_utils/streaming/ndjson_to_geojson \
+> daylight_with_buildings_v1_38.geojson
