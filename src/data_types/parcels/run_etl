@@ -1,0 +1,43 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const dedent = require('dedent')
+
+const { runETLFromCLI } = require("data_utils/gis/etl");
+
+// https://gis.ny.gov/parcels
+const layer_name = "NYS_Tax_Parcels_Agencies";
+
+const source_info = {
+  name: "nys_parcel_map",
+  display_name: "NYS Parcel Map",
+  description: dedent(`
+    The Statewide Parcel Map program is the formalization of work that has been going on in New York for more than a decade.
+
+    As far back as 2004, the NYS Geospatial Advisory Council identified tax parcel boundary and land ownership information as one of three framework data sets necessary for governments to effectively use and benefit from GIS technology.
+
+    During 2007-2008, the Office Cyber Security and Critical Infrastructure Coordination utilized a USGS CAP grant to develop the NYS GIS Strategic Plan. The Geospatial Advisory Council and the NYS GIS Association collaborated.  In addition to identifying very high demand for parcel data across the stakeholder community, the plan's recommendations included five prioritized initiatives that would advance the geospatial programs within the state. The highest priority recommendation was to "[f]ormally pursue a program to develop a statewide parcel data layer…" (p.38)
+
+    In 2011, the Office of Cyber Security utilized another CAP grant to develop the Business Plan for Centralized Access to Consistent Cadastral Data which identified that at least a dozen NYS agencies undertake independent efforts to gather, standardize and utilize tax parcel data. It also identified "enormous barriers" to gaining universal acceptance of sharing and standardization of the data.
+
+    In 2014, the NYS Information Technology Services (ITS) GIS Program Office (GPO) created the Statewide Parcel Map Program and began the work of collecting GIS tax parcel data from counties and incorporating it into a statewide dataset under a common data schema for release to the public.
+  `)
+};
+
+const view_info = {
+  table_schema: "nys_parcel_map",
+  table_name: "nys_parcels_2022",
+  geography_version: 36,
+  source_url:
+    "https://gisdata.ny.gov/GISData/State/Parcels/NYS-Tax-Parcels.zip",
+  publisher: "NYS Information Technology Services (ITS) GIS Program Office (GPO) Statewide Parcel Map Program",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: true,
+});
