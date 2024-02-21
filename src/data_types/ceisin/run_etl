@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { runETLFromCLI } = require("data_utils/gis/etl");
+
+const layer_name = "ceisin_building_footprints";
+
+const source_info = {
+  name: "ceisin_building_footprints",
+  display_name: "CEISIN New York State Building Footprints with Flood Analysis",
+  description:
+    "CIESIN, with support from New York State Energy Research and Development Authority (NYSERDA), undertook a project to fill in critical data gaps and inform adaptation strategies for climate-exacerbated flooding. The New York State Building Footprints with Flood Analysis project provides a flood assessment model with integrated coastal and riverine flood projections, storm and sea level rise scenarios, building footprints, critical infrastructure, and damage assessments. This tool covers all counties in New York State, excluding New York City. County-specific data is being published on an ongoing basis.",
+};
+
+const view_info = {
+  table_schema: "ceisin",
+  table_name: "building_footprints",
+  geography_version: 36,
+  source_url:
+    "http://fidss.ciesin.columbia.edu/building_data_adaptation",
+  publisher: "Columbia University",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: true,
+});
