@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const dedent = require('dedent')
+
+const { runETLFromCLI } = require("data_utils/gis/etl");
+
+const layer_name = "NewYork";
+
+const source_info = {
+  name: "microsoft_building_footprints",
+  display_name: "Microsoft Building Footprints",
+  description: dedent(`
+    Microsoft has made significant investments in deep learning, computer vision and AI that have been applied to mapping. Over the past few years, Bing Maps has generated high-quality building footprints leveraging AI and harnessing the power of computer vision to identify map features at scale.
+
+    To achieve this, we rely on the Open Source CNTK Unified Toolkit which was developed by Microsoft. Using CNTK we apply our Deep Neural Networks and the ResNet34 with RefineNet up-sampling layers to detect building footprints from Bing imagery. Ensuring the best outputs, we remove noise and suspicious data, such as false positives, from the predictions. Then, apply a polygonization algorithm to detect building edges and angles to create a proper building footprint.
+
+    With the goal to increase the coverage of building footprint data available as open data for OpenStreetMap and humanitarian efforts, we have released millions of building footprints as open data available to download free of charge.
+  `)
+};
+
+const view_info = {
+  table_schema: "microsoft_building_footprints",
+  table_name: "building_footprints",
+  geography_version: 36,
+  source_url:
+    "https://usbuildingdata.blob.core.windows.net/usbuildings-v2/NewYork.geojson.zip",
+  publisher: "Microsoft",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: true,
+});
