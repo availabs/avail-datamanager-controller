@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+
+// https://wiki.openstreetmap.org/wiki/Key:boundary
+
+require("ts-node").register();
+require("tsconfig-paths").register();
+
+const { basename } = require("path");
+
+const { getCliArgs, runETLFromCLI } = require("data_utils/gis/etl");
+
+const args = getCliArgs();
+
+console.log(JSON.stringify(args, null, 4));
+
+const { file_path } = args;
+
+const layer_name = basename(file_path).replace(/\.geojson\..*$/, "");
+
+const source_info = {
+  name: "osm_buildings",
+  display_name: "OSM Buildings",
+  description:
+    "In OpenStreetMap, a building is a man-made structure with a roof, standing more or less permanently in one place.",
+};
+
+const view_info = {
+  table_schema: "osm",
+  table_name: "buildings",
+  geography_version: 36,
+  publisher: "OSM (https://wiki.openstreetmap.org/wiki/Key:building)",
+};
+
+runETLFromCLI({
+  layer_name,
+  source_info,
+  view_info,
+  preserve_text_fields: false,
+  reviseTableDescriptor(table_descriptor) {
+    const osm_id_column_type = table_descriptor.columnTypes.find(
+      ({ col }) => col === "osm_id"
+    );
+
+    osm_id_column_type.db_type = "BIGINT";
+
+    const other_tags_column_type = table_descriptor.columnTypes.find(
+      ({ col }) => col === "other_tags"
+    );
+
+    other_tags_column_type.db_type = "JSONB";
+
+    return table_descriptor;
+  },
+});
