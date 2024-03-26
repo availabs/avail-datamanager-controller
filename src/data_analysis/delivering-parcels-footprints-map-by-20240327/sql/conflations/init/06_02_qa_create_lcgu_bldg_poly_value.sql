@@ -90,6 +90,35 @@ CREATE VIEW :OUTPUT_SCHEMA.qa_total_valuation_equality_test
     ) AS passed -- Three 9's precision
 ;
 
+DROP TABLE IF EXISTS :OUTPUT_SCHEMA.qa_lcgu_footprint_polys_omitted_from_lcgu_bldg_poly_values CASCADE ;
+CREATE TABLE :OUTPUT_SCHEMA.qa_lcgu_footprint_polys_omitted_from_lcgu_bldg_poly_values (
+  ogc_fid   INTEGER NOT NULL
+) WITH (fillfactor=100) ;
+
+INSERT INTO :OUTPUT_SCHEMA.qa_lcgu_footprint_polys_omitted_from_lcgu_bldg_poly_values (
+  ogc_fid
+)
+  SELECT
+      ogc_fid
+    FROM :OUTPUT_SCHEMA.lcgu_union_input_meta
+    WHERE ( dama_view_id = :NYS_ITS_FOOTPRINTS_VIEW_ID )
+
+  EXCEPT
+
+  SELECT
+      ogc_fid
+    FROM :OUTPUT_SCHEMA.lcgu_bldg_poly_value
+;
+
+CREATE VIEW :OUTPUT_SCHEMA.qa_lcgu_footprint_polys_omitted_from_lcgu_bldg_poly_values_test
+  AS
+    SELECT NOT EXISTS (
+      SELECT
+          1
+        FROM :OUTPUT_SCHEMA.qa_lcgu_footprint_polys_omitted_from_lcgu_bldg_poly_values
+    ) AS passed -- Three 9's precision
+;
+
 -- We commit because we want to preserve the failing cases for inspection/debugging.
 COMMIT ;
 
@@ -110,6 +139,11 @@ SELECT
     SELECT
         'QA_TOTAL_VALUATION_EQUALITY' AS failed_test
       FROM :OUTPUT_SCHEMA.qa_total_valuation_equality_test
+      WHERE ( NOT passed )
+    UNION ALL
+    SELECT
+        'QA_NO_OMITTED_LCGU_FOOTPRINT_POLYS' AS failed_test
+      FROM :OUTPUT_SCHEMA.qa_lcgu_footprint_polys_omitted_from_lcgu_bldg_poly_values_test
       WHERE ( NOT passed )
   ) AS t
 \gset
