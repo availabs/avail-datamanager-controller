@@ -7,7 +7,7 @@ BEGIN {
     C["tmc_code"] = 1
     C["measurement_tstamp"] = 2
     C["speed"] = 3
-    C["average_speed"] = 4
+    C["historical_average_speed"] = 4
     C["reference_speed"] = 5
     C["travel_time_seconds"] = 6
     C["data_density"] = 7
