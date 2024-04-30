@@ -49,8 +49,9 @@ export default class TranscomAuthTokenCollector {
 
       await page.waitForSelector("#username");
 
+
       // Type into search box.
-      await page.type("#username", credentials.username);
+      await page.type("#lgnName", credentials.username);
       await page.type(
         "#loginDiv > div > div.login-inner-box > form > div:nth-child(3) > input",
         credentials.password,
