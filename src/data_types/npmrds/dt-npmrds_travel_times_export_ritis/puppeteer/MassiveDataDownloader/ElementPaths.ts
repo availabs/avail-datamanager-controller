@@ -93,25 +93,25 @@ export const stateRegionsListOptions =
   "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div > div:nth-child(1) > div > div.input-wrapper > div * .dropdown-option";
 
 export const gatheringSegmentsSpinner =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div > div.footer > div.search-feedback > span";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div > div.footer > div.search-feedback > span";
 
 export const tmcsSegmentCodesTab =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.TabNavigator > div.Tabs > div:nth-child(3) > div > div";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.TabNavigator > div.Tabs > div:nth-child(3) > div > div";
 
 export const tmcsSegmentCodesTextArea =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > textarea";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > textarea";
 
 export const autoRefreshMapClickTarget =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div:nth-child(2) > label > span";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div:nth-child(2) > label > span";
 
 export const autoRefreshMapCheckBox =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div:nth-child(2) > label > input[type=checkbox]";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div:nth-child(2) > label > input[type=checkbox]";
 
 export const addTmcSegmentCodesButton =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div.footer > div";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div.footer > div";
 
 export const addTmcSegmentCodesSpinner =
-  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(1) > div:nth-child(2) > div > div.SelectedRoadList > div > div.selected-road-list-container > div > div > div.title-wrapper > span > img";
+  "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.SelectedRoadList > div > div.selected-road-list-container > div > div > div.title-wrapper > span > img";
 
 export const addRegionSelectedRoadsButton =
   // "body > main > div > div.QueryFormContainer > div > div.left-panel > form > ol > li:nth-child(2) > div:nth-child(2) > div > div.TabNavigator > div.ContentContainer > div.active-container > div > div > div > div > div > div.footer > div";
