@@ -36,6 +36,7 @@ import {
   getPgEnv,
   verifyIsInTaskEtlContext,
 } from "data_manager/contexts";
+
 import dama_events from "data_manager/events";
 import logger from "data_manager/logger";
 
@@ -169,10 +170,6 @@ export function createNpmrdsDataRangeDownloadRequest(
   end_date: string,
   is_expanded: boolean
 ): NpmrdsDownloadRequest {
-  console.log(
-    JSON.stringify({ state, start_date, end_date, is_expanded }, null, 4)
-  );
-
   const date_range = createDataDateRange(start_date, end_date);
 
   const name = createNpmrdsDownloadName(state, is_expanded, date_range);
@@ -621,7 +618,9 @@ export default class MassiveDataDownloader {
 
     await page.click(ElementPaths.showSegementIdsButton);
 
-    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea, { timeout: SEVEN_MINUTES });
+    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea, {
+      timeout: SEVEN_MINUTES,
+    });
   }
 
   private async closeSelectedSegmentsPopup() {
@@ -673,7 +672,9 @@ export default class MassiveDataDownloader {
 
     const page = await this._getPage();
 
-    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea, { timeout: SEVEN_MINUTES });
+    await page.waitForSelector(ElementPaths.showSegmentIdsPopupTextArea, {
+      timeout: SEVEN_MINUTES,
+    });
 
     const el = await this.$(ElementPaths.showSegmentIdsPopupTextArea, true);
 
@@ -750,6 +751,7 @@ export default class MassiveDataDownloader {
   private async openRegionTmcsSearchTab() {
     if (!(await this.regionTmcsSearchTabIsOpen())) {
       const page = await this._getPage();
+      await page.waitForSelector(ElementPaths.tmcSearchInRegionsBox);
       await page.click(ElementPaths.tmcsSearchRegionTab);
       await page.waitForSelector(ElementPaths.regionSelectorsList);
     }
@@ -1363,7 +1365,7 @@ export default class MassiveDataDownloader {
           <EvaluateFuncWith<Element, [number]>>(
             ((node: HTMLOptionElement, date: number) =>
               ![...node.classList].some((c) => /--outside-month$/.test(c)) &&
-            ![...node.classList].some((c) => /--disabled$/.test(c)) &&
+              ![...node.classList].some((c) => /--disabled$/.test(c)) &&
               node.getAttribute("role") === "button" &&
               +node.innerText.trim() === date)
           ),
@@ -1460,104 +1462,120 @@ export default class MassiveDataDownloader {
     await this.selectFullDay();
   }
 
-  // Select data sources and measures
+  private async selectCompleteMeasuresForDataSource(
+    dataSource: RitisExportNpmrdsDataSource
+  ) {
+    const {
+      dataSourceClickTarget,
+      dataSourceColumnsList,
+      dataSourceColumnCheckboxes,
+    } = ElementPaths.dataSourceCheckboxPaths[dataSource];
 
-  async completePassengerVehicleMeasuresAreSelected() {
-    const el = await this.$(
-      ElementPaths.passengerVehiclesDataSourceRootCheckbox,
-      true
-    );
+    const page = await this._getPage();
 
-    const completeSelected = await el.evaluate(<EvaluateFuncWith<Element, []>>(
-      ((e: HTMLSpanElement) => [...e.classList].some((c) => /checked$/.test(c)))
-    ));
+    // Open
+    const openListRetryLimit = 5;
 
-    return completeSelected;
+    let exportColumnsListEls = await this.$$(dataSourceColumnsList);
+
+    for (let i = 0; i < openListRetryLimit; ++i) {
+      if (exportColumnsListEls.length === 6) {
+        break;
+      }
+
+      await page.click(dataSourceClickTarget);
+
+      try {
+        await page.waitForSelector(dataSourceColumnsList, { timeout: 3000 });
+      } catch (err) {
+        //
+      }
+
+      exportColumnsListEls = await this.$$(dataSourceColumnsList);
+    }
+
+    if (exportColumnsListEls.length !== 6) {
+      throw new Error(
+        "INVARIANT BROKEN: Unable to get 6 Passenger Vehicles Export Column Options"
+      );
+    }
+
+    const { ExportDataSourceColumns, ExportDataSourceColumnsListIndex } =
+      ElementPaths;
+
+    const columnsToSelect = [
+      ExportDataSourceColumns.Speed,
+      ExportDataSourceColumns.HistoricalAverageSpeed,
+      ExportDataSourceColumns.ReferenceSpeed,
+      ExportDataSourceColumns.TravelTime,
+      ExportDataSourceColumns.DataDensity,
+    ];
+
+    const columnsToDeselect = [ExportDataSourceColumns.AADT];
+
+    for (const col of columnsToSelect) {
+      const idx = ExportDataSourceColumnsListIndex[col];
+      const el = exportColumnsListEls[idx];
+
+      let classNames = await (await el.getProperty("className")).jsonValue();
+
+      if (!/checked$/.test(classNames)) {
+        const sel = dataSourceColumnCheckboxes[col];
+
+        await page.click(sel);
+
+        classNames = await (await el.getProperty("className")).jsonValue();
+
+        if (!/checked$/.test(classNames)) {
+          throw new Error(`Unable to select datasource ${col}`);
+        }
+      }
+    }
+
+    for (const col of columnsToDeselect) {
+      const idx = ExportDataSourceColumnsListIndex[col];
+      const el = exportColumnsListEls[idx];
+
+      let classNames = await (await el.getProperty("className")).jsonValue();
+
+      if (/checked$/.test(classNames)) {
+        const sel = dataSourceColumnCheckboxes[col];
+
+        await page.click(sel);
+
+        classNames = await (await el.getProperty("className")).jsonValue();
+
+        if (/checked$/.test(classNames)) {
+          throw new Error(`Unable to deselect datasource ${col}`);
+        }
+      }
+    }
   }
 
   async selectCompletePassengerVehicleMeasures() {
-    const page = await this._getPage();
-
-    let count = 0;
-    while (true) {
-      if (await this.completePassengerVehicleMeasuresAreSelected()) {
-        break;
-      }
-
-      if (++count > 3) {
-        throw new Error(
-          "Unable to select complete passenger vehicle measures."
-        );
-      }
-
-      await page.click(ElementPaths.passengerVehiclesDataSourceClickTarget);
-    }
-  }
-
-  async completeAllVehicleMeasuresAreSelected() {
-    const el = await this.$(
-      ElementPaths.allVehiclesDataSourceRootCheckbox,
-      true
+    return this.selectCompleteMeasuresForDataSource(
+      RitisExportNpmrdsDataSource.PASSENGER_VEHICLES
     );
-
-    const completeSelected = await el.evaluate(<EvaluateFuncWith<Element, []>>(
-      ((e: HTMLSpanElement) => [...e.classList].some((c) => /checked$/.test(c)))
-    ));
-
-    return completeSelected;
   }
 
   async selectCompleteAllVehicleMeasures() {
-    const page = await this._getPage();
-
-    let count = 0;
-    while (true) {
-      if (await this.completeAllVehicleMeasuresAreSelected()) {
-        break;
-      }
-
-      if (++count > 3) {
-        throw new Error(
-          "Unable to select complete passenger vehicle measures."
-        );
-      }
-
-      await page.click(ElementPaths.allVehiclesDataSourceClickTarget);
-    }
-  }
-
-  async completeTruckMeasuresAreSelected() {
-    const el = await this.$(ElementPaths.trucksDataSourceRootCheckbox, true);
-
-    const completeSelected = await el.evaluate(<EvaluateFuncWith<Element, []>>(
-      ((e: HTMLSpanElement) => [...e.classList].some((c) => /checked$/.test(c)))
-    ));
-
-    return completeSelected;
+    return this.selectCompleteMeasuresForDataSource(
+      RitisExportNpmrdsDataSource.ALL_VEHICLES
+    );
   }
 
   async selectCompleteTruckMeasures() {
-    const page = await this._getPage();
-
-    let count = 0;
-    while (true) {
-      if (await this.completeTruckMeasuresAreSelected()) {
-        break;
-      }
-
-      if (++count > 3) {
-        throw new Error(
-          "Unable to select complete passenger vehicle measures."
-        );
-      }
-
-      await page.click(ElementPaths.trucksDataSourceClickTarget);
-    }
+    return this.selectCompleteMeasuresForDataSource(
+      RitisExportNpmrdsDataSource.TRUCKS
+    );
   }
 
   async selectAllMeasures() {
+    await sleep(1 * SECOND);
     await this.selectCompletePassengerVehicleMeasures();
+    await sleep(1 * SECOND);
     await this.selectCompleteAllVehicleMeasures();
+    await sleep(1 * SECOND);
     await this.selectCompleteTruckMeasures();
   }
 
