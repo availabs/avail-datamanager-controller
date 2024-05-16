@@ -149,9 +149,9 @@ async function getStateNpmrdsExportRequests(events: EtlEvent[]) {
     NpmrdsDataSources.NpmrdsTravelTimesImports
   );
 
-  const state_npmrds_export_requests = await Promise.all(
-    states
-      .map((state) =>
+  const state_npmrds_export_requests = (
+    await Promise.all(
+      states.map((state) =>
         getBatchExportRequest(
           source_id,
           state,
@@ -160,8 +160,8 @@ async function getStateNpmrdsExportRequests(events: EtlEvent[]) {
           override_max_partitions
         )
       )
-      .filter(Boolean)
-  );
+    )
+  ).filter(Boolean);
 
   state_export_requests_event = {
     type: EventType.STATE_NPMRDS_EXPORT_REQUEST,
