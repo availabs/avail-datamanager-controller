@@ -78,7 +78,7 @@ async function main() {
 
     logger.info(`==> etl_context_id: ${etl_context_id}`);
 
-    await batch_etl_main(initial_event);
+    await scheduled_etl_main(initial_event);
 
     console.log("after");
   });
