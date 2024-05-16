@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-/* eslint-disable @typescript-eslint/no-var-requires */
-
 require("ts-node").register();
 require("tsconfig-paths").register();
 
@@ -20,44 +18,34 @@ const scheduled_etl_main = require("./scheduled-etl").default;
 
 const worker_path = join(__dirname, "./scheduled-etl.worker.ts");
 
-const {
-  pg_env,
-  state,
-  start_date,
-  end_date,
-  is_expanded,
-  override_max_partitions,
-  logging_level,
-} = yargs(hideBin(process.argv))
-  // .usage(
-  // // "Usage $0 --pg_env [PostgresSQL Database] --etl_context_id [Etl Context ID]"
-  // )
-  .strict()
-  .options({
-    pg_env: {
-      alias: "p",
-      describe: "The PostgresSQL Database",
-      demandOption: true,
-    },
-    is_expanded: {
-      describe: "Use the RITIS expanded map",
-      boolean: true,
-      default: true,
-    },
-    override_max_partitions: {
-      describe:
-        "Override the batch max number of jobs. Defaults to 3 month/weeks max downloaded.",
-      boolean: true,
-      default: false,
-    },
-    logging_level: {
-      alias: "l",
-      describe: "The logging level",
-      demandOption: false,
-      default: "debug",
-      choices: ["error", "warn", "info", "debug", "silly"],
-    },
-  }).argv;
+const { pg_env, state, is_expanded, override_max_partitions, logging_level } =
+  yargs(hideBin(process.argv))
+    .strict()
+    .options({
+      pg_env: {
+        alias: "p",
+        describe: "The PostgresSQL Database",
+        demandOption: true,
+      },
+      is_expanded: {
+        describe: "Use the RITIS expanded map",
+        boolean: true,
+        default: true,
+      },
+      override_max_partitions: {
+        describe:
+          "Override the batch max number of jobs. Defaults to 3 month/weeks max downloaded.",
+        boolean: true,
+        default: false,
+      },
+      logging_level: {
+        alias: "l",
+        describe: "The logging level",
+        demandOption: false,
+        default: "debug",
+        choices: ["error", "warn", "info", "debug", "silly"],
+      },
+    }).argv;
 
 logger.level = logging_level;
 
@@ -73,13 +61,11 @@ async function main() {
       type: ":INITIAL",
       payload: {
         state,
-        start_date,
-        end_date,
         is_expanded,
         override_max_partitions,
       },
       meta: {
-        note: `batch ETL from CLI: ${state} ${start_date} to ${end_date}`,
+        note: `scheduled batch ETL from CLI`,
         // Because we are by-passing the TaskQueue, we need this to use ./runTask if later needed.
         __dama_task_manager__: {
           dama_host_id,
