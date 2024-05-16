@@ -483,7 +483,7 @@ class DamaEvents extends DamaContextAttachedResource {
       // NOTE:  The following two synchronous lines get the listeners, then unregister them.
       //
       //        While they are executing, because Node is single-threaded,
-      //          not new listeners can be registered.
+      //          no new listeners can be registered.
       //
       //        If a new listener is registered after they finish,
       //          the registerEtlContextDoneListener method calls that listener
@@ -623,6 +623,8 @@ class DamaEvents extends DamaContextAttachedResource {
       });
 
       // Will call notifyFinalEventListeners when an EtlContext gets a :FINAL event.
+      // NOTE: ETL_CONTEXT_FINAL_EVENT event is fired by pg_notify in
+      //       data_manager.event_store_etl_context_status_update_fn TRIGGER FUNCTION.
       subscriber.notifications.on("ETL_CONTEXT_FINAL_EVENT", (eci) =>
         this.notifyFinalEventListeners(eci, pg_env, true)
       );

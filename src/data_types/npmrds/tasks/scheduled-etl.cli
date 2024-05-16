@@ -16,9 +16,9 @@ const dama_host_id = require("constants/damaHostId").default;
 
 const { runInDamaContext } = require("data_manager/contexts");
 
-const batch_etl_main = require("./batched-etl").default;
+const scheduled_etl_main = require("./scheduled-etl").default;
 
-const worker_path = join(__dirname, "./batched-etl.worker.ts");
+const worker_path = join(__dirname, "./scheduled-etl.worker.ts");
 
 const {
   pg_env,
@@ -37,22 +37,6 @@ const {
     pg_env: {
       alias: "p",
       describe: "The PostgresSQL Database",
-      demandOption: true,
-    },
-
-    state: {
-      describe: "The state",
-      string: true,
-      demandOptions: true,
-    },
-    start_date: {
-      describe: "The start_date",
-      string: true,
-      demandOption: true,
-    },
-    end_date: {
-      describe: "The end_date",
-      string: true,
       demandOption: true,
     },
     is_expanded: {

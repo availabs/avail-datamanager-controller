@@ -59,7 +59,7 @@ export default {
           start_date,
           end_date,
           is_expanded,
-          override_max_paritions,
+          override_max_partitions,
         } = params;
 
         const initial_event: BatchedEtlInitialEvent = {
@@ -69,7 +69,7 @@ export default {
             start_date,
             end_date,
             is_expanded,
-            override_max_paritions,
+            override_max_partitions,
           },
           meta: { note: "NPMRDS aggregate ETL" },
         };

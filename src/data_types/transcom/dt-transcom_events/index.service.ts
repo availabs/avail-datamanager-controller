@@ -91,6 +91,8 @@ export default {
         const options = { retryLimit: 1, expireInHours: 10 };
 
         await dama_tasks.scheduleDamaTask(dama_task_descr, options);
+
+        console.log(`DONE: scheduleTranscomEventsEtl cron='${cron}'`);
       },
     },
 

@@ -1,5 +1,4 @@
 import { join } from "path";
-
 import _ from "lodash";
 import dama_events from "data_manager/events";
 import {
@@ -19,7 +18,7 @@ import { InitialEvent as AggregateEtlInitialEvent } from "./aggregate-etl";
 
 export type InitialEvent = AggregateEtlInitialEvent & {
   payload: {
-    override_max_paritions?: boolean;
+    override_max_partitions?: boolean;
   };
 };
 
@@ -43,7 +42,7 @@ export default async function main(initial_event: InitialEvent) {
       start_date,
       end_date,
       is_expanded,
-      override_max_paritions = false,
+      override_max_partitions = false,
     },
   } = initial_event;
 
@@ -69,7 +68,7 @@ export default async function main(initial_event: InitialEvent) {
   // Limit the number of batches so we don't inadvertently request years of data from RITIS.
   if (
     batches.length > MAX_DOWNLOAD_PARTITIONS_PER_STATE &&
-    !override_max_paritions
+    !override_max_partitions
   ) {
     throw new Error(
       `ETL for ${state} ${start_date} to ${end_date} would spawn ${batches.length} subtasks, exceeding the max of ${MAX_DOWNLOAD_PARTITIONS_PER_STATE}.`
@@ -79,46 +78,46 @@ export default async function main(initial_event: InitialEvent) {
   logger.debug(JSON.stringify({ batches }, null, 4));
 
   // FIXME: Change the following so that the tasks are queued in order.
-  const done_data = await Promise.all(
-    batches.map(async (export_request) => {
-      const { start_date: batch_start_date, end_date: batch_end_date } =
-        export_request;
+  const done_data = [] as any[];
 
-      const start = batch_start_date.replace(/-/g, "");
-      const end = batch_end_date.replace(/-/g, "");
+  for (const export_request of batches) {
+    const { start_date: batch_start_date, end_date: batch_end_date } =
+      export_request;
 
-      const subtask_name = `${state}/${start}-${end}`;
+    const start = batch_start_date.replace(/-/g, "");
+    const end = batch_end_date.replace(/-/g, "");
 
-      const task_initial_event: AggregateEtlInitialEvent = {
-        type: ":INITIAL",
-        payload: export_request,
-        meta: {
-          note: `aggregate ETL for ${state} ${batch_start_date} to ${batch_end_date}`,
-        },
-      };
+    const subtask_name = `${state}/${start}-${end}`;
 
-      const dama_task_descriptor: QueuedDamaTaskDescriptor = {
-        worker_path: aggregate_etl_worker_path,
-        dama_task_queue_name: NpmrdsTaskQueue.AGGREGATE_ETL,
-        parent_context_id: getEtlContextId(),
-        initial_event: task_initial_event,
-      };
+    const task_initial_event: AggregateEtlInitialEvent = {
+      type: ":INITIAL",
+      payload: export_request,
+      meta: {
+        note: `aggregate ETL for ${state} ${batch_start_date} to ${batch_end_date}`,
+      },
+    };
 
-      const subtask_config: SubtaskConfig = {
-        subtask_name,
-        dama_task_descriptor,
-        subtask_queued_event_type: `${subtask_name}:QUEUED`,
-        subtask_done_event_type: `${subtask_name}:DONE`,
-      };
+    const dama_task_descriptor: QueuedDamaTaskDescriptor = {
+      worker_path: aggregate_etl_worker_path,
+      dama_task_queue_name: NpmrdsTaskQueue.AGGREGATE_ETL,
+      parent_context_id: getEtlContextId(),
+      initial_event: task_initial_event,
+    };
 
-      const { etl_context_id } = await doSubtask(subtask_config);
+    const subtask_config: SubtaskConfig = {
+      subtask_name,
+      dama_task_descriptor,
+      subtask_queued_event_type: `${subtask_name}:QUEUED`,
+      subtask_done_event_type: `${subtask_name}:DONE`,
+    };
 
-      return {
-        etl_context_id,
-        export_request,
-      };
-    })
-  );
+    const { etl_context_id } = await doSubtask(subtask_config);
+
+    done_data.push({
+      etl_context_id,
+      export_request,
+    });
+  }
 
   final_event = {
     type: ":FINAL",
