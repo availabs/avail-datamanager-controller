@@ -257,7 +257,7 @@ export async function doQA() {
   });
 
   const sql = dedent(`
-    WITH RECURSIVE cte_etl_context_tree (
+    WITH RECURSIVE cte_etl_context_tree AS (
       SELECT
           $1 AS etl_context_id
       UNION ALL
