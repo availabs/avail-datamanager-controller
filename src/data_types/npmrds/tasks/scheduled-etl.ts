@@ -42,6 +42,8 @@ import qaNpmrdsTravelTimeImports from "../dt-npmrds_travel_times_imp/tasks/qa_im
 
 import makeTravelTimesExportTablesAuthoritative from "../dt-npmrds_travel_times/actions/makeTravelTimesExportTablesAuthoritative";
 
+import updateTmcDateRanges from "../dt-npmrds_tmc_date_ranges/main";
+
 export type InitialEvent = {
   type: ":INITIAL";
   payload?: {
@@ -361,6 +363,8 @@ export default async function main(initial_event: InitialEvent) {
   const { view_ids } = await doQA();
 
   const make_auth_done_data = await makeAuthoritative(view_ids);
+
+  await updateTmcDateRanges();
 
   final_event = {
     type: ":FINAL",
