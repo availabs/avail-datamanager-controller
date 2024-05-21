@@ -38,6 +38,10 @@ import { InitialEvent as BatchedEtlInitialEvent } from "./batched-etl";
 
 import MassiveDataDownloader from "../dt-npmrds_travel_times_export_ritis/puppeteer/MassiveDataDownloader";
 
+import qaNpmrdsTravelTimeImports from "../dt-npmrds_travel_times_imp/tasks/qa_imports";
+
+import makeTravelTimesExportTablesAuthoritative from "../dt-npmrds_travel_times/actions/makeTravelTimesExportTablesAuthoritative";
+
 export type InitialEvent = {
   type: ":INITIAL";
   payload?: {
@@ -49,6 +53,8 @@ export type InitialEvent = {
 
 export enum EventType {
   "STATE_NPMRDS_EXPORT_REQUEST" = "STATE_NPMRDS_EXPORT_REQUEST",
+  "QA_TRAVEL_TIME_IMPORTS" = "QA_TRAVEL_TIME_IMPORTS",
+  "MAKE_AUTHORITATIVE" = "MAKE_AUTHORITATIVE",
 }
 
 const expected_date_format_re = /^\d{4}-\d{2}-\d{2}$/;
@@ -235,6 +241,104 @@ async function runStateBatchETLs(state_export_requests: NpmrdsExportRequest[]) {
   return task_done_event.payload;
 }
 
+export async function doQA() {
+  const done_event_type = `${EventType.QA_TRAVEL_TIME_IMPORTS}:DONE`;
+
+  const events = await dama_events.getAllEtlContextEvents();
+
+  let done_event = events.find(({ type }) => type === done_event_type);
+
+  if (done_event) {
+    return done_event.payload;
+  }
+
+  await dama_events.dispatch({
+    type: `${EventType.QA_TRAVEL_TIME_IMPORTS}:START`,
+  });
+
+  const sql = dedent(`
+    WITH RECURSIVE cte_etl_context_tree (
+      SELECT
+          $1 AS etl_context_id
+      UNION ALL
+      SELECT
+          a.etl_context_id
+        FROM data_manager.etl_contexts AS a
+          INNER JOIN cte_etl_context_tree AS b
+            ON ( a.parent_context_id = b.etl_context_id )
+    )
+      SELECT
+          a.view_id
+        FROM data_manager.views AS a
+          INNER JOIN cte_etl_context_tree AS b
+            USING (etl_context_id)
+          INNER JOIN data_manager.sources AS c
+            USING ( source_id )
+        WHERE ( c.name = $2 )
+  `);
+
+  const { rows: travel_time_import_view_ids_result } = await dama_db.query({
+    text: sql,
+    values: [
+      getEtlContextId(),
+      NpmrdsDataSources.NpmrdsTmcIdentificationImports,
+    ],
+  });
+
+  const view_ids = travel_time_import_view_ids_result.map(
+    ({ view_id }) => view_id
+  );
+
+  if (!view_ids.length) {
+    throw new Error("No travel_time_import_view_ids for this ETL Context Tree");
+  }
+
+  const err_msgs = await qaNpmrdsTravelTimeImports(view_ids);
+
+  if (err_msgs) {
+    const error_message = err_msgs.join("\n");
+
+    // NOTE: TaskRunner takes care of dispatching the :ERROR Event.
+    throw new Error(error_message);
+  }
+
+  done_event = {
+    type: done_event_type,
+    payload: { view_ids },
+  };
+
+  await dama_events.dispatch(done_event);
+
+  return done_event.payload;
+}
+
+export async function makeAuthoritative(view_ids: number[]) {
+  const done_event_type = `${EventType.MAKE_AUTHORITATIVE}:DONE`;
+
+  const events = await dama_events.getAllEtlContextEvents();
+
+  let done_event = events.find(({ type }) => type === done_event_type);
+
+  if (done_event) {
+    return done_event.payload;
+  }
+
+  await dama_events.dispatch({
+    type: `${EventType.QA_TRAVEL_TIME_IMPORTS}:START`,
+  });
+
+  const done_data = await makeTravelTimesExportTablesAuthoritative(view_ids);
+
+  done_event = {
+    type: done_event_type,
+    payload: done_data,
+  };
+
+  await dama_events.dispatch(done_event);
+
+  return done_event.payload;
+}
+
 export default async function main(initial_event: InitialEvent) {
   verifyIsInTaskEtlContext();
 
@@ -246,18 +350,24 @@ export default async function main(initial_event: InitialEvent) {
     return final_event.payload;
   }
 
+  await dama_events.dispatch({ type: ":START_ETL_PROCESS" });
+
   const state_export_requests = await getStateNpmrdsExportRequests(events);
 
   logger.debug(JSON.stringify({ state_export_requests }, null, 4));
 
-  const done_data = await runStateBatchETLs(state_export_requests);
+  const batch_etl_done_data = await runStateBatchETLs(state_export_requests);
+
+  const { view_ids } = await doQA();
+
+  const make_auth_done_data = await makeAuthoritative(view_ids);
 
   final_event = {
     type: ":FINAL",
-    payload: done_data,
+    payload: { batch_etl_done_data, make_auth_done_data },
   };
 
   await dama_events.dispatch(final_event);
 
-  return done_data;
+  return final_event.payload;
 }
