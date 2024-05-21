@@ -281,7 +281,7 @@ export async function doQA() {
     text: sql,
     values: [
       +getEtlContextId(),
-      NpmrdsDataSources.NpmrdsTmcIdentificationImports,
+      NpmrdsDataSources.NpmrdsTravelTimesImports,
     ],
   });
 
