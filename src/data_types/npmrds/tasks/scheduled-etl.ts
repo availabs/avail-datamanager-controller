@@ -259,7 +259,7 @@ export async function doQA() {
   const sql = dedent(`
     WITH RECURSIVE cte_etl_context_tree AS (
       SELECT
-          $1 AS etl_context_id
+          $1::INTEGER AS etl_context_id
       UNION ALL
       SELECT
           a.etl_context_id
